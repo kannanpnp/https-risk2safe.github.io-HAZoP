@@ -1,0 +1,2807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Risk2Safe BowTie Studio</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --hazard:#f5c800; --hazard-dk:#c49b00;
+  --threat:#1a3a6b; --threat-lt:#2a5298;
+  --cons:#c0392b;   --cons-lt:#e74c3c;
+  --barrier-lt:#5d7a96;
+  --esc:#e67e22;    --esc-lt:#f39c12;
+  --dc:#27ae60;     --dc-lt:#2ecc71;
+  --bg:#0a0e1a;     --bg-card:#111827; --bg-card2:#1a2235;
+  --text:#e8edf5;   --muted:#7a8fa8;   --border:#243050;
+  --accent:#00b4d8;
+  --pol:#7c3aed; --act:#0ea5e9; --proc:#10b981; --std:#f59e0b;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden; }
+
+/* HEADER */
+header { background:linear-gradient(135deg,#0d1f3c,#112244,#0a1628); border-bottom:2px solid var(--hazard); padding:14px 24px; display:flex; align-items:center; gap:14px; position:sticky; top:0; z-index:100; box-shadow:0 4px 20px rgba(0,0,0,.5); }
+.logo svg { width:38px; height:24px; }
+header h1 { font-family:'Rajdhani',sans-serif; font-size:1.35rem; font-weight:700; letter-spacing:.05em; }
+header h1 span { color:var(--hazard); }
+.hdr-sub { font-size:.68rem; color:var(--muted); letter-spacing:.1em; text-transform:uppercase; margin-left:auto; }
+
+/* LAYOUT */
+.app { display:flex; height:calc(100vh - 60px); }
+
+/* SIDEBAR */
+.sidebar { width:330px; background:var(--bg-card); border-right:1px solid var(--border); overflow-y:auto; flex-shrink:0; }
+.sidebar::-webkit-scrollbar { width:4px; }
+.sidebar::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+.s-sec { border-bottom:1px solid var(--border); padding:13px 15px; }
+.s-lbl { font-family:'Rajdhani',sans-serif; font-size:.68rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+label { display:block; font-size:.76rem; color:var(--muted); margin-bottom:3px; font-weight:500; }
+input[type=text] { width:100%; background:var(--bg-card2); border:1px solid var(--border); border-radius:5px; color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:.78rem; padding:6px 8px; outline:none; transition:border-color .2s; }
+input[type=text]:focus { border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,180,216,.1); }
+select { width:100%; background:var(--bg-card2); border:1px solid var(--border); border-radius:5px; color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:.78rem; padding:6px 8px; outline:none; }
+select:focus { border-color:var(--accent); }
+.btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:5px; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.78rem; letter-spacing:.04em; cursor:pointer; border:none; transition:all .15s; }
+.btn-primary { background:var(--accent); color:#0a0e1a; }
+.btn-primary:hover { background:#00d0f8; }
+.btn-threat { background:var(--threat); color:#fff; }
+.btn-threat:hover { background:var(--threat-lt); }
+.btn-cons { background:var(--cons); color:#fff; }
+.btn-cons:hover { background:var(--cons-lt); }
+.btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+.btn-ghost:hover { background:var(--bg-card2); color:var(--text); }
+.btn-group { display:flex; gap:7px; margin-top:8px; flex-wrap:wrap; }
+.rule { background:linear-gradient(90deg,rgba(0,180,216,.07),transparent); border-left:2px solid var(--accent); padding:5px 9px; font-size:.69rem; color:var(--muted); line-height:1.5; margin-top:7px; border-radius:0 4px 4px 0; }
+.rule strong { color:var(--accent); }
+.mt { margin-top:7px; }
+
+/* barrier sub-form inside sidebar */
+.barrier-entry { background:var(--bg-card2); border:1px solid var(--border); border-radius:6px; padding:10px 11px; margin-top:8px; }
+.barrier-entry-title { font-family:'Rajdhani',sans-serif; font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--barrier-lt); margin-bottom:8px; }
+.df-entry { background:rgba(230,126,34,.06); border:1px solid rgba(230,126,34,.25); border-radius:5px; padding:8px 10px; margin-top:7px; }
+.df-entry-title { font-family:'Rajdhani',sans-serif; font-size:.65rem; font-weight:700; color:var(--esc-lt); letter-spacing:.1em; text-transform:uppercase; margin-bottom:6px; }
+.dc-entry { background:rgba(39,174,96,.06); border:1px solid rgba(39,174,96,.2); border-radius:4px; padding:6px 8px; margin-top:5px; }
+.dc-entry-title { font-family:'Rajdhani',sans-serif; font-size:.63rem; font-weight:700; color:var(--dc-lt); letter-spacing:.08em; text-transform:uppercase; margin-bottom:4px; }
+.add-link { font-size:.72rem; color:var(--accent); cursor:pointer; display:inline-flex; align-items:center; gap:3px; margin-top:5px; background:none; border:none; padding:0; font-family:'IBM Plex Sans',sans-serif; }
+.add-link:hover { text-decoration:underline; }
+.remove-link { font-size:.68rem; color:#e74c3c; cursor:pointer; background:none; border:none; padding:0; font-family:'IBM Plex Sans',sans-serif; float:right; }
+.remove-link:hover { text-decoration:underline; }
+
+
+/* AI PANEL */
+.ai-panel { background:linear-gradient(135deg,#0d1f3c,#0a2040); border:1px solid #1e4080; border-radius:7px; padding:10px 12px; margin-top:8px; }
+.ai-title { font-family:'Rajdhani',sans-serif; font-size:.76rem; font-weight:700; color:var(--accent); letter-spacing:.08em; display:flex; align-items:center; gap:5px; margin-bottom:6px; }
+.pulse { width:7px; height:7px; border-radius:50%; background:var(--accent); animation:pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+.ai-status { font-size:.71rem; color:var(--muted); margin-bottom:6px; line-height:1.4; }
+.suggestions { display:flex; flex-direction:column; gap:5px; max-height:260px; overflow-y:auto; margin-top:8px; }
+.suggestions::-webkit-scrollbar { width:3px; }
+.suggestions::-webkit-scrollbar-thumb { background:#1e4080; border-radius:2px; }
+.chip { background:rgba(0,180,216,.07); border:1px solid rgba(0,180,216,.18); border-radius:5px; padding:6px 8px; font-size:.72rem; color:var(--text); cursor:pointer; transition:all .15s; line-height:1.4; }
+.chip:hover { background:rgba(0,180,216,.16); border-color:var(--accent); }
+.chip-lbl { font-size:.62rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; display:block; margin-bottom:2px; }
+.chip-threat .chip-lbl { color:#5b8fd4; }
+.chip-cons .chip-lbl { color:#e47670; }
+.dots { display:inline-flex; gap:4px; align-items:center; }
+.dots span { width:5px; height:5px; border-radius:50%; background:var(--accent); animation:db 1.2s ease-in-out infinite; }
+.dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
+@keyframes db { 0%,80%,100%{transform:scale(.6);opacity:.5} 40%{transform:scale(1);opacity:1} }
+.key-status { display:inline-block; font-size:.6rem; padding:1px 6px; border-radius:3px; margin-left:6px; font-weight:600; letter-spacing:.04em; }
+.key-set { background:rgba(39,174,96,.15); color:#6edba0; border:1px solid #1a5c3a; }
+.key-unset { background:rgba(231,76,60,.15); color:#e47670; border:1px solid #7b1010; }
+.key-btn-row { display:flex; gap:5px; margin-top:6px; }
+.key-btn { font-size:.66rem; padding:3px 8px; border-radius:4px; cursor:pointer; border:none; font-family:'IBM Plex Sans',sans-serif; }
+.key-btn-set { background:var(--accent); color:#0a0e1a; font-weight:600; }
+.key-btn-set:hover { background:#00d0f8; }
+.key-btn-clear { background:transparent; color:var(--muted); border:1px solid var(--border); }
+.key-btn-clear:hover { background:var(--bg-card2); color:var(--text); }
+
+/* API key modal */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); backdrop-filter:blur(4px); z-index:1000; justify-content:center; align-items:center; }
+.modal-overlay.active { display:flex; }
+.modal-box { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:24px 26px; max-width:520px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,.6); }
+.modal-title { font-family:'Rajdhani',sans-serif; font-size:1.15rem; font-weight:700; letter-spacing:.05em; margin-bottom:6px; color:var(--text); display:flex; align-items:center; gap:8px; }
+.modal-sub { font-size:.8rem; color:var(--muted); line-height:1.5; margin-bottom:16px; }
+.modal-input { width:100%; background:var(--bg-card2); border:1px solid var(--border); border-radius:5px; color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:.78rem; padding:9px 11px; outline:none; margin-bottom:6px; }
+.modal-input:focus { border-color:var(--accent); }
+.modal-hint { font-size:.7rem; color:var(--muted); margin-bottom:16px; line-height:1.5; }
+.modal-hint a { color:var(--accent); text-decoration:none; }
+.modal-hint a:hover { text-decoration:underline; }
+.modal-privacy { background:rgba(39,174,96,.08); border:1px solid rgba(39,174,96,.3); border-radius:6px; padding:10px 12px; margin-bottom:16px; font-size:.7rem; color:var(--muted); line-height:1.6; }
+.modal-privacy strong { color:#6edba0; }
+.modal-actions { display:flex; gap:8px; justify-content:flex-end; }
+.modal-btn { padding:8px 16px; border-radius:5px; font-family:'Rajdhani',sans-serif; font-weight:600; font-size:.85rem; letter-spacing:.04em; cursor:pointer; border:none; }
+.modal-btn-primary { background:var(--accent); color:#0a0e1a; }
+.modal-btn-primary:hover { background:#00d0f8; }
+.modal-btn-secondary { background:transparent; color:var(--muted); border:1px solid var(--border); }
+.modal-btn-secondary:hover { background:var(--bg-card2); color:var(--text); }
+
+
+/* EDIT MODAL & SCE/SCT */
+.edit-modal-box { max-width:560px; }
+.edit-modal-section { background:var(--bg-card2); border:1px solid var(--border); border-radius:6px; padding:10px 12px; margin-bottom:10px; }
+.edit-modal-section-title { font-family:'Rajdhani',sans-serif; font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+.modal-input-full { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:5px; color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:.85rem; padding:8px 10px; outline:none; }
+.modal-input-full:focus { border-color:var(--accent); }
+.modal-select { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:5px; color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:.82rem; padding:7px 10px; outline:none; margin-top:5px; }
+.modal-actions-split { display:flex; justify-content:space-between; gap:8px; margin-top:8px; }
+.modal-btn-danger { background:rgba(231,76,60,.15); color:#e74c3c; border:1px solid rgba(231,76,60,.4); }
+.modal-btn-danger:hover { background:rgba(231,76,60,.25); }
+
+/* Make all elements clickable for editing */
+.bpill, .df-pill, .dc-pill, .t-box, .c-box, .haz-box, .top-event, .esc-badge { transition:all .15s; }
+.bpill:hover, .df-pill:hover, .dc-pill:hover { transform:translateY(-1px); box-shadow:0 2px 8px rgba(0,180,216,.3); cursor:pointer; }
+.t-box:hover, .c-box:hover { cursor:pointer; }
+.haz-box:hover, .top-event:hover { cursor:pointer; box-shadow:0 0 30px rgba(0,180,216,.3); }
+.edit-hint { position:absolute; top:-6px; right:-6px; background:var(--accent); color:#0a0e1a; font-size:.55rem; font-weight:700; padding:1px 4px; border-radius:3px; opacity:0; transition:opacity .15s; pointer-events:none; }
+.t-box:hover .edit-hint, .c-box:hover .edit-hint, .bpill:hover .edit-hint, .df-pill:hover .edit-hint, .dc-pill:hover .edit-hint { opacity:1; }
+
+/* SCE/SCT badges */
+.sce-badge { position:absolute; top:-7px; left:-7px; background:#dc2626; color:#fff; font-size:.55rem; font-weight:700; padding:2px 5px; border-radius:3px; letter-spacing:.05em; box-shadow:0 1px 3px rgba(0,0,0,.4); z-index:5; }
+.sce-badge-h { background:#dc2626; }
+.sce-badge-m { background:#f59e0b; color:#0a0e1a; }
+.sce-badge-l { background:#10b981; color:#0a0e1a; }
+.bpill[data-sce="H"] { box-shadow:0 0 0 2px rgba(220,38,38,.4); }
+.bpill[data-sce="M"] { box-shadow:0 0 0 2px rgba(245,158,11,.4); }
+
+/* SCT panel in canvas */
+.sct-section { margin-top:20px; border:1px solid var(--border); border-radius:9px; background:var(--bg-card); overflow:hidden; }
+.sct-hdr { background:linear-gradient(90deg,#1a0808,#0a1628); padding:9px 16px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); }
+.sct-hdr-title { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.85rem; letter-spacing:.1em; text-transform:uppercase; color:#fda4af; }
+.sct-hdr-sub { font-size:.67rem; color:var(--muted); margin-left:auto; }
+.sct-body { padding:12px 16px; }
+.sct-empty { color:var(--muted); font-size:.74rem; font-style:italic; padding:10px 0; }
+.sct-list { display:flex; flex-direction:column; gap:8px; }
+.sct-item { background:var(--bg-card2); border:1px solid var(--border); border-left:3px solid #dc2626; border-radius:5px; padding:8px 11px; cursor:pointer; transition:all .15s; }
+.sct-item:hover { background:var(--bg); border-left-color:#ef4444; }
+.sct-item-title { font-weight:600; font-size:.8rem; color:var(--text); margin-bottom:2px; }
+.sct-item-meta { font-size:.65rem; color:var(--muted); display:flex; gap:10px; flex-wrap:wrap; }
+.sct-prio { display:inline-block; padding:1px 6px; border-radius:3px; font-size:.6rem; font-weight:700; letter-spacing:.05em; }
+.sct-prio-H { background:rgba(220,38,38,.2); color:#fca5a5; border:1px solid #dc2626; }
+.sct-prio-M { background:rgba(245,158,11,.2); color:#fcd34d; border:1px solid #f59e0b; }
+.sct-prio-L { background:rgba(16,185,129,.2); color:#6ee7b7; border:1px solid #10b981; }
+
+/* Deep SCTA modal */
+.scta-modal-box { max-width:900px; max-height:88vh; overflow-y:auto; }
+.scta-modal-box::-webkit-scrollbar { width:6px; }
+.scta-modal-box::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+.scta-section { margin-bottom:14px; }
+.scta-section-title { font-family:'Rajdhani',sans-serif; font-size:.78rem; font-weight:700; color:var(--accent); letter-spacing:.08em; text-transform:uppercase; margin-bottom:6px; border-bottom:1px solid var(--border); padding-bottom:4px; }
+.scta-step { display:grid; grid-template-columns:auto 1fr; gap:8px; padding:5px 0; font-size:.78rem; }
+.scta-step-num { font-family:'Rajdhani',sans-serif; font-weight:700; color:var(--accent); }
+.scta-table { width:100%; border-collapse:collapse; font-size:.7rem; margin-top:6px; }
+.scta-table th { background:var(--bg-card2); color:var(--muted); font-family:'Rajdhani',sans-serif; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:5px 7px; text-align:left; border:1px solid var(--border); font-size:.65rem; }
+.scta-table td { padding:5px 7px; border:1px solid var(--border); color:var(--text); vertical-align:top; line-height:1.4; }
+.scta-table tr:nth-child(even) td { background:rgba(255,255,255,.02); }
+
+/* Deep analyze button on pathways */
+.deep-btn { background:linear-gradient(135deg,#dc2626,#7f1d1d); color:#fff; border:none; padding:3px 8px; border-radius:4px; font-family:'Rajdhani',sans-serif; font-size:.62rem; font-weight:700; letter-spacing:.05em; cursor:pointer; margin-top:4px; transition:all .15s; }
+.deep-btn:hover { background:linear-gradient(135deg,#ef4444,#991b1b); transform:translateY(-1px); }
+.deep-btn:disabled { opacity:.5; cursor:wait; }
+
+/* Excel export button highlight */
+.btn-excel { background:#10b981; color:#0a0e1a; }
+.btn-excel:hover { background:#34d399; }
+
+/* SCT count badge */
+.sct-counter { background:rgba(220,38,38,.2); color:#fca5a5; border:1px solid #dc2626; padding:2px 7px; border-radius:4px; font-weight:700; font-size:.65rem; }
+
+
+/* PROCESS CONTEXT PANEL */
+.ctx-section { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:11px 13px; margin-bottom:14px; }
+.ctx-section-title { font-family:'Rajdhani',sans-serif; font-size:.78rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#10b981; margin-bottom:6px; display:flex; align-items:center; gap:6px; }
+.ctx-section-hint { font-size:.66rem; color:var(--muted); line-height:1.4; margin-bottom:7px; }
+.ctx-textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:5px; color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:.78rem; padding:7px 9px; outline:none; min-height:65px; resize:vertical; line-height:1.45; }
+.ctx-textarea:focus { border-color:#10b981; }
+.ctx-file-input { display:none; }
+.ctx-upload-btn { display:inline-block; width:100%; background:rgba(16,185,129,.1); border:1px dashed #10b981; color:#6ee7b7; padding:8px 10px; border-radius:5px; font-size:.72rem; text-align:center; cursor:pointer; font-family:'Rajdhani',sans-serif; font-weight:600; letter-spacing:.04em; transition:all .15s; }
+.ctx-upload-btn:hover { background:rgba(16,185,129,.18); border-color:#34d399; color:#a7f3d0; }
+.ctx-file-list { margin-top:7px; display:flex; flex-direction:column; gap:4px; }
+.ctx-file-item { display:flex; align-items:center; gap:6px; padding:5px 8px; background:rgba(16,185,129,.08); border:1px solid rgba(16,185,129,.25); border-radius:4px; font-size:.7rem; }
+.ctx-file-name { flex:1; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ctx-file-size { color:var(--muted); font-size:.62rem; flex-shrink:0; }
+.ctx-file-rm { background:none; border:none; color:#fca5a5; cursor:pointer; font-size:.85rem; padding:0 4px; }
+.ctx-file-rm:hover { color:#ef4444; }
+.ctx-counter { font-size:.62rem; color:var(--muted); margin-top:5px; font-style:italic; }
+.ctx-toggle-row { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px; padding:6px 9px; background:rgba(16,185,129,.06); border-radius:5px; }
+.ctx-toggle-row label { font-size:.68rem; color:var(--text); cursor:pointer; display:flex; align-items:center; gap:6px; }
+.ctx-toggle-row input[type="checkbox"] { accent-color:#10b981; cursor:pointer; }
+
+/* Context banner in AI panel */
+.ctx-banner { font-size:.65rem; color:#6ee7b7; background:rgba(16,185,129,.08); border:1px solid rgba(16,185,129,.25); border-radius:4px; padding:5px 8px; margin-bottom:7px; }
+.ctx-banner-empty { color:var(--muted); background:transparent; border:1px dashed var(--border); }
+
+/* CANVAS */
+.canvas { flex:1; overflow:auto; background:radial-gradient(ellipse at 20% 40%,rgba(26,58,107,.12),transparent 60%),radial-gradient(ellipse at 80% 70%,rgba(192,57,43,.07),transparent 60%),var(--bg); padding:24px 16px 90px; display:flex; flex-direction:column; align-items:center; }
+.canvas::-webkit-scrollbar { width:6px; }
+.canvas::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+/* DIAGRAM */
+.diagram { width:100%; max-width:1600px; }
+.hazard-row { display:flex; justify-content:center; margin-bottom:14px; }
+.haz-box { background:linear-gradient(135deg,#1a1200,#2a1e00); border:2px solid var(--hazard); border-radius:8px; padding:10px 24px; text-align:center; min-width:200px; box-shadow:0 0 20px rgba(245,200,0,.16); position:relative; }
+.haz-box::before { content:''; position:absolute; top:0;left:0;right:0; height:3px; background:repeating-linear-gradient(90deg,var(--hazard) 0,var(--hazard) 8px,#000 8px,#000 14px); border-radius:8px 8px 0 0; }
+.el-lbl { font-family:'Rajdhani',sans-serif; font-size:.58rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; display:block; margin-bottom:2px; }
+.el-val { font-size:.8rem; font-weight:500; line-height:1.3; color:var(--text); word-break:break-word; }
+.el-ph { color:var(--muted); font-style:italic; font-size:.74rem; }
+
+/* BOWTIE */
+.bowtie { display:grid; grid-template-columns:1fr 124px 1fr; gap:0 8px; align-items:start; }
+.threats-col,.cons-col { display:flex; flex-direction:column; gap:10px; padding:4px 0; }
+.empty { color:var(--muted); font-size:.72rem; font-style:italic; text-align:center; padding:16px 0; }
+
+/* TOP EVENT */
+.top-event-wrap { display:flex; justify-content:center; align-items:flex-start; padding-top:20px; }
+.top-event { width:114px; height:114px; border-radius:50%; background:radial-gradient(circle,#7b1010,#4a0808 60%,#2a0404); border:3px solid var(--cons); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:10px; box-shadow:0 0 28px rgba(192,57,43,.35); position:relative; }
+.top-event::after { content:''; position:absolute; inset:-7px; border-radius:50%; border:1px solid rgba(192,57,43,.25); animation:rip 2.5s ease-out infinite; }
+@keyframes rip { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(1.2);opacity:0} }
+.top-event .el-lbl { color:#ff8080; font-size:.56rem; }
+.top-event .el-val { font-size:.7rem; font-weight:600; }
+
+/* PATHWAY */
+.pathway { display:flex; flex-direction:column; gap:4px; }
+.t-row { display:flex; align-items:flex-start; justify-content:flex-end; }
+.c-row { display:flex; align-items:flex-start; justify-content:flex-start; }
+
+/* Threat/Consequence boxes */
+.t-box { background:linear-gradient(135deg,#0d1e3a,#152a50); border:1.5px solid var(--threat); border-right:3px solid var(--threat-lt); border-radius:6px 0 0 6px; padding:7px 10px; min-width:120px; max-width:170px; flex-shrink:0; position:relative; }
+.t-box .el-lbl { color:#5b8fd4; }
+.c-box { background:linear-gradient(135deg,#2a0808,#400c0c); border:1.5px solid var(--cons); border-left:3px solid var(--cons-lt); border-radius:0 6px 6px 0; padding:7px 10px; min-width:120px; max-width:170px; flex-shrink:0; position:relative; }
+.c-box .el-lbl { color:#e47670; }
+.mgmt-tag { font-size:.58rem; color:var(--muted); margin-top:3px; }
+.rm { position:absolute; top:3px; right:3px; width:14px; height:14px; border-radius:50%; background:rgba(231,76,60,.15); border:none; color:#e74c3c; font-size:9px; cursor:pointer; display:none; align-items:center; justify-content:center; }
+.t-box:hover .rm,.c-box:hover .rm { display:flex; }
+
+/* BARRIER TRACK — vertical stack with horizontal wire for each barrier */
+.btrack { display:flex; flex-direction:column; flex:1; min-width:0; gap:0; align-self:stretch; justify-content:flex-start; padding-top:14px; }
+.barrier-line { display:flex; align-items:center; margin-bottom:0; position:relative; }
+.wire { height:2px; flex:1; background:linear-gradient(90deg,var(--threat-lt),#3a5f8a); }
+.wire-r { height:2px; flex:1; background:linear-gradient(90deg,#8a2a2a,var(--cons-lt)); }
+.node { width:12px; height:12px; border:2px solid var(--barrier-lt); border-radius:50%; background:var(--bg); flex-shrink:0; }
+
+/* Barrier pill — with per-barrier data attached below */
+.barrier-group { display:flex; flex-direction:column; }
+.bpill { background:var(--bg-card2); border:1.5px solid var(--barrier-lt); border-radius:5px; padding:4px 7px; font-size:.66rem; font-weight:600; color:var(--text); white-space:normal; word-wrap:break-word; max-width:130px; min-width:60px; flex-shrink:0; position:relative; cursor:default; line-height:1.3; text-align:center; }
+.bpill::before { content:''; display:block; width:100%; height:2px; background:var(--barrier-lt); position:absolute; top:0;left:0; border-radius:5px 5px 0 0; }
+.bpill[data-mgmt="Policy"]::before    { background:var(--pol)!important; }
+.bpill[data-mgmt="Activity"]::before  { background:var(--act)!important; }
+.bpill[data-mgmt="Procedure"]::before { background:var(--proc)!important; }
+.bpill[data-mgmt="Standard"]::before  { background:var(--std)!important; }
+
+/* Degradation sub-path — hangs below each barrier pill */
+.deg-path { padding:3px 0 0 12px; border-left:1.5px dashed rgba(230,126,34,.4); margin-left:6px; }
+.df-row { display:flex; align-items:center; gap:4px; margin-top:3px; }
+.df-pill { background:rgba(230,126,34,.1); border:1px solid var(--esc); border-radius:4px; padding:3px 6px; font-size:.61rem; font-weight:600; color:var(--esc-lt); white-space:normal; word-wrap:break-word; max-width:140px; line-height:1.3; }
+.dc-list { display:flex; flex-direction:column; gap:2px; padding:3px 0 2px 12px; border-left:1.5px dashed rgba(39,174,96,.3); margin-left:10px; }
+.dc-pill { background:rgba(39,174,96,.08); border:1px solid var(--dc); border-radius:4px; padding:3px 6px; font-size:.59rem; color:var(--dc-lt); white-space:normal; word-wrap:break-word; max-width:160px; line-height:1.3; }
+.dc-arrow { font-size:.55rem; color:var(--dc); flex-shrink:0; }
+.df-arrow { font-size:.55rem; color:var(--esc); flex-shrink:0; }
+
+/* MANAGEMENT SYSTEM */
+.mgmt-section { margin-top:22px; border:1px solid var(--border); border-radius:9px; background:var(--bg-card); overflow:hidden; }
+.mgmt-hdr { background:linear-gradient(90deg,#0d1f3c,#0a1628); padding:9px 16px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); }
+.mgmt-hdr-title { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.85rem; letter-spacing:.1em; text-transform:uppercase; }
+.mgmt-hdr-sub { font-size:.67rem; color:var(--muted); margin-left:auto; }
+.mgmt-body { padding:12px 16px; }
+.mgmt-explain { font-size:.71rem; color:var(--muted); line-height:1.6; margin-bottom:12px; }
+.mgmt-explain strong { color:var(--text); }
+.mgmt-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
+.mgmt-card { border-radius:7px; padding:11px 12px; }
+.mgmt-card.pol { background:rgba(124,58,237,.1); border:1.5px solid var(--pol); }
+.mgmt-card.act { background:rgba(14,165,233,.1); border:1.5px solid var(--act); }
+.mgmt-card.proc{ background:rgba(16,185,129,.1); border:1.5px solid var(--proc); }
+.mgmt-card.std { background:rgba(245,158,11,.1); border:1.5px solid var(--std); }
+.mc-icon { font-size:1.1rem; margin-bottom:5px; }
+.mc-title { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.8rem; letter-spacing:.06em; text-transform:uppercase; margin-bottom:4px; }
+.mgmt-card.pol .mc-title{color:var(--pol)}.mgmt-card.act .mc-title{color:var(--act)}.mgmt-card.proc .mc-title{color:var(--proc)}.mgmt-card.std .mc-title{color:var(--std)}
+.mc-desc { font-size:.65rem; color:var(--muted); line-height:1.5; }
+.mc-count { display:inline-block; margin-top:6px; padding:2px 7px; border-radius:10px; font-size:.62rem; font-weight:700; }
+.mgmt-card.pol .mc-count{background:rgba(124,58,237,.2);color:var(--pol)}.mgmt-card.act .mc-count{background:rgba(14,165,233,.2);color:var(--act)}.mgmt-card.proc .mc-count{background:rgba(16,185,129,.2);color:var(--proc)}.mgmt-card.std .mc-count{background:rgba(245,158,11,.2);color:var(--std)}
+.legend-row { display:flex; gap:12px; margin-top:10px; flex-wrap:wrap; }
+.legend-item { display:flex; align-items:center; gap:5px; font-size:.66rem; color:var(--muted); }
+.legend-dot { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+
+/* INFO BAR */
+.info-bar { position:fixed; bottom:0;left:0;right:0; background:rgba(10,14,26,.96); border-top:1px solid var(--border); padding:5px 18px; display:flex; gap:14px; align-items:center; font-size:.7rem; color:var(--muted); backdrop-filter:blur(10px); z-index:50; flex-wrap:wrap; }
+.bdg { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border-radius:4px; font-weight:700; font-size:.65rem; }
+.bdg-t{background:rgba(26,58,107,.5);color:#5b8fd4;border:1px solid #1a3a6b}
+.bdg-c{background:rgba(192,57,43,.2);color:#e47670;border:1px solid #7b1010}
+.bdg-b{background:rgba(93,122,150,.2);color:#9ab4c8;border:1px solid #344e68}
+.bdg-e{background:rgba(230,126,34,.2);color:#e6a05c;border:1px solid #7a4800}
+.bdg-d{background:rgba(39,174,96,.15);color:#6edba0;border:1px solid #1a5c3a}
+
+/* PRINT */
+@media print {
+  @page { size:A3 landscape; margin:10mm 8mm; }
+  html { height:auto!important; overflow:visible!important; }
+  body { height:auto!important; overflow:visible!important; background:#fff!important; color:#000!important; font-size:9px!important; }
+  header,.sidebar,.info-bar,.btn,.btn-group,.ai-panel,.s-lbl,.rule,.rm,.add-link,.remove-link { display:none!important; }
+  .app { display:block!important; height:auto!important; overflow:visible!important; }
+  .canvas { display:block!important; overflow:visible!important; height:auto!important; width:100%!important; padding:0!important; background:#fff!important; flex:none!important; }
+  .diagram { width:100%!important; max-width:100%!important; }
+  .canvas::before { content:'BowTie Risk Assessment'; display:block; font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:700; text-align:center; color:#1a3a6b; margin-bottom:8px; border-bottom:2px solid #c49b00; padding-bottom:5px; }
+  .haz-box{background:#fffde7!important;border:2px solid #c49b00!important;box-shadow:none!important;}
+  .haz-box::before{background:repeating-linear-gradient(90deg,#c49b00 0,#c49b00 8px,#fff 8px,#fff 14px)!important;}
+  .top-event{background:#fff0f0!important;border:3px solid #c0392b!important;box-shadow:none!important;}
+  .top-event::after{display:none!important;}
+  .t-box{background:#edf2fb!important;border:1.5px solid #2a5298!important;}
+  .c-box{background:#fdf0ef!important;border:1.5px solid #c0392b!important;}
+  .bpill{background:#f0f4f8!important;border:1px solid #5d7a96!important;color:#000!important;max-width:none!important;width:auto!important;min-width:0!important;white-space:normal!important;word-wrap:break-word!important;overflow:visible!important;text-overflow:clip!important;font-size:8.5px!important;padding:3px 5px!important;line-height:1.25!important;}
+  .df-pill{max-width:none!important;width:auto!important;white-space:normal!important;word-wrap:break-word!important;overflow:visible!important;text-overflow:clip!important;font-size:7.5px!important;padding:2px 4px!important;line-height:1.2!important;}
+  .dc-pill{max-width:none!important;width:auto!important;white-space:normal!important;word-wrap:break-word!important;overflow:visible!important;text-overflow:clip!important;font-size:7.5px!important;padding:2px 4px!important;line-height:1.2!important;}
+  .t-box,.c-box{max-width:none!important;min-width:0!important;width:auto!important;}
+  .el-val{font-size:9px!important;white-space:normal!important;word-wrap:break-word!important;overflow:visible!important;line-height:1.3!important;}
+  .haz-box .el-val{font-size:11px!important;}
+  .top-event .el-val{font-size:8px!important;line-height:1.2!important;}
+  .bpill::before{background:#5d7a96!important;}
+  .bpill[data-mgmt="Policy"]::before{background:#7c3aed!important;}
+  .bpill[data-mgmt="Activity"]::before{background:#0ea5e9!important;}
+  .bpill[data-mgmt="Procedure"]::before{background:#10b981!important;}
+  .bpill[data-mgmt="Standard"]::before{background:#f59e0b!important;}
+  .wire,.wire-r{background:#bbb!important;}
+  .btrack{padding-top:8px!important;}
+  .barrier-line{align-items:center!important;}
+  .barrier-group{min-width:0!important;flex-shrink:1!important;}
+  .node{border-color:#5d7a96!important;background:#fff!important;}
+  .df-pill{background:#fff8ee!important;border:1px solid #e67e22!important;color:#7a4000!important;}
+  .dc-pill{background:#f0fff4!important;border:1px solid #27ae60!important;color:#1a5c3a!important;}
+  .deg-path{border-left-color:rgba(230,126,34,.5)!important;}
+  .dc-list{border-left-color:rgba(39,174,96,.5)!important;}
+  .mgmt-section{border:1px solid #ccc!important;background:#fafafa!important;}
+  .mgmt-hdr{background:#f0f4f8!important;}
+  .mgmt-card.pol{background:#f5f0ff!important;}
+  .mgmt-card.act{background:#f0f8ff!important;}
+  .mgmt-card.proc{background:#f0fff8!important;}
+  .mgmt-card.std{background:#fffbf0!important;}
+  .mc-desc,.mgmt-explain{color:#555!important;}
+  .el-val,.el-lbl{color:#000!important;}
+  .el-ph{color:#999!important;}
+  .empty{display:none!important;}
+  .top-event .el-lbl{color:#7b1010!important;}
+  .t-box .el-lbl{color:#1a3a6b!important;}
+  .c-box .el-lbl{color:#7b1010!important;}
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/html-docx-js/dist/html-docx.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 44 28" fill="none">
+      <path d="M2 14 L16 4 L22 14 L16 24 Z" fill="#1a3a6b" stroke="#2a5298" stroke-width="1.5"/>
+      <path d="M42 14 L28 4 L22 14 L28 24 Z" fill="#7b1010" stroke="#c0392b" stroke-width="1.5"/>
+      <circle cx="22" cy="14" r="4" fill="#c0392b"/>
+      <circle cx="22" cy="14" r="2" fill="#ff6666"/>
+    </svg>
+  </div>
+  <h1>Risk<span>2</span>Safe BowTie Studio</h1>
+  <div class="hdr-sub">Visual Bow Tie Risk Assessment &nbsp;|&nbsp; AI-Assisted</div>
+</header>
+
+<div class="app">
+<aside class="sidebar">
+
+  <div class="s-sec">
+    <div class="ctx-section">
+      <div class="ctx-section-title">🧠 <span>Process Context</span></div>
+      <div class="ctx-section-hint">Provide actual process information for higher quality AI analysis. Optional but strongly recommended for deep SCTA.</div>
+
+      <label style="display:block;font-size:.68rem;color:var(--muted);font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-top:5px;margin-bottom:3px">Process Description</label>
+      <textarea class="ctx-textarea" id="ctxDescription" placeholder="Describe the process, equipment, operating conditions. E.g.: 'Crude oil stabilization train at 65 deg C, 10 barg. Three-phase separator V-100 feeds gas to compressor C-101 and liquid to stabilizer C-200. H2S 50ppm. Manual sampling at SP-1, automated level control via LIC-101...'"></textarea>
+
+      <label style="display:block;font-size:.68rem;color:var(--muted);font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-top:9px;margin-bottom:3px">ESD Cause &amp; Effect</label>
+      <textarea class="ctx-textarea" id="ctxESD" placeholder="Paste your ESD logic. E.g.: 'PSH-101 (high pressure on V-100) -> ESD-1: trips C-101, isolates inlet XV-100, vents to flare via PV-105. LSL-200 (low level) -> ESD-2: trips bottom pumps P-201A/B...'"></textarea>
+
+      <label style="display:block;font-size:.68rem;color:var(--muted);font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-top:9px;margin-bottom:3px">Documents (P&amp;ID, PFD, etc.)</label>
+      <input type="file" id="ctxFileInput" class="ctx-file-input" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif" multiple onchange="handleContextFiles(this.files)">
+      <label for="ctxFileInput" class="ctx-upload-btn">📎 Upload PDFs or Images</label>
+      <div class="ctx-file-list" id="ctxFileList"></div>
+      <div class="ctx-counter" id="ctxFileCounter">No documents attached</div>
+
+      <div class="ctx-toggle-row">
+        <label><input type="checkbox" id="ctxIncludeInSuggestions"> Include context in Generate Suggestions</label>
+      </div>
+      <div class="ctx-toggle-row" style="margin-top:4px">
+        <label><input type="checkbox" id="ctxIncludeInDeepSCTA" checked> Include context in Deep SCTA <span style="color:#6ee7b7">(recommended)</span></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="s-sec">
+    <div class="s-lbl">1. Hazard</div>
+    <label>Hazard Description</label>
+    <input type="text" id="hazardInput" placeholder="e.g. Hydrocarbons under pressure in pipeline" oninput="updateHazard()">
+    <div class="rule"><strong>Rule:</strong> Describe in controlled state. Part of normal business. Include material, scale, context.</div>
+  </div>
+
+  <div class="s-sec">
+    <div class="s-lbl">2. Top Event</div>
+    <label>Top Event</label>
+    <input type="text" id="topEventInput" placeholder="e.g. Loss of containment to atmosphere" oninput="updateTopEvent()">
+    <div class="rule"><strong>Rule:</strong> Loss of control/containment — NOT a consequence. Recovery still possible.</div>
+  </div>
+
+  
+
+  <div class="s-sec">
+    <div class="s-lbl">AI Guidance <span id="keyStatusBadge" class="key-status key-unset">No Key</span></div>
+    <div class="ai-panel">
+      <div class="ai-title"><div class="pulse"></div> Claude — Bow Tie Advisor</div>
+      <div class="ai-status" id="aiStatus">Set your Anthropic API key, then enter Hazard and Top Event.</div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="generateSuggestions()">⚡ Generate Suggestions</button>
+      <div class="key-btn-row">
+        <button class="key-btn key-btn-set" onclick="openKeyModal()">🔑 Set API Key</button>
+        <button class="key-btn key-btn-clear" onclick="clearApiKey()">Clear Key</button>
+      </div>
+      <div class="suggestions" id="suggestionsBox"></div>
+    </div>
+  </div>
+
+  <!-- ADD THREAT -->
+  <div class="s-sec">
+    <div class="s-lbl">3. Add Threat (Left Side)</div>
+    <label>Threat Description</label>
+    <input type="text" id="tText" placeholder="e.g. Corrosion of pipeline wall">
+
+    <div id="tBarriersList"></div>
+    <button class="add-link" onclick="addBarrierField('t')">＋ Add Barrier</button>
+
+    <div class="rule mt"><strong>Per barrier:</strong> add Degradation Factor(s) + Degradation Control(s) for each barrier.</div>
+    <div class="btn-group">
+      <button class="btn btn-threat" onclick="addThreat()">+ Add Threat to Diagram</button>
+    </div>
+    <div class="rule"><strong>Rules:</strong> Threats must be direct, sufficient on own, not barrier failures.</div>
+  </div>
+
+  <!-- ADD CONSEQUENCE -->
+  <div class="s-sec">
+    <div class="s-lbl">4. Add Consequence (Right Side)</div>
+    <label>Consequence Description</label>
+    <input type="text" id="cText" placeholder="e.g. Asset damage due to pool fire">
+
+    <div id="cBarriersList"></div>
+    <button class="add-link" onclick="addBarrierField('c')">＋ Add Barrier</button>
+
+    <div class="rule mt"><strong>Per barrier:</strong> add Degradation Factor(s) + Degradation Control(s) for each barrier.</div>
+    <div class="btn-group">
+      <button class="btn btn-cons" onclick="addConsequence()">+ Add Consequence to Diagram</button>
+    </div>
+    <div class="rule"><strong>Rules:</strong> Format — [Damage] due to [Event]. Flows from top event.</div>
+  </div>
+
+  <div class="s-sec">
+    <div class="s-lbl">SCE / SCT Identification</div>
+    <div style="font-size:.72rem;color:var(--muted);line-height:1.5;margin-bottom:7px">
+      Auto-flagged based on consequence × human involvement risk matrix. Click 'Deep Analysis' on any SCT in the panel below the diagram for a full 7-step task analysis.
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;background:#dc2626;color:#fff" onclick="reflagSCEs()">⚠ Re-flag SCEs/SCTs</button>
+    </div>
+  </div>
+
+  <div class="s-sec">
+    <div class="s-lbl">Report Generation</div>
+    <div style="font-size:.71rem;color:var(--muted);line-height:1.5;margin-bottom:8px">
+      Complete professional report with cover page, executive summary, methodology, full bow tie, SCE/SCT registers, deep SCTA proformas, consolidated recommendations, and appendices.
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;background:linear-gradient(135deg,#1e40af,#1e3a8a);color:#fff;font-weight:700" onclick="generateReport('word')">📄 Word Report (.docx)</button>
+    </div>
+    <div class="btn-group" style="margin-top:6px">
+      <button class="btn btn-primary" style="width:100%;justify-content:center;background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fff;font-weight:700" onclick="generateReport('pdf')">📕 PDF Report</button>
+    </div>
+  </div>
+
+  <div class="s-sec">
+    <div class="s-lbl">Data Exports</div>
+    <div class="btn-group">
+      <button class="btn btn-excel" onclick="exportExcel()">📊 Excel</button>
+      <button class="btn btn-ghost" onclick="doPrint()">🖨 Diagram</button>
+      <button class="btn btn-ghost" onclick="exportJSON()">⬇ JSON</button>
+    </div>
+    <div class="btn-group" style="margin-top:6px">
+      <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="resetAll()">↺ Reset Everything</button>
+    </div>
+  </div>
+
+</aside>
+
+<main class="canvas" id="mainCanvas">
+  <div class="diagram" id="diagram">
+
+    <div class="hazard-row">
+      <div class="haz-box" onclick="openEditModal('hazard',{})">
+        <span class="el-lbl" style="color:#c49b00">⚠ Hazard <span style="font-size:.5rem;color:var(--accent)">click to edit</span></span>
+        <div class="el-val" id="hazardDisplay"><span class="el-ph">Define hazard in sidebar →</span></div>
+      </div>
+    </div>
+
+    <div class="bowtie">
+      <div class="threats-col" id="threatsCol"><div class="empty">No threats added yet</div></div>
+      <div class="top-event-wrap">
+        <div class="top-event" onclick="openEditModal('topEvent',{})">
+          <span class="el-lbl">Top Event</span>
+          <div class="el-val" id="topEventDisplay"><span class="el-ph">—</span></div>
+        </div>
+      </div>
+      <div class="cons-col" id="consCol"><div class="empty">No consequences added yet</div></div>
+    </div>
+
+    <div class="sct-section">
+      <div class="sct-hdr">
+        <span style="font-size:.95rem">⚠</span>
+        <span class="sct-hdr-title">Safety Critical Elements & Tasks</span>
+        <span class="sct-hdr-sub" id="sctHdrSub">Auto-flagged via human-involvement risk matrix</span>
+      </div>
+      <div class="sct-body">
+        <div style="font-size:.7rem;color:var(--muted);line-height:1.5;margin-bottom:10px">
+          <strong style="color:var(--text)">Safety Critical Elements (SCEs)</strong> are barriers whose failure could lead to a MAH — shown by red corner badges (<span class="sce-badge sce-badge-h" style="position:static;display:inline-block">H</span>/<span class="sce-badge sce-badge-m" style="position:static;display:inline-block">M</span>) on barrier pills.
+          <strong style="color:var(--text)">Safety Critical Tasks (SCTs)</strong> are human tasks for operating, maintaining, testing or recovering those SCEs — listed below. Click any SCT for a full HSE proforma SCTA via Claude.
+        </div>
+        <div class="sct-list" id="sctList">
+          <div class="sct-empty">Build your bow tie above, then SCEs and SCTs will be auto-identified.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mgmt-section">
+      <div class="mgmt-hdr">
+        <span style="font-size:.9rem">▲</span>
+        <span class="mgmt-hdr-title">Management System</span>
+        <span class="mgmt-hdr-sub">Every barrier must be governed by one of the four elements below</span>
+      </div>
+      <div class="mgmt-body">
+        <div class="mgmt-explain">
+          In bow tie risk assessment, each barrier links to a management system element that governs its operation, maintenance and performance standard. The coloured top stripe on each barrier pill in the diagram shows this link. Degradation Controls are governed by the same element as their parent barrier.
+        </div>
+        <div class="mgmt-grid">
+          <div class="mgmt-card pol"><div class="mc-icon">📋</div><div class="mc-title">Policy</div><div class="mc-desc">High-level commitment and intent. E.g. HSE Policy, Process Safety Policy, Asset Integrity Policy.</div><div class="mc-count" id="cnt-pol">0 barriers</div></div>
+          <div class="mgmt-card act"><div class="mc-icon">🔧</div><div class="mc-title">Activity</div><div class="mc-desc">Specific tasks maintaining barrier integrity. E.g. Inspection rounds, maintenance tasks, operator checks.</div><div class="mc-count" id="cnt-act">0 barriers</div></div>
+          <div class="mgmt-card proc"><div class="mc-icon">📄</div><div class="mc-title">Procedure</div><div class="mc-desc">Step-by-step instructions governing barrier operation. E.g. Permit to Work, ESD Procedure, MOC.</div><div class="mc-count" id="cnt-proc">0 barriers</div></div>
+          <div class="mgmt-card std"><div class="mc-icon">📐</div><div class="mc-title">Standard</div><div class="mc-desc">Technical / engineering standards. E.g. API 510, NFPA 13, ISO 45001, company engineering standards.</div><div class="mc-count" id="cnt-std">0 barriers</div></div>
+        </div>
+        <div class="legend-row">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--esc)"></div> Degradation Factor — condition degrading barrier effectiveness</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--dc)"></div> Degradation Control — measure countering the degradation factor</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+</div>
+
+<div class="info-bar">
+  <span style="font-weight:600;color:#9ab4c8">Risk2Safe BowTie Studio</span>
+  <span>Risk2Safe BowTie Studio</span>
+  <span class="bdg bdg-t" id="cntT">0 Threats</span>
+  <span class="bdg bdg-c" id="cntC">0 Consequences</span>
+  <span class="bdg bdg-b" id="cntB">0 Barriers</span>
+  <span class="bdg bdg-e" id="cntE">0 Deg. Factors</span>
+  <span class="bdg bdg-d" id="cntD">0 Deg. Controls</span>
+  <span class="sct-counter" id="cntS">0 SCTs</span>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────────────────
+// Barrier: { name, mgmt, dfs: [ { factor, controls: [string] } ] }
+// Threat / Consequence: { id, text, barriers: [Barrier] }
+var state = { hazard:'', topEvent:'', threats:[], consequences:[], scts:[] };
+var nextId = 1;
+
+// ── SIDEBAR DYNAMIC BARRIER FORM ──────────────────────────────────────────
+var tBarriers = [];  // array of { name, mgmt, dfs: [{factor, controls:[]}] }
+var cBarriers = [];
+
+function addBarrierField(side) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr.push({ name:'', mgmt:'', dfs:[] });
+  renderBarrierFields(side);
+}
+
+function removeBarrierField(side, bi) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr.splice(bi, 1);
+  renderBarrierFields(side);
+}
+
+function addDFField(side, bi) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs.push({ factor:'', controls:[] });
+  renderBarrierFields(side);
+}
+
+function removeDFField(side, bi, dfi) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs.splice(dfi, 1);
+  renderBarrierFields(side);
+}
+
+function addDCField(side, bi, dfi) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs[dfi].controls.push('');
+  renderBarrierFields(side);
+}
+
+function removeDCField(side, bi, dfi, dci) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs[dfi].controls.splice(dci, 1);
+  renderBarrierFields(side);
+}
+
+function updateBarrierField(side, bi, field, val) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi][field] = val;
+}
+
+function updateDFField(side, bi, dfi, val) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs[dfi].factor = val;
+}
+
+function updateDCField(side, bi, dfi, dci, val) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs[dfi].controls[dci] = val;
+}
+
+function renderBarrierFields(side) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  var containerId = side === 't' ? 'tBarriersList' : 'cBarriersList';
+  var container = document.getElementById(containerId);
+  var html = '';
+  for (var bi = 0; bi < arr.length; bi++) {
+    var b = arr[bi];
+    html += '<div class="barrier-entry">';
+    html += '<div class="barrier-entry-title">Barrier ' + (bi+1) + ' <button class="remove-link" onclick="removeBarrierField(\''+side+'\','+bi+')">✕ Remove</button></div>';
+    html += '<label>Barrier Name</label>';
+    html += '<input type="text" placeholder="e.g. High pressure shutdown system" value="'+esc(b.name)+'" oninput="updateBarrierField(\''+side+'\','+bi+',\'name\',this.value)">';
+    html += '<label class="mt">Management System Link</label>';
+    html += '<select onchange="updateBarrierField(\''+side+'\','+bi+',\'mgmt\',this.value)">';
+    html += '<option value="">— None —</option>';
+    var opts = ['Policy','Activity','Procedure','Standard'];
+    for (var oi = 0; oi < opts.length; oi++) {
+      var sel = b.mgmt === opts[oi] ? ' selected' : '';
+      html += '<option value="'+opts[oi]+'"'+sel+'>'+opts[oi]+'</option>';
+    }
+    html += '</select>';
+
+    // Degradation Factors for this barrier
+    for (var dfi = 0; dfi < b.dfs.length; dfi++) {
+      var df = b.dfs[dfi];
+      html += '<div class="df-entry">';
+      html += '<div class="df-entry-title">⚠ Degradation Factor ' + (dfi+1) + ' <button class="remove-link" onclick="removeDFField(\''+side+'\','+bi+','+dfi+')">✕</button></div>';
+      html += '<label>Degradation Factor</label>';
+      html += '<input type="text" placeholder="e.g. Instrument calibration drift" value="'+esc(df.factor)+'" oninput="updateDFField(\''+side+'\','+bi+','+dfi+',this.value)">';
+      // Degradation Controls
+      for (var dci = 0; dci < df.controls.length; dci++) {
+        html += '<div class="dc-entry">';
+        html += '<div class="dc-entry-title">✓ Degradation Control ' + (dci+1) + ' <button class="remove-link" onclick="removeDCField(\''+side+'\','+bi+','+dfi+','+dci+')">✕</button></div>';
+        html += '<input type="text" placeholder="e.g. Quarterly calibration check" value="'+esc(df.controls[dci])+'" oninput="updateDCField(\''+side+'\','+bi+','+dfi+','+dci+',this.value)">';
+        html += '</div>';
+      }
+      html += '<button class="add-link" onclick="addDCField(\''+side+'\','+bi+','+dfi+')">＋ Add Degradation Control</button>';
+      html += '</div>';
+    }
+    html += '<button class="add-link" onclick="addDFField(\''+side+'\','+bi+')">⚠ Add Degradation Factor</button>';
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
+
+// ── ADD TO DIAGRAM ────────────────────────────────────────────────────────
+function addThreat() {
+  var text = document.getElementById('tText').value.trim();
+  if (!text) { alert('Please enter a threat description.'); return; }
+  var barriers = deepCopy(tBarriers).filter(function(b){ return b.name.trim(); });
+  state.threats.push({ id:nextId++, text:text, barriers:barriers });
+  document.getElementById('tText').value = '';
+  tBarriers = [];
+  renderBarrierFields('t');
+  render();
+}
+
+function addConsequence() {
+  var text = document.getElementById('cText').value.trim();
+  if (!text) { alert('Please enter a consequence description.'); return; }
+  var barriers = deepCopy(cBarriers).filter(function(b){ return b.name.trim(); });
+  state.consequences.push({ id:nextId++, text:text, barriers:barriers });
+  document.getElementById('cText').value = '';
+  cBarriers = [];
+  renderBarrierFields('c');
+  render();
+}
+
+function removeThreat(id) { state.threats = state.threats.filter(function(t){ return t.id !== id; }); render(); }
+function removeConsequence(id) { state.consequences = state.consequences.filter(function(c){ return c.id !== id; }); render(); }
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+function render() { flagSCEsAndSCTsInternal(); renderThreats(); renderConsequences(); updateCounters(); updateMgmtCounts(); }
+
+// Internal version that updates state but doesn't recursively render
+function flagSCEsAndSCTsInternal() {
+  var allItems = state.threats.concat(state.consequences);
+  for (var i = 0; i < allItems.length; i++) {
+    var item = allItems[i];
+    var soleBarrier = item.barriers.length === 1;
+    var hasConseq = item.barriers.length > 0;
+    for (var j = 0; j < item.barriers.length; j++) {
+      var b = item.barriers[j];
+      var hasDeg = b.dfs && b.dfs.length > 0 && b.dfs.some(function(df){ return df.factor.trim(); });
+      b.scePriority = classifyBarrier(b, hasConseq, soleBarrier, hasDeg);
+    }
+  }
+  buildSCTList();
+}
+
+function renderThreats() {
+  var col = document.getElementById('threatsCol');
+  if (!state.threats.length) { col.innerHTML = '<div class="empty">No threats added yet</div>'; return; }
+  var html = '';
+  for (var i = 0; i < state.threats.length; i++) {
+    var t = state.threats[i];
+    html += '<div class="t-row">';
+    // Threat box
+    html += '<div class="t-box" onclick="openEditModal(\'threat\',{tid:'+t.id+'})">';
+    html += '<span class="edit-hint">EDIT</span>';
+    html += '<button class="rm" onclick="event.stopPropagation();removeThreat('+t.id+')">✕</button>';
+    html += '<span class="el-lbl">▶ Threat</span><div class="el-val">'+esc(t.text)+'</div>';
+    html += '</div>';
+    // Barrier track
+    html += '<div class="btrack">';
+    if (!t.barriers.length) {
+      html += '<div class="barrier-line"><div class="wire"></div></div>';
+    } else {
+      for (var bi = 0; bi < t.barriers.length; bi++) {
+        var b = t.barriers[bi];
+        var mgmtA = b.mgmt ? ' data-mgmt="'+esc(b.mgmt)+'"' : '';
+        html += '<div class="barrier-line">';
+        html += '<div class="node"></div><div class="wire" style="flex:0 0 3px"></div>';
+        html += '<div class="barrier-group">';
+        var sceAttrT = b.scePriority ? ' data-sce="'+b.scePriority+'"' : '';
+        var sceBadgeT = (b.scePriority === 'H' || b.scePriority === 'M') ? '<span class="sce-badge sce-badge-'+b.scePriority.toLowerCase()+'">SCE '+b.scePriority+'</span>' : '';
+        html += '<div class="bpill"'+mgmtA+sceAttrT+' onclick="openEditModal(\'barrier\',{side:\'t\',tid:'+t.id+',bi:'+bi+'})" title="'+esc(b.name)+(b.mgmt?' ['+b.mgmt+']':'')+(b.scePriority?' [SCE '+b.scePriority+']':'')+'">' + sceBadgeT + esc(b.name) + '</div>';
+        // Degradation paths
+        if (b.dfs && b.dfs.length) {
+          html += '<div class="deg-path">';
+          for (var dfi = 0; dfi < b.dfs.length; dfi++) {
+            var df = b.dfs[dfi];
+            if (!df.factor.trim()) continue;
+            html += '<div class="df-row"><span class="df-arrow">↓</span><div class="df-pill" onclick="event.stopPropagation();openEditModal(\'df\',{side:\'t\',tid:'+t.id+',bi:'+bi+',dfi:'+dfi+'})" title="'+esc(df.factor)+'">'+esc(df.factor)+'</div></div>';
+            if (df.controls && df.controls.length) {
+              html += '<div class="dc-list">';
+              for (var dci = 0; dci < df.controls.length; dci++) {
+                if (df.controls[dci].trim()) {
+                  html += '<div class="dc-row" style="display:flex;align-items:center;gap:3px"><span class="dc-arrow">✓</span><div class="dc-pill" onclick="event.stopPropagation();openEditModal(\'dc\',{side:\'t\',tid:'+t.id+',bi:'+bi+',dfi:'+dfi+',dci:'+dci+'})" title="'+esc(df.controls[dci])+'">'+esc(df.controls[dci])+'</div></div>';
+                }
+              }
+              html += '</div>';
+            }
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+        html += '<div class="wire" style="flex:0 0 3px"></div>';
+        html += '</div>';
+      }
+      html += '<div class="barrier-line"><div class="wire"></div></div>';
+    }
+    html += '</div>';
+    html += '</div>';
+  }
+  col.innerHTML = html;
+}
+
+function renderConsequences() {
+  var col = document.getElementById('consCol');
+  if (!state.consequences.length) { col.innerHTML = '<div class="empty">No consequences added yet</div>'; return; }
+  var html = '';
+  for (var i = 0; i < state.consequences.length; i++) {
+    var c = state.consequences[i];
+    html += '<div class="c-row">';
+    // Barrier track
+    html += '<div class="btrack">';
+    if (!c.barriers.length) {
+      html += '<div class="barrier-line"><div class="wire wire-r"></div></div>';
+    } else {
+      html += '<div class="barrier-line"><div class="wire wire-r"></div></div>';
+      for (var bi = 0; bi < c.barriers.length; bi++) {
+        var b = c.barriers[bi];
+        var mgmtA = b.mgmt ? ' data-mgmt="'+esc(b.mgmt)+'"' : '';
+        html += '<div class="barrier-line">';
+        html += '<div class="wire wire-r" style="flex:0 0 3px"></div>';
+        html += '<div class="barrier-group">';
+        var sceAttrC = b.scePriority ? ' data-sce="'+b.scePriority+'"' : '';
+        var sceBadgeC = (b.scePriority === 'H' || b.scePriority === 'M') ? '<span class="sce-badge sce-badge-'+b.scePriority.toLowerCase()+'">SCE '+b.scePriority+'</span>' : '';
+        html += '<div class="bpill"'+mgmtA+sceAttrC+' onclick="openEditModal(\'barrier\',{side:\'c\',cid:'+c.id+',bi:'+bi+'})" title="'+esc(b.name)+(b.mgmt?' ['+b.mgmt+']':'')+(b.scePriority?' [SCE '+b.scePriority+']':'')+'">' + sceBadgeC + esc(b.name) + '</div>';
+        if (b.dfs && b.dfs.length) {
+          html += '<div class="deg-path">';
+          for (var dfi = 0; dfi < b.dfs.length; dfi++) {
+            var df = b.dfs[dfi];
+            if (!df.factor.trim()) continue;
+            html += '<div class="df-row"><span class="df-arrow">↓</span><div class="df-pill" onclick="event.stopPropagation();openEditModal(\'df\',{side:\'c\',cid:'+c.id+',bi:'+bi+',dfi:'+dfi+'})" title="'+esc(df.factor)+'">'+esc(df.factor)+'</div></div>';
+            if (df.controls && df.controls.length) {
+              html += '<div class="dc-list">';
+              for (var dci = 0; dci < df.controls.length; dci++) {
+                if (df.controls[dci].trim()) {
+                  html += '<div style="display:flex;align-items:center;gap:3px"><span class="dc-arrow">✓</span><div class="dc-pill" onclick="event.stopPropagation();openEditModal(\'dc\',{side:\'c\',cid:'+c.id+',bi:'+bi+',dfi:'+dfi+',dci:'+dci+'})" title="'+esc(df.controls[dci])+'">'+esc(df.controls[dci])+'</div></div>';
+                }
+              }
+              html += '</div>';
+            }
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+        html += '<div class="wire wire-r" style="flex:0 0 3px"></div>';
+        html += '<div class="node"></div>';
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+    // Consequence box
+    html += '<div class="c-box" onclick="openEditModal(\'consequence\',{cid:'+c.id+'})">';
+    html += '<span class="edit-hint">EDIT</span>';
+    html += '<button class="rm" onclick="event.stopPropagation();removeConsequence('+c.id+')">✕</button>';
+    html += '<span class="el-lbl">◀ Consequence</span><div class="el-val">'+esc(c.text)+'</div>';
+    html += '</div>';
+    html += '</div>';
+  }
+  col.innerHTML = html;
+}
+
+function updateMgmtCounts() {
+  var counts = { Policy:0, Activity:0, Procedure:0, Standard:0 };
+  var all = state.threats.concat(state.consequences);
+  for (var i = 0; i < all.length; i++) {
+    var item = all[i];
+    for (var bi = 0; bi < item.barriers.length; bi++) {
+      var m = item.barriers[bi].mgmt;
+      if (m && counts.hasOwnProperty(m)) counts[m]++;
+    }
+  }
+  document.getElementById('cnt-pol').textContent  = counts.Policy    + ' barrier' + (counts.Policy    !== 1?'s':'');
+  document.getElementById('cnt-act').textContent  = counts.Activity  + ' barrier' + (counts.Activity  !== 1?'s':'');
+  document.getElementById('cnt-proc').textContent = counts.Procedure + ' barrier' + (counts.Procedure !== 1?'s':'');
+  document.getElementById('cnt-std').textContent  = counts.Standard  + ' barrier' + (counts.Standard  !== 1?'s':'');
+}
+
+function updateCounters() {
+  var tb = 0, te = 0, td = 0;
+  var all = state.threats.concat(state.consequences);
+  for (var i = 0; i < all.length; i++) {
+    tb += all[i].barriers.length;
+    for (var bi = 0; bi < all[i].barriers.length; bi++) {
+      var dfs = all[i].barriers[bi].dfs || [];
+      te += dfs.filter(function(df){ return df.factor.trim(); }).length;
+      for (var dfi = 0; dfi < dfs.length; dfi++) {
+        td += (dfs[dfi].controls || []).filter(function(c){ return c.trim(); }).length;
+      }
+    }
+  }
+  document.getElementById('cntT').textContent = state.threats.length     + ' Threat'      + (state.threats.length!==1?'s':'');
+  document.getElementById('cntC').textContent = state.consequences.length + ' Consequence' + (state.consequences.length!==1?'s':'');
+  document.getElementById('cntB').textContent = tb + ' Barrier' + (tb!==1?'s':'');
+  document.getElementById('cntE').textContent = te + ' Deg. Factor' + (te!==1?'s':'');
+  document.getElementById('cntD').textContent = td + ' Deg. Control' + (td!==1?'s':'');
+}
+
+// ── HAZARD / TOP EVENT ────────────────────────────────────────────────────
+function updateHazard() {
+  state.hazard = document.getElementById('hazardInput').value.trim();
+  document.getElementById('hazardDisplay').innerHTML = state.hazard ? esc(state.hazard) : '<span class="el-ph">Define hazard in sidebar →</span>';
+}
+function updateTopEvent() {
+  state.topEvent = document.getElementById('topEventInput').value.trim();
+  document.getElementById('topEventDisplay').innerHTML = state.topEvent ? esc(state.topEvent) : '<span class="el-ph">—</span>';
+}
+
+// ── PRINT ─────────────────────────────────────────────────────────────────
+function doPrint() {
+  var app = document.querySelector('.app');
+  var canvas = document.getElementById('mainCanvas');
+  var prevAppH = app.style.height, prevAppD = app.style.display;
+  var prevCanvasO = canvas.style.overflow, prevCanvasH = canvas.style.height;
+  app.style.display = 'block'; app.style.height = 'auto';
+  canvas.style.overflow = 'visible'; canvas.style.height = 'auto';
+  window.print();
+  app.style.display = prevAppD; app.style.height = prevAppH;
+  canvas.style.overflow = prevCanvasO; canvas.style.height = prevCanvasH;
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function trunc(str,n){ return str && str.length>n ? str.slice(0,n)+'…' : str||''; }
+function deepCopy(obj){ return JSON.parse(JSON.stringify(obj)); }
+
+function resetAll() {
+  if (!confirm('Reset all bow tie data including process context and uploaded documents?')) return;
+  state = { hazard:'', topEvent:'', threats:[], consequences:[], scts:[] };
+  tBarriers=[]; cBarriers=[];
+  document.getElementById('hazardInput').value='';
+  document.getElementById('topEventInput').value='';
+  document.getElementById('tText').value='';
+  document.getElementById('cText').value='';
+  // Clear process context
+  var ctxD = document.getElementById('ctxDescription'); if (ctxD) ctxD.value = '';
+  var ctxE = document.getElementById('ctxESD'); if (ctxE) ctxE.value = '';
+  contextFiles = [];
+  renderContextFileList();
+  renderBarrierFields('t'); renderBarrierFields('c');
+  updateHazard(); updateTopEvent(); render();
+}
+
+function exportJSON() {
+  // Snapshot full state + process context (files are excluded — too large for JSON,
+  // and they would inflate the file dramatically; user re-uploads on reload)
+  var snapshot = {
+    hazard: state.hazard,
+    topEvent: state.topEvent,
+    threats: state.threats,
+    consequences: state.consequences,
+    scts: state.scts,
+    processDescription: (document.getElementById('ctxDescription') || {}).value || '',
+    esdCauseEffect: (document.getElementById('ctxESD') || {}).value || '',
+    contextFileNames: contextFiles.map(function(f){ return { name: f.name, kind: f.kind, size: f.size }; })
+  };
+  var blob = new Blob([JSON.stringify(snapshot,null,2)], {type:'application/json'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href = url; a.download = 'risk2safe_bowtie_' + new Date().toISOString().split('T')[0] + '.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+// ── API KEY MANAGEMENT (stored in browser localStorage) ───────────────────
+var API_KEY_STORAGE = 'bowtie_anthropic_api_key';
+
+function getApiKey() {
+  try { return localStorage.getItem(API_KEY_STORAGE) || ''; } catch(e) { return ''; }
+}
+
+function setApiKey(key) {
+  try { localStorage.setItem(API_KEY_STORAGE, key); } catch(e) {}
+  updateKeyStatusUI();
+}
+
+function clearApiKey() {
+  if (!confirm('Remove the saved API key from this browser?')) return;
+  try { localStorage.removeItem(API_KEY_STORAGE); } catch(e) {}
+  updateKeyStatusUI();
+  document.getElementById('aiStatus').textContent = 'API key cleared. Set a key to use AI suggestions.';
+}
+
+function openKeyModal() {
+  document.getElementById('apiKeyInput').value = getApiKey();
+  document.getElementById('keyModal').classList.add('active');
+  setTimeout(function(){ document.getElementById('apiKeyInput').focus(); }, 50);
+}
+
+function closeKeyModal() {
+  document.getElementById('keyModal').classList.remove('active');
+}
+
+function saveApiKey() {
+  var val = document.getElementById('apiKeyInput').value.trim();
+  if (!val) { alert('Please paste an API key, or click Cancel.'); return; }
+  if (!val.startsWith('sk-ant-')) {
+    if (!confirm('That does not look like an Anthropic API key (should start with "sk-ant-"). Save anyway?')) return;
+  }
+  setApiKey(val);
+  closeKeyModal();
+  document.getElementById('aiStatus').textContent = '✓ API key saved. Enter Hazard and Top Event, then click Generate.';
+}
+
+function updateKeyStatusUI() {
+  var has = !!getApiKey();
+  var badge = document.getElementById('keyStatusBadge');
+  if (has) { badge.textContent = '✓ Set'; badge.className = 'key-status key-set'; }
+  else     { badge.textContent = 'No Key'; badge.className = 'key-status key-unset'; }
+}
+
+// ── AI SUGGESTIONS ────────────────────────────────────────────────────────
+var lastSuggestions = null;
+
+function generateSuggestions() {
+  var hazard   = document.getElementById('hazardInput').value.trim();
+  var topEvent = document.getElementById('topEventInput').value.trim();
+  var statusEl = document.getElementById('aiStatus');
+  var boxEl    = document.getElementById('suggestionsBox');
+  var apiKey   = getApiKey();
+
+  if (!apiKey) {
+    statusEl.textContent = '🔑 Set your API key first using the button below.';
+    openKeyModal();
+    return;
+  }
+  if (!hazard || !topEvent) {
+    statusEl.textContent = 'Please enter both Hazard and Top Event first.';
+    return;
+  }
+  var ctxNote = '';
+  if (isContextEnabledFor('suggestions')) {
+    var summary = getContextSummary();
+    if (summary.length) ctxNote = ' (with ' + summary.join(', ') + ')';
+  }
+  statusEl.innerHTML = '<div class="dots"><span></span><span></span><span></span></div> Analysing scenario' + ctxNote + '...';
+  boxEl.innerHTML = '';
+
+  var sys = 'You are a Bow Tie Risk Assessment expert for oil, gas, and process safety. ' +
+    'CRITICAL: Respond ONLY with a raw JSON object — no markdown, no code fences, no text before or after. ' +
+    'Structure exactly: ' +
+    '{"threats":[{"text":"...","barriers":[{"name":"...","mgmt":"Policy|Activity|Procedure|Standard","dfs":[{"factor":"...","controls":["control1","control2"]}]}]}],' +
+    '"consequences":[{"text":"...","barriers":[{"name":"...","mgmt":"Policy|Activity|Procedure|Standard","dfs":[{"factor":"...","controls":["control1"]}]}]}],' +
+    '"guidance":"Expert comment 2-3 sentences."} ' +
+    'Rules strictly: ' +
+    '1. Threats are direct credible causes independently leading to the top event. Not barrier failures. ' +
+    '2. Consequences: [Damage] due to [Event] format. ' +
+    '3. Each barrier has a name (full detect-decide-act system, not just a component). ' +
+    '4. Each barrier has 1-2 degradation factors — specific conditions that degrade THAT barrier. NOT just negation of the barrier. ' +
+    '5. Each degradation factor has 1-2 degradation controls — specific measures countering that degradation factor. ' +
+    '6. mgmt field: assign barrier to Policy/Activity/Procedure/Standard. ' +
+    '7. Provide 3 threats and 3 consequences, each with 2 barriers, each barrier with 1 degradation factor and 1-2 controls. ' +
+    '8. Be specific to oil/gas/process industry context.';
+
+  var usr = 'Hazard: ' + hazard + '\nTop Event: ' + topEvent;
+
+  // If user enabled context for suggestions, build a multimodal content array
+  var messageContent = isContextEnabledFor('suggestions') ? buildContextContent(usr) : usr;
+
+  fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:2500, system:sys, messages:[{ role:'user', content: messageContent }] })
+  })
+  .then(function(res) {
+    if (!res.ok) return res.text().then(function(t){
+      if (res.status === 401 || res.status === 403) {
+        statusEl.textContent = '⚠ API key rejected. Click "Set API Key" to update it.';
+      } else if (res.status === 429) {
+        var resetsAt = null;
+        try { var m = t.match(/resetsAt[\"\\:]+(\d+)/); if (m) resetsAt = parseInt(m[1],10); } catch(e){}
+        var msg = '⏱ Rate limit reached on your Anthropic account. ';
+        if (resetsAt) {
+          var waitMin = Math.ceil(Math.max(0, resetsAt - Math.floor(Date.now()/1000)) / 60);
+          msg += 'Resets in ~' + waitMin + ' minute' + (waitMin !== 1 ? 's' : '') + '. ';
+        }
+        msg += 'You can still build the diagram manually using the form fields below.';
+        statusEl.textContent = msg;
+      } else if (res.status === 529 || res.status === 503) {
+        statusEl.textContent = '⚠ Anthropic API is temporarily overloaded. Try again in a minute.';
+      } else {
+        statusEl.textContent = '⚠ API error ' + res.status + '. You can build manually below.';
+      }
+    });
+    return res.json().then(function(data) {
+      var raw = '';
+      if (data.content && Array.isArray(data.content)) for (var i=0;i<data.content.length;i++) if (data.content[i].type==='text'){ raw=data.content[i].text; break; }
+      if (!raw) { statusEl.textContent = 'Empty response from API.'; return; }
+      var first=raw.indexOf('{'), last=raw.lastIndexOf('}');
+      var parsed;
+      try { parsed=JSON.parse(raw.slice(first,last+1)); }
+      catch(e){ statusEl.textContent = 'Parse error: ' + e.message; console.error('Raw:', raw); return; }
+      lastSuggestions = parsed;
+      renderSuggestions(parsed, statusEl, boxEl);
+    });
+  })
+  .catch(function(err){ statusEl.textContent = 'Network error: ' + err.message; });
+}
+
+function renderSuggestions(parsed, statusEl, boxEl) {
+  statusEl.textContent = 'Suggestions ready — click any item to add, or use Add All.';
+  var html = '';
+  if (parsed.guidance) html += '<div style="background:rgba(0,180,216,.06);border:1px solid rgba(0,180,216,.15);border-radius:5px;padding:7px 9px;font-size:.69rem;color:var(--muted);margin-bottom:7px;line-height:1.5"><strong style="color:var(--accent)">Expert Note:</strong> '+esc(parsed.guidance)+'</div>';
+  var threats = parsed.threats||[];
+  for (var i=0;i<threats.length;i++) {
+    var t=threats[i];
+    var bNames = (t.barriers||[]).map(function(b){ return b.name; }).join(', ');
+    var dfCount = (t.barriers||[]).reduce(function(s,b){ return s+(b.dfs?b.dfs.length:0); },0);
+    html += '<div class="chip chip-threat" onclick="applySuggestion(\'threat\','+i+')">';
+    html += '<span class="chip-lbl">▶ Threat</span>';
+    html += '<strong>'+esc(t.text)+'</strong>';
+    if (bNames) html += '<div style="margin-top:3px;font-size:.66rem;color:var(--muted)">Barriers: '+esc(bNames)+'</div>';
+    if (dfCount) html += '<div style="font-size:.63rem;color:var(--esc-lt)">⚠ '+dfCount+' Deg. Factor(s) + Controls</div>';
+    html += '</div>';
+  }
+  var conss = parsed.consequences||[];
+  for (var j=0;j<conss.length;j++) {
+    var c=conss[j];
+    var bNames2 = (c.barriers||[]).map(function(b){ return b.name; }).join(', ');
+    var dfCount2 = (c.barriers||[]).reduce(function(s,b){ return s+(b.dfs?b.dfs.length:0); },0);
+    html += '<div class="chip chip-cons" onclick="applySuggestion(\'consequence\','+j+')">';
+    html += '<span class="chip-lbl">◀ Consequence</span>';
+    html += '<strong>'+esc(c.text)+'</strong>';
+    if (bNames2) html += '<div style="margin-top:3px;font-size:.66rem;color:var(--muted)">Barriers: '+esc(bNames2)+'</div>';
+    if (dfCount2) html += '<div style="font-size:.63rem;color:var(--esc-lt)">⚠ '+dfCount2+' Deg. Factor(s) + Controls</div>';
+    html += '</div>';
+  }
+  html += '<button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:5px;font-size:.76rem" onclick="applyAll()">⚡ Add All to Diagram</button>';
+  boxEl.innerHTML = html;
+}
+
+function applySuggestion(type, index) {
+  console.log('[applySuggestion]', type, index, 'lastSuggestions:', lastSuggestions);
+  var statusEl = document.getElementById('aiStatus');
+  if (!lastSuggestions) {
+    if (statusEl) statusEl.textContent = '⚠ No suggestions available.';
+    return;
+  }
+  var item = type === 'threat' ? (lastSuggestions.threats || [])[index] : (lastSuggestions.consequences || [])[index];
+  if (!item || !item.text) {
+    if (statusEl) statusEl.textContent = '⚠ Item not found.';
+    return;
+  }
+  try {
+    var barriers = normBarriers(item.barriers);
+    if (type === 'threat') state.threats.push({ id: nextId++, text: item.text, barriers: barriers });
+    else state.consequences.push({ id: nextId++, text: item.text, barriers: barriers });
+    render();
+    if (statusEl) statusEl.textContent = '✓ Added ' + type + ': ' + item.text.substring(0, 50) + (item.text.length > 50 ? '…' : '');
+    var bt = document.querySelector('.bowtie');
+    if (bt && bt.scrollIntoView) bt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (err) {
+    console.error('[applySuggestion] error:', err);
+    if (statusEl) statusEl.textContent = '⚠ Error: ' + err.message;
+  }
+}
+
+function applyAll() {
+  console.log('[applyAll] clicked. lastSuggestions:', lastSuggestions);
+  var statusEl = document.getElementById('aiStatus');
+  if (!lastSuggestions) {
+    if (statusEl) statusEl.textContent = '⚠ No suggestions to add. Click Generate Suggestions first.';
+    return;
+  }
+  var t = lastSuggestions.threats || [];
+  var c = lastSuggestions.consequences || [];
+  if (!t.length && !c.length) {
+    if (statusEl) statusEl.textContent = '⚠ Suggestion data is empty.';
+    return;
+  }
+  try {
+    for (var i = 0; i < t.length; i++) {
+      if (!t[i] || !t[i].text) continue;
+      state.threats.push({ id: nextId++, text: t[i].text, barriers: normBarriers(t[i].barriers) });
+    }
+    for (var j = 0; j < c.length; j++) {
+      if (!c[j] || !c[j].text) continue;
+      state.consequences.push({ id: nextId++, text: c[j].text, barriers: normBarriers(c[j].barriers) });
+    }
+    render();
+    if (statusEl) statusEl.textContent = '✓ Added ' + t.length + ' threats and ' + c.length + ' consequences to diagram.';
+    // Scroll the bow tie into view so user sees what changed
+    var bt = document.querySelector('.bowtie');
+    if (bt && bt.scrollIntoView) bt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Also clear suggestions to prevent double-adding
+    lastSuggestions = null;
+    var box = document.getElementById('suggestionsBox');
+    if (box) box.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:.74rem;text-align:center">Suggestions applied. Click Generate Suggestions again for more.</div>';
+  } catch (err) {
+    console.error('[applyAll] error:', err);
+    if (statusEl) statusEl.textContent = '⚠ Error adding suggestions: ' + err.message;
+  }
+}
+
+function normBarriers(raw) {
+  if (!raw || !Array.isArray(raw)) return [];
+  return raw.map(function(b) {
+    return {
+      name: b.name||'',
+      mgmt: b.mgmt||'',
+      dfs: (b.dfs||[]).map(function(df) {
+        return { factor: df.factor||'', controls: (df.controls||[]).filter(function(c){ return c.trim(); }) };
+      })
+    };
+  });
+}
+
+
+// ─── EDIT MODAL & ELEMENT EDITING ─────────────────────────────────────────
+var editContext = null;  // { type, ids } where ids identifies what to edit
+
+function openEditModal(type, ids) {
+  editContext = { type: type, ids: ids };
+  var body = document.getElementById('editModalBody');
+  var typeLabel = document.getElementById('editElementType');
+  var deleteBtn = document.getElementById('editDeleteBtn');
+
+  if (type === 'hazard') {
+    typeLabel.textContent = '— Hazard';
+    deleteBtn.style.display = 'none';
+    body.innerHTML = '<div class="edit-modal-section"><div class="edit-modal-section-title">Hazard Description</div><input type="text" class="modal-input-full" id="editText" value="'+esc(state.hazard)+'"></div>';
+  } else if (type === 'topEvent') {
+    typeLabel.textContent = '— Top Event';
+    deleteBtn.style.display = 'none';
+    body.innerHTML = '<div class="edit-modal-section"><div class="edit-modal-section-title">Top Event Description</div><input type="text" class="modal-input-full" id="editText" value="'+esc(state.topEvent)+'"></div>';
+  } else if (type === 'threat') {
+    var t = state.threats.find(function(x){ return x.id === ids.tid; });
+    if (!t) { closeEditModal(); return; }
+    typeLabel.textContent = '— Threat';
+    deleteBtn.style.display = 'block';
+    body.innerHTML = '<div class="edit-modal-section"><div class="edit-modal-section-title">Threat Description</div><input type="text" class="modal-input-full" id="editText" value="'+esc(t.text)+'"></div>';
+  } else if (type === 'consequence') {
+    var c = state.consequences.find(function(x){ return x.id === ids.cid; });
+    if (!c) { closeEditModal(); return; }
+    typeLabel.textContent = '— Consequence';
+    deleteBtn.style.display = 'block';
+    body.innerHTML = '<div class="edit-modal-section"><div class="edit-modal-section-title">Consequence Description</div><input type="text" class="modal-input-full" id="editText" value="'+esc(c.text)+'"></div>';
+  } else if (type === 'barrier') {
+    var item = ids.side === 't' ? state.threats.find(function(x){ return x.id === ids.tid; }) : state.consequences.find(function(x){ return x.id === ids.cid; });
+    if (!item) { closeEditModal(); return; }
+    var b = item.barriers[ids.bi];
+    typeLabel.textContent = '— Barrier (' + (ids.side === 't' ? 'Prevention' : 'Recovery') + ')';
+    deleteBtn.style.display = 'block';
+    var mgmtOpts = ['','Policy','Activity','Procedure','Standard'].map(function(o){ return '<option value="'+o+'"'+(b.mgmt===o?' selected':'')+'>'+(o||'— None —')+'</option>'; }).join('');
+    body.innerHTML = '<div class="edit-modal-section"><div class="edit-modal-section-title">Barrier Name</div><input type="text" class="modal-input-full" id="editText" value="'+esc(b.name)+'"></div>'
+      + '<div class="edit-modal-section"><div class="edit-modal-section-title">Management System Link</div><select class="modal-select" id="editMgmt">'+mgmtOpts+'</select></div>';
+  } else if (type === 'df') {
+    var item2 = ids.side === 't' ? state.threats.find(function(x){ return x.id === ids.tid; }) : state.consequences.find(function(x){ return x.id === ids.cid; });
+    if (!item2) { closeEditModal(); return; }
+    var df = item2.barriers[ids.bi].dfs[ids.dfi];
+    typeLabel.textContent = '— Degradation Factor';
+    deleteBtn.style.display = 'block';
+    body.innerHTML = '<div class="edit-modal-section"><div class="edit-modal-section-title">Degradation Factor</div><input type="text" class="modal-input-full" id="editText" value="'+esc(df.factor)+'"></div>';
+  } else if (type === 'dc') {
+    var item3 = ids.side === 't' ? state.threats.find(function(x){ return x.id === ids.tid; }) : state.consequences.find(function(x){ return x.id === ids.cid; });
+    if (!item3) { closeEditModal(); return; }
+    var dc = item3.barriers[ids.bi].dfs[ids.dfi].controls[ids.dci];
+    typeLabel.textContent = '— Degradation Control';
+    deleteBtn.style.display = 'block';
+    body.innerHTML = '<div class="edit-modal-section"><div class="edit-modal-section-title">Degradation Control</div><input type="text" class="modal-input-full" id="editText" value="'+esc(dc)+'"></div>';
+  }
+
+  document.getElementById('editModal').classList.add('active');
+  setTimeout(function(){ var el = document.getElementById('editText'); if (el) el.focus(); }, 50);
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('active');
+  editContext = null;
+}
+
+function saveEdit() {
+  if (!editContext) return;
+  var ctx = editContext;
+  var newText = document.getElementById('editText').value.trim();
+  if (!newText) { alert('Text cannot be empty.'); return; }
+
+  if (ctx.type === 'hazard') {
+    state.hazard = newText;
+    document.getElementById('hazardInput').value = newText;
+    updateHazard();
+  } else if (ctx.type === 'topEvent') {
+    state.topEvent = newText;
+    document.getElementById('topEventInput').value = newText;
+    updateTopEvent();
+  } else if (ctx.type === 'threat') {
+    var t = state.threats.find(function(x){ return x.id === ctx.ids.tid; });
+    if (t) t.text = newText;
+  } else if (ctx.type === 'consequence') {
+    var c = state.consequences.find(function(x){ return x.id === ctx.ids.cid; });
+    if (c) c.text = newText;
+  } else if (ctx.type === 'barrier') {
+    var item = ctx.ids.side === 't' ? state.threats.find(function(x){ return x.id === ctx.ids.tid; }) : state.consequences.find(function(x){ return x.id === ctx.ids.cid; });
+    if (item) {
+      item.barriers[ctx.ids.bi].name = newText;
+      item.barriers[ctx.ids.bi].mgmt = document.getElementById('editMgmt').value;
+    }
+  } else if (ctx.type === 'df') {
+    var item2 = ctx.ids.side === 't' ? state.threats.find(function(x){ return x.id === ctx.ids.tid; }) : state.consequences.find(function(x){ return x.id === ctx.ids.cid; });
+    if (item2) item2.barriers[ctx.ids.bi].dfs[ctx.ids.dfi].factor = newText;
+  } else if (ctx.type === 'dc') {
+    var item3 = ctx.ids.side === 't' ? state.threats.find(function(x){ return x.id === ctx.ids.tid; }) : state.consequences.find(function(x){ return x.id === ctx.ids.cid; });
+    if (item3) item3.barriers[ctx.ids.bi].dfs[ctx.ids.dfi].controls[ctx.ids.dci] = newText;
+  }
+  render();
+  closeEditModal();
+}
+
+function deleteFromEdit() {
+  if (!editContext) return;
+  var ctx = editContext;
+  if (!confirm('Delete this element?')) return;
+
+  if (ctx.type === 'threat') {
+    state.threats = state.threats.filter(function(x){ return x.id !== ctx.ids.tid; });
+  } else if (ctx.type === 'consequence') {
+    state.consequences = state.consequences.filter(function(x){ return x.id !== ctx.ids.cid; });
+  } else if (ctx.type === 'barrier') {
+    var item = ctx.ids.side === 't' ? state.threats.find(function(x){ return x.id === ctx.ids.tid; }) : state.consequences.find(function(x){ return x.id === ctx.ids.cid; });
+    if (item) item.barriers.splice(ctx.ids.bi, 1);
+  } else if (ctx.type === 'df') {
+    var item2 = ctx.ids.side === 't' ? state.threats.find(function(x){ return x.id === ctx.ids.tid; }) : state.consequences.find(function(x){ return x.id === ctx.ids.cid; });
+    if (item2) item2.barriers[ctx.ids.bi].dfs.splice(ctx.ids.dfi, 1);
+  } else if (ctx.type === 'dc') {
+    var item3 = ctx.ids.side === 't' ? state.threats.find(function(x){ return x.id === ctx.ids.tid; }) : state.consequences.find(function(x){ return x.id === ctx.ids.cid; });
+    if (item3) item3.barriers[ctx.ids.bi].dfs[ctx.ids.dfi].controls.splice(ctx.ids.dci, 1);
+  }
+  render();
+  closeEditModal();
+}
+
+// ─── SCE / SCT IDENTIFICATION (human-factors risk matrix) ─────────────────
+// Risk matrix: consequence (H/M/L) × human involvement (H/M/L) → priority
+// Barriers on direct MAH pathways with high human interaction = SCEs
+// SCTs = human tasks operating/maintaining/testing those SCEs
+
+function classifyBarrier(barrier, hasConsequence, isOnly, hasDegradation) {
+  // Consequence severity: if barrier failure leads to MAH directly → H
+  // If part of multi-barrier defence → M
+  // If with multiple recovery paths → L
+  var consequence = isOnly ? 'H' : (hasConsequence ? 'M' : 'L');
+
+  // Human involvement: based on management system link
+  // Activity = direct human task → H
+  // Procedure = procedural human task → H
+  // Standard = engineered, less human → M
+  // Policy = governance, less direct → L
+  // None = unknown, assume M
+  var human = 'M';
+  if (barrier.mgmt === 'Activity' || barrier.mgmt === 'Procedure') human = 'H';
+  else if (barrier.mgmt === 'Standard') human = 'M';
+  else if (barrier.mgmt === 'Policy') human = 'L';
+  else human = 'M';
+
+  // Degradation factors present: indicates known vulnerability → bumps priority
+  if (hasDegradation && consequence !== 'H') {
+    if (consequence === 'L') consequence = 'M';
+    else if (consequence === 'M') consequence = 'H';
+  }
+
+  // Combine to priority
+  var matrix = {
+    'HH':'H', 'HM':'H', 'HL':'M',
+    'MH':'H', 'MM':'M', 'ML':'L',
+    'LH':'M', 'LM':'L', 'LL':'L'
+  };
+  return matrix[consequence + human] || 'L';
+}
+
+function flagSCEsAndSCTs() {
+  // Walk every barrier; flag SCEs
+  var allItems = state.threats.concat(state.consequences);
+  for (var i = 0; i < allItems.length; i++) {
+    var item = allItems[i];
+    var soleBarrier = item.barriers.length === 1;
+    var hasConseq = item.barriers.length > 0;
+    for (var j = 0; j < item.barriers.length; j++) {
+      var b = item.barriers[j];
+      var hasDeg = b.dfs && b.dfs.length > 0 && b.dfs.some(function(df){ return df.factor.trim(); });
+      b.scePriority = classifyBarrier(b, hasConseq, soleBarrier, hasDeg);
+    }
+  }
+  buildSCTList();
+  render();
+}
+
+function buildSCTList() {
+  // Build canonical list of SCTs derived from SCEs.
+  // CRITICAL: preserve any previously-saved deep SCTA analyses across re-flags.
+  // Analyses are persisted on barrier.sctaAnalysisByTask[taskType] (keyed by task type
+  // so multiple tasks per barrier can each have their own analysis).
+  state.scts = [];
+  var sctId = 1;
+
+  function addSCT(barrier, pathway, side, refId, bi, taskType) {
+    // Look up any persisted analysis for this barrier+taskType combo
+    var savedAnalysis = null;
+    if (barrier.sctaAnalysisByTask && barrier.sctaAnalysisByTask[taskType]) {
+      savedAnalysis = barrier.sctaAnalysisByTask[taskType];
+    }
+    var entry = {
+      id: sctId++,
+      barrier: barrier.name,
+      pathway: pathway,
+      side: side,
+      bi: bi,
+      taskType: taskType,
+      mgmt: barrier.mgmt || 'Unspecified',
+      priority: barrier.scePriority,
+      analysis: savedAnalysis
+    };
+    // Set side-specific reference id correctly so saveSctaAnalysis can find the barrier later
+    if (side === 'threat') entry.tid = refId;
+    else entry.cid = refId;
+    state.scts.push(entry);
+  }
+
+  for (var i = 0; i < state.threats.length; i++) {
+    var t = state.threats[i];
+    for (var j = 0; j < t.barriers.length; j++) {
+      var b = t.barriers[j];
+      if (b.scePriority === 'H' || b.scePriority === 'M') {
+        if (b.mgmt === 'Activity' || b.mgmt === 'Procedure' || !b.mgmt) {
+          addSCT(b, t.text, 'threat', t.id, j, 'Operate barrier');
+        }
+        addSCT(b, t.text, 'threat', t.id, j, 'Test / Maintain barrier');
+      }
+    }
+  }
+  for (var k = 0; k < state.consequences.length; k++) {
+    var c = state.consequences[k];
+    for (var l = 0; l < c.barriers.length; l++) {
+      var b2 = c.barriers[l];
+      if (b2.scePriority === 'H' || b2.scePriority === 'M') {
+        addSCT(b2, c.text, 'consequence', c.id, l, 'Activate recovery barrier');
+        addSCT(b2, c.text, 'consequence', c.id, l, 'Test / Maintain barrier');
+      }
+    }
+  }
+
+  renderSCTList();
+}
+
+function renderSCTList() {
+  var listEl = document.getElementById('sctList');
+  var cntEl = document.getElementById('cntS');
+  var subEl = document.getElementById('sctHdrSub');
+  if (!listEl) return;  // panel not in DOM yet
+  if (!state.scts || !state.scts.length) {
+    listEl.innerHTML = '<div class="sct-empty">No safety critical tasks identified yet. Add threats and consequences with barriers, then click "Re-flag SCEs/SCTs" in the sidebar.</div>';
+    if (cntEl) cntEl.textContent = '0 SCTs';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < state.scts.length; i++) {
+    var s = state.scts[i];
+    html += '<div class="sct-item" onclick="openDeepSCTA('+i+')">';
+    html += '<div class="sct-item-title">' + esc(s.taskType) + ' — ' + esc(s.barrier) + '</div>';
+    html += '<div class="sct-item-meta">';
+    html += '<span class="sct-prio sct-prio-' + s.priority + '">Priority: ' + s.priority + '</span>';
+    html += '<span>Mgmt: ' + esc(s.mgmt) + '</span>';
+    html += '<span>Pathway: ' + esc(trunc(s.pathway, 40)) + '</span>';
+    if (s.analysis) html += '<span style="color:#10b981">✓ SCTA done</span>';
+    html += '</div></div>';
+  }
+  listEl.innerHTML = html;
+  if (cntEl) cntEl.textContent = state.scts.length + ' SCT' + (state.scts.length !== 1 ? 's' : '');
+  if (subEl) subEl.textContent = state.scts.length + ' SCTs identified — click any to run deep SCTA';
+}
+
+function reflagSCEs() {
+  flagSCEsAndSCTs();
+}
+
+// ─── DEEP SCTA via Claude ─────────────────────────────────────────────────
+var currentSctaIndex = null;
+var currentSctaResult = null;
+
+function openDeepSCTA(index) {
+  if (!state.scts || !state.scts[index]) return;
+  currentSctaIndex = index;
+  var s = state.scts[index];
+  document.getElementById('sctaModalSub').innerHTML = '<strong>' + esc(s.taskType) + '</strong> on barrier <strong>' + esc(s.barrier) + '</strong>, on pathway <em>' + esc(s.pathway) + '</em>';
+  var ctxBanner = '';
+  if (isContextEnabledFor('deepSCTA')) {
+    var ctxSummary = getContextSummary();
+    if (ctxSummary.length) ctxBanner = '<div style="background:rgba(16,185,129,.1);border:1px solid #10b981;border-radius:5px;padding:6px 10px;margin-bottom:10px;font-size:.72rem;color:#6ee7b7;text-align:center">📎 Using process context: ' + ctxSummary.join(', ') + '</div>';
+  }
+  document.getElementById('sctaModalBody').innerHTML = ctxBanner + '<div style="text-align:center;padding:30px"><div class="dots"><span></span><span></span><span></span></div><div style="margin-top:10px;color:var(--muted);font-size:.78rem">Claude is performing the 7-step safety critical task analysis...</div></div>';
+  document.getElementById('sctaSaveBtn').style.display = 'none';
+  document.getElementById('sctaModal').classList.add('active');
+
+  if (s.analysis) {
+    // Already analysed — show cached
+    renderSctaResult(s.analysis);
+    return;
+  }
+  runDeepSCTA(s);
+}
+
+function closeSctaModal() {
+  document.getElementById('sctaModal').classList.remove('active');
+  currentSctaIndex = null;
+  currentSctaResult = null;
+}
+
+// Repair truncated JSON by tracking brackets/strings and closing what's open.
+// Strips any incomplete trailing element after the last complete one, then closes containers.
+function repairJSON(text) {
+  var s = text;
+  var stack = [];       // stack of '{' and '[' chars
+  var inString = false;
+  var escape = false;
+  var lastCompletePos = -1;  // position right after a complete top-level value within container
+
+  for (var i = 0; i < s.length; i++) {
+    var ch = s[i];
+    if (escape) { escape = false; continue; }
+    if (inString) {
+      if (ch === '\\') { escape = true; }
+      else if (ch === '"') { inString = false; }
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch === '{' || ch === '[') { stack.push(ch); continue; }
+    if (ch === '}' || ch === ']') {
+      if (stack.length) stack.pop();
+      lastCompletePos = i + 1;
+      continue;
+    }
+    if (ch === ',' && stack.length) {
+      // Comma at this nesting level = previous value complete
+      lastCompletePos = i;  // truncate AT the comma (drop it)
+    }
+  }
+
+  // If we ended mid-string, close the string and drop back to the last complete comma
+  var working = s;
+  if (inString) {
+    // Cut off the unterminated string entirely
+    if (lastCompletePos > 0) working = s.slice(0, lastCompletePos);
+    else working = s + '"';  // best effort
+    // Recount stack against working
+    stack = []; inString = false; escape = false;
+    for (var k = 0; k < working.length; k++) {
+      var c = working[k];
+      if (escape) { escape = false; continue; }
+      if (inString) {
+        if (c === '\\') escape = true;
+        else if (c === '"') inString = false;
+        continue;
+      }
+      if (c === '"') inString = true;
+      else if (c === '{' || c === '[') stack.push(c);
+      else if (c === '}' || c === ']') { if (stack.length) stack.pop(); }
+    }
+  } else if (lastCompletePos > 0 && lastCompletePos < s.length) {
+    // Trailing partial element after a comma — cut to last complete position
+    working = s.slice(0, lastCompletePos);
+    // Recount
+    stack = []; inString = false; escape = false;
+    for (var m = 0; m < working.length; m++) {
+      var cm = working[m];
+      if (escape) { escape = false; continue; }
+      if (inString) {
+        if (cm === '\\') escape = true;
+        else if (cm === '"') inString = false;
+        continue;
+      }
+      if (cm === '"') inString = true;
+      else if (cm === '{' || cm === '[') stack.push(cm);
+      else if (cm === '}' || cm === ']') { if (stack.length) stack.pop(); }
+    }
+  }
+
+  // Drop trailing comma if any
+  working = working.replace(/,\s*$/, '');
+
+  // Close open containers in reverse
+  for (var n = stack.length - 1; n >= 0; n--) {
+    working += (stack[n] === '{') ? '}' : ']';
+  }
+  return working;
+}
+
+function runDeepSCTA(sct) {
+  var apiKey = getApiKey();
+  if (!apiKey) {
+    document.getElementById('sctaModalBody').innerHTML = '<div style="padding:18px;text-align:center"><p style="color:var(--muted);margin-bottom:12px">🔑 API key required for deep SCTA analysis.</p><button class="modal-btn modal-btn-primary" onclick="closeSctaModal();openKeyModal()">Set API Key</button></div>';
+    return;
+  }
+
+  var sys = 'You are a Safety Critical Task Analysis (SCTA) expert in human factors for process safety. ' +
+    'You will receive ONE safety critical task and must produce a structured 7-step SCTA output. ' +
+    'CRITICAL: Respond ONLY with a raw JSON object — no markdown, no code fences, no preamble. Keep all text fields concise (under 200 characters each) so the full JSON fits in the response. ' +
+    'Required structure: ' +
+    '{"taskDescription":"clear description of the SCT","mahLink":"how task failure could lead to MAH","taskSteps":[{"step":"1.1","description":"step text","sct":true}],' +
+    '"humanFailures":[{"taskStep":"1.1","failure":"likely failure","failureCode":"A1|A2|...|V1","pifs":["PIF1","PIF2"],"recoveryPotential":"description","consequences":"if not recovered","preventiveMeasures":["measure 1","measure 2"],"mitigationMeasures":["measure 1"]}],' +
+    '"recommendations":[{"priority":"H|M|L","measure":"description","rationale":"why ALARP","owner":"role"}]}' +
+    ' Apply standard human-failure guidewords: A1-A13 (action), C1-C5 (check), S1-S2 (selection), R1-R4 (info retrieval), P1-P2 (planning), I1-I4 (communication), V1 (violation). ' +
+    'PIFs: cover Job factors (procedures, interface, workload), Person factors (fatigue, competence), Organisation factors (supervision, communication, culture). ' +
+    'Provide EXACTLY 4 task steps, 3 human failures with full PIFs, and 3 prioritised recommendations following ALARP. Each task step description max 15 words. Each failure description max 12 words. Each measure max 20 words. Be specific to oil/gas/process industry but keep wording tight.';
+
+  var usr = 'Hazard: ' + state.hazard +
+    '\nTop Event: ' + state.topEvent +
+    '\nPathway: ' + sct.pathway +
+    '\nSafety Critical Element (barrier): ' + sct.barrier +
+    '\nManagement system link: ' + sct.mgmt +
+    '\nSCE priority: ' + sct.priority +
+    '\nTask type to analyse: ' + sct.taskType +
+    '\n\nPerform full 7-step SCTA on this single task. If attached documents or process context are provided above, ground your analysis in the actual process design — reference specific equipment tags, instruments, and ESD logic where relevant.';
+
+  // Build multimodal content if user enabled context for deep SCTA
+  var messageContent = isContextEnabledFor('deepSCTA') ? buildContextContent(usr) : usr;
+
+  fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+    body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:8000, system:sys, messages:[{ role:'user', content: messageContent }] })
+  })
+  .then(function(res) {
+    if (!res.ok) return res.text().then(function(t){
+      var msg = 'API error ' + res.status + '. ';
+      if (res.status === 429) msg += 'Rate limit reached, try again later.';
+      else if (res.status === 401) msg += 'Check your API key.';
+      document.getElementById('sctaModalBody').innerHTML = '<div style="padding:20px;color:#fca5a5">' + msg + '</div>';
+    });
+    return res.json().then(function(data) {
+      var raw = '';
+      if (data.content && Array.isArray(data.content)) for (var i=0;i<data.content.length;i++) if (data.content[i].type==='text'){ raw=data.content[i].text; break; }
+      if (!raw) { document.getElementById('sctaModalBody').innerHTML = '<div style="padding:20px;color:#fca5a5">Empty response from API.</div>'; return; }
+
+      // Detect if stopped due to token limit
+      var stopReason = data.stop_reason || '';
+      var truncated = (stopReason === 'max_tokens');
+
+      var first = raw.indexOf('{');
+      var slice = raw.slice(first);
+      var parsed;
+      try {
+        // Try direct parse using the original last-brace approach
+        var last = slice.lastIndexOf('}');
+        parsed = JSON.parse(slice.slice(0, last+1));
+      } catch (e1) {
+        // Attempt JSON repair: walk forward tracking brackets/quotes, then close everything still open
+        try {
+          parsed = JSON.parse(repairJSON(slice));
+          truncated = true;
+        } catch (e2) {
+          document.getElementById('sctaModalBody').innerHTML =
+            '<div style="padding:20px;color:#fca5a5">' +
+            '<strong>Parse error:</strong> ' + esc(e1.message) + '<br><br>' +
+            'The AI response was likely cut off. Try clicking the SCT again — sometimes a second attempt is shorter and fits.' +
+            '</div>';
+          console.error('Raw response:', raw);
+          return;
+        }
+      }
+      currentSctaResult = parsed;
+      renderSctaResult(parsed);
+      if (truncated) {
+        // Prepend a warning banner inside the modal body
+        var banner = '<div style="background:rgba(245,158,11,.1);border:1px solid #f59e0b;border-radius:6px;padding:8px 12px;margin-bottom:12px;font-size:.75rem;color:#fcd34d">⚠ Response was truncated and auto-repaired. Some entries near the end may be incomplete. Re-run for a fresh attempt.</div>';
+        var body = document.getElementById('sctaModalBody');
+        body.innerHTML = banner + body.innerHTML;
+      }
+      document.getElementById('sctaSaveBtn').style.display = 'inline-block';
+    });
+  })
+  .catch(function(err){
+    document.getElementById('sctaModalBody').innerHTML = '<div style="padding:20px;color:#fca5a5">Network error: ' + esc(err.message) + '</div>';
+  });
+}
+
+function renderSctaResult(analysis) {
+  var html = '';
+
+  html += '<div class="scta-section"><div class="scta-section-title">📋 Task Description</div>';
+  html += '<div style="font-size:.8rem;color:var(--text);line-height:1.5">' + esc(analysis.taskDescription || '—') + '</div></div>';
+
+  if (analysis.mahLink) {
+    html += '<div class="scta-section"><div class="scta-section-title">🔗 Link to MAH</div>';
+    html += '<div style="font-size:.78rem;color:var(--muted);line-height:1.5">' + esc(analysis.mahLink) + '</div></div>';
+  }
+
+  if (analysis.taskSteps && analysis.taskSteps.length) {
+    html += '<div class="scta-section"><div class="scta-section-title">📝 Task Steps (Step 4: Represent Tasks)</div>';
+    for (var i = 0; i < analysis.taskSteps.length; i++) {
+      var ts = analysis.taskSteps[i];
+      html += '<div class="scta-step"><span class="scta-step-num">' + esc(ts.step) + '</span><span>' + esc(ts.description) + (ts.sct ? ' <span style="color:#dc2626;font-weight:700;font-size:.65rem">[SAFETY CRITICAL]</span>' : '') + '</span></div>';
+    }
+    html += '</div>';
+  }
+
+  if (analysis.humanFailures && analysis.humanFailures.length) {
+    html += '<div class="scta-section"><div class="scta-section-title">⚠ Step 5: Human Failures & PIFs</div>';
+    html += '<table class="scta-table"><thead><tr><th>Step</th><th>Failure (Code)</th><th>PIFs</th><th>Recovery</th><th>Consequences</th><th>Preventive Measures</th><th>Mitigation</th></tr></thead><tbody>';
+    for (var j = 0; j < analysis.humanFailures.length; j++) {
+      var hf = analysis.humanFailures[j];
+      html += '<tr>';
+      html += '<td>' + esc(hf.taskStep || '—') + '</td>';
+      html += '<td><strong>' + esc(hf.failure || '—') + '</strong>' + (hf.failureCode ? '<br><span style="color:var(--accent);font-size:.62rem;font-family:IBM Plex Mono,monospace">' + esc(hf.failureCode) + '</span>' : '') + '</td>';
+      html += '<td>' + (hf.pifs ? hf.pifs.map(esc).join(', ') : '—') + '</td>';
+      html += '<td>' + esc(hf.recoveryPotential || '—') + '</td>';
+      html += '<td>' + esc(hf.consequences || '—') + '</td>';
+      html += '<td>' + (hf.preventiveMeasures ? '• ' + hf.preventiveMeasures.map(esc).join('<br>• ') : '—') + '</td>';
+      html += '<td>' + (hf.mitigationMeasures ? '• ' + hf.mitigationMeasures.map(esc).join('<br>• ') : '—') + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+  }
+
+  if (analysis.recommendations && analysis.recommendations.length) {
+    html += '<div class="scta-section"><div class="scta-section-title">✅ Step 6: Recommendations (ALARP)</div>';
+    html += '<table class="scta-table"><thead><tr><th>Priority</th><th>Measure</th><th>Rationale</th><th>Owner</th></tr></thead><tbody>';
+    for (var k = 0; k < analysis.recommendations.length; k++) {
+      var rec = analysis.recommendations[k];
+      html += '<tr>';
+      html += '<td><span class="sct-prio sct-prio-' + (rec.priority || 'M') + '">' + esc(rec.priority || 'M') + '</span></td>';
+      html += '<td>' + esc(rec.measure || '—') + '</td>';
+      html += '<td>' + esc(rec.rationale || '—') + '</td>';
+      html += '<td>' + esc(rec.owner || '—') + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+  }
+
+  document.getElementById('sctaModalBody').innerHTML = html;
+  currentSctaResult = analysis;
+}
+
+function saveSctaAnalysis() {
+  if (currentSctaIndex === null || !currentSctaResult) return;
+  var sct = state.scts[currentSctaIndex];
+  if (!sct) return;
+
+  // Save on the transient SCT entry
+  sct.analysis = currentSctaResult;
+
+  // Persist on the underlying barrier so the analysis survives any rebuild of state.scts
+  var item;
+  if (sct.side === 'threat') {
+    item = state.threats.find(function(x){ return x.id === sct.tid; });
+  } else {
+    item = state.consequences.find(function(x){ return x.id === sct.cid; });
+  }
+  if (item && item.barriers && item.barriers[sct.bi]) {
+    var b = item.barriers[sct.bi];
+    if (!b.sctaAnalysisByTask) b.sctaAnalysisByTask = {};
+    b.sctaAnalysisByTask[sct.taskType] = currentSctaResult;
+  } else {
+    console.warn('[saveSctaAnalysis] could not locate barrier for persistence', sct);
+  }
+
+  // Refresh just the SCT list so the green ✓ appears immediately
+  renderSCTList();
+  closeSctaModal();
+  // Small inline toast instead of blocking alert
+  var subEl = document.getElementById('sctHdrSub');
+  if (subEl) {
+    var prev = subEl.textContent;
+    subEl.textContent = '✓ SCTA saved — appears in reports and Excel';
+    subEl.style.color = '#10b981';
+    setTimeout(function(){ subEl.style.color = ''; renderSCTList(); }, 2500);
+  }
+}
+
+// ─── EXCEL EXPORT (multi-sheet via SheetJS) ───────────────────────────────
+function exportExcel() {
+  if (typeof XLSX === 'undefined') {
+    alert('Excel library failed to load. Please check your internet connection and refresh the page.');
+    return;
+  }
+  var wb = XLSX.utils.book_new();
+
+  // ── Sheet 1: Hazard & Top Event ──
+  var s1 = [
+    ['Risk2Safe BowTie Studio — Risk Assessment Summary'],
+    [''],
+    ['Generated', new Date().toISOString().split('T')[0]],
+    ['Methodology', 'Bow Tie Risk Assessment + Human Factors SCTA'],
+    [''],
+    ['Hazard', state.hazard || '(not defined)'],
+    ['Top Event', state.topEvent || '(not defined)'],
+    [''],
+    ['Counts'],
+    ['Threats', state.threats.length],
+    ['Consequences', state.consequences.length],
+    ['Total Barriers', state.threats.reduce(function(s,t){return s+t.barriers.length;},0) + state.consequences.reduce(function(s,c){return s+c.barriers.length;},0)],
+    ['Total Degradation Factors', countDFs()],
+    ['Total Degradation Controls', countDCs()],
+    ['Safety Critical Tasks identified', (state.scts || []).length]
+  ];
+  var ws1 = XLSX.utils.aoa_to_sheet(s1);
+  ws1['!cols'] = [{wch:30},{wch:55}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
+
+  // ── Sheet 1A: Process Context (if any provided) ──
+  var procDescExcel = ((document.getElementById('ctxDescription') || {}).value || '').trim();
+  var esdCEExcel = ((document.getElementById('ctxESD') || {}).value || '').trim();
+  if (procDescExcel || esdCEExcel || contextFiles.length) {
+    var sCtx = [['Process Context'], ['']];
+    if (procDescExcel) { sCtx.push(['Process Description']); sCtx.push([procDescExcel]); sCtx.push(['']); }
+    if (esdCEExcel) { sCtx.push(['ESD Cause and Effect']); sCtx.push([esdCEExcel]); sCtx.push(['']); }
+    if (contextFiles.length) {
+      sCtx.push(['Supporting Documents Referenced']);
+      for (var ctxi = 0; ctxi < contextFiles.length; ctxi++) {
+        var ctxf = contextFiles[ctxi];
+        sCtx.push([ctxf.name + ' (' + ctxf.kind + ', ' + formatFileSize(ctxf.size) + ')']);
+      }
+    }
+    var wsCtx = XLSX.utils.aoa_to_sheet(sCtx);
+    wsCtx['!cols'] = [{wch:120}];
+    XLSX.utils.book_append_sheet(wb, wsCtx, 'Process Context');
+  }
+
+  // ── Sheet 2: Threats + Barriers ──
+  var s2 = [['Threat ID','Threat Description','Barrier #','Barrier (Prevention)','Mgmt Link','SCE Priority','Degradation Factor','Degradation Control(s)']];
+  for (var i = 0; i < state.threats.length; i++) {
+    var t = state.threats[i];
+    if (!t.barriers.length) { s2.push([t.id, t.text, '', '(no barriers)', '', '', '', '']); continue; }
+    for (var j = 0; j < t.barriers.length; j++) {
+      var b = t.barriers[j];
+      if (!b.dfs || !b.dfs.length) { s2.push([t.id, t.text, j+1, b.name, b.mgmt||'', b.scePriority||'', '', '']); continue; }
+      for (var k = 0; k < b.dfs.length; k++) {
+        var df = b.dfs[k];
+        var controls = (df.controls || []).join('; ');
+        s2.push([t.id, t.text, j+1, b.name, b.mgmt||'', b.scePriority||'', df.factor || '', controls]);
+      }
+    }
+  }
+  var ws2 = XLSX.utils.aoa_to_sheet(s2);
+  ws2['!cols'] = [{wch:8},{wch:35},{wch:8},{wch:30},{wch:12},{wch:10},{wch:30},{wch:35}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Threats & Barriers');
+
+  // ── Sheet 3: Consequences + Barriers ──
+  var s3 = [['Cons. ID','Consequence Description','Barrier #','Barrier (Recovery)','Mgmt Link','SCE Priority','Degradation Factor','Degradation Control(s)']];
+  for (var ci = 0; ci < state.consequences.length; ci++) {
+    var c = state.consequences[ci];
+    if (!c.barriers.length) { s3.push([c.id, c.text, '', '(no barriers)', '', '', '', '']); continue; }
+    for (var cj = 0; cj < c.barriers.length; cj++) {
+      var cb = c.barriers[cj];
+      if (!cb.dfs || !cb.dfs.length) { s3.push([c.id, c.text, cj+1, cb.name, cb.mgmt||'', cb.scePriority||'', '', '']); continue; }
+      for (var ck = 0; ck < cb.dfs.length; ck++) {
+        var cdf = cb.dfs[ck];
+        var ccontrols = (cdf.controls || []).join('; ');
+        s3.push([c.id, c.text, cj+1, cb.name, cb.mgmt||'', cb.scePriority||'', cdf.factor || '', ccontrols]);
+      }
+    }
+  }
+  var ws3 = XLSX.utils.aoa_to_sheet(s3);
+  ws3['!cols'] = [{wch:8},{wch:35},{wch:8},{wch:30},{wch:12},{wch:10},{wch:30},{wch:35}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Consequences & Barriers');
+
+  // ── Sheet 4: Safety Critical Elements (SCEs) ──
+  var s4 = [['Barrier','Side','Pathway','Mgmt Link','SCE Priority','# Degradation Factors','Notes']];
+  var allItems = state.threats.map(function(t){return{side:'Prevention',pathway:t.text,barriers:t.barriers};}).concat(state.consequences.map(function(c){return{side:'Recovery',pathway:c.text,barriers:c.barriers};}));
+  for (var ai = 0; ai < allItems.length; ai++) {
+    var it = allItems[ai];
+    for (var bi = 0; bi < it.barriers.length; bi++) {
+      var bb = it.barriers[bi];
+      if (bb.scePriority === 'H' || bb.scePriority === 'M') {
+        s4.push([bb.name, it.side, it.pathway, bb.mgmt||'', bb.scePriority, (bb.dfs||[]).filter(function(d){return d.factor.trim();}).length, '']);
+      }
+    }
+  }
+  var ws4 = XLSX.utils.aoa_to_sheet(s4);
+  ws4['!cols'] = [{wch:30},{wch:12},{wch:35},{wch:12},{wch:12},{wch:18},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, ws4, 'SCEs');
+
+  // ── Sheet 5: SCT Register (basic) ──
+  var s5 = [['SCT ID','Task Type','Barrier (SCE)','Pathway','Side','Priority','Mgmt Link','Deep SCTA Done']];
+  if (state.scts && state.scts.length) {
+    for (var si = 0; si < state.scts.length; si++) {
+      var s = state.scts[si];
+      s5.push([si+1, s.taskType, s.barrier, s.pathway, s.side, s.priority, s.mgmt, s.analysis ? 'Yes' : 'No']);
+    }
+  }
+  var ws5 = XLSX.utils.aoa_to_sheet(s5);
+  ws5['!cols'] = [{wch:8},{wch:25},{wch:30},{wch:35},{wch:12},{wch:10},{wch:14},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws5, 'SCT Register');
+
+  // ── Sheet 6: Deep SCTA Proformas (one row per failure per analysed SCT) ──
+  var s6 = [['SCT #','Task','Barrier','Step','Failure','Code','PIFs','Recovery Potential','Consequences','Preventive Measures','Mitigation Measures']];
+  var hasAnyAnalysis = false;
+  if (state.scts && state.scts.length) {
+    for (var si2 = 0; si2 < state.scts.length; si2++) {
+      var sc = state.scts[si2];
+      if (!sc.analysis) continue;
+      hasAnyAnalysis = true;
+      var hfs = sc.analysis.humanFailures || [];
+      if (!hfs.length) {
+        s6.push([si2+1, sc.taskType, sc.barrier, '', '(no failures listed)', '', '', '', '', '', '']);
+        continue;
+      }
+      for (var hi = 0; hi < hfs.length; hi++) {
+        var hf = hfs[hi];
+        s6.push([
+          si2+1,
+          sc.taskType,
+          sc.barrier,
+          hf.taskStep || '',
+          hf.failure || '',
+          hf.failureCode || '',
+          (hf.pifs || []).join('; '),
+          hf.recoveryPotential || '',
+          hf.consequences || '',
+          (hf.preventiveMeasures || []).join('; '),
+          (hf.mitigationMeasures || []).join('; ')
+        ]);
+      }
+    }
+  }
+  if (!hasAnyAnalysis) s6.push(['(No deep SCTA analyses performed yet — click any SCT in the diagram to run one)']);
+  var ws6 = XLSX.utils.aoa_to_sheet(s6);
+  ws6['!cols'] = [{wch:8},{wch:25},{wch:25},{wch:8},{wch:35},{wch:8},{wch:30},{wch:25},{wch:30},{wch:40},{wch:35}];
+  XLSX.utils.book_append_sheet(wb, ws6, 'SCTA Proformas');
+
+  // ── Sheet 7: SCTA Recommendations ──
+  var s7 = [['SCT #','Task','Barrier','Priority','Recommendation','Rationale','Owner']];
+  if (state.scts && state.scts.length) {
+    for (var si3 = 0; si3 < state.scts.length; si3++) {
+      var sc2 = state.scts[si3];
+      if (!sc2.analysis || !sc2.analysis.recommendations) continue;
+      var recs = sc2.analysis.recommendations;
+      for (var ri = 0; ri < recs.length; ri++) {
+        var r = recs[ri];
+        s7.push([si3+1, sc2.taskType, sc2.barrier, r.priority || 'M', r.measure || '', r.rationale || '', r.owner || '']);
+      }
+    }
+  }
+  var ws7 = XLSX.utils.aoa_to_sheet(s7);
+  ws7['!cols'] = [{wch:8},{wch:25},{wch:25},{wch:10},{wch:40},{wch:35},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, ws7, 'Recommendations');
+
+  // Write file
+  var fname = 'risk2safe_bowtie_' + new Date().toISOString().split('T')[0] + '.xlsx';
+  XLSX.writeFile(wb, fname);
+}
+
+function countDFs() {
+  var n = 0;
+  var all = state.threats.concat(state.consequences);
+  for (var i = 0; i < all.length; i++) for (var j = 0; j < all[i].barriers.length; j++) {
+    var dfs = all[i].barriers[j].dfs || [];
+    n += dfs.filter(function(d){return d.factor.trim();}).length;
+  }
+  return n;
+}
+
+function countDCs() {
+  var n = 0;
+  var all = state.threats.concat(state.consequences);
+  for (var i = 0; i < all.length; i++) for (var j = 0; j < all[i].barriers.length; j++) {
+    var dfs = all[i].barriers[j].dfs || [];
+    for (var k = 0; k < dfs.length; k++) n += (dfs[k].controls || []).filter(function(c){return c.trim();}).length;
+  }
+  return n;
+}
+
+
+
+// ─── REPORT GENERATOR ─────────────────────────────────────────────────────
+// Builds a comprehensive HTML report and exports as Word or PDF
+function generateReport(format) {
+  if (!state.hazard || !state.topEvent) {
+    alert('Please define a Hazard and Top Event before generating a report.');
+    return;
+  }
+
+  // Ensure SCEs and SCTs are up to date
+  flagSCEsAndSCTsInternal();
+
+  var today = new Date();
+  var dateStr = today.toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
+  var dateISO = today.toISOString().split('T')[0];
+
+  // ── Build the HTML report ──
+  var htmlReport = buildReportHTML(dateStr);
+
+  if (format === 'word') {
+    exportAsWord(htmlReport, dateISO);
+  } else if (format === 'pdf') {
+    exportAsPDF(htmlReport, dateISO);
+  }
+}
+
+function buildReportHTML(dateStr) {
+  var h = state.hazard || '(undefined)';
+  var te = state.topEvent || '(undefined)';
+  var nThreats = state.threats.length;
+  var nCons = state.consequences.length;
+  var nBarriers = state.threats.reduce(function(s,t){return s+t.barriers.length;},0) + state.consequences.reduce(function(s,c){return s+c.barriers.length;},0);
+  var nDFs = countDFs();
+  var nDCs = countDCs();
+  var nSCTs = (state.scts || []).length;
+  var nSCEs_H = 0, nSCEs_M = 0;
+  var all = state.threats.concat(state.consequences);
+  for (var ai = 0; ai < all.length; ai++) {
+    for (var bi = 0; bi < all[ai].barriers.length; bi++) {
+      if (all[ai].barriers[bi].scePriority === 'H') nSCEs_H++;
+      else if (all[ai].barriers[bi].scePriority === 'M') nSCEs_M++;
+    }
+  }
+  var nAnalysed = (state.scts || []).filter(function(s){return s.analysis;}).length;
+
+  // CSS for the report (will be inlined into the HTML)
+  var css = '<style>' +
+    'body{font-family:"Calibri","Arial",sans-serif;font-size:11pt;color:#222;line-height:1.5;margin:0;padding:0;}' +
+    '.cover{page-break-after:always;text-align:center;padding-top:120px;}' +
+    '.cover-title{font-size:36pt;font-weight:700;color:#1e3a8a;margin-bottom:8px;letter-spacing:-0.5px;}' +
+    '.cover-sub{font-size:16pt;color:#475569;margin-bottom:60px;font-style:italic;}' +
+    '.cover-box{border:2px solid #1e3a8a;padding:24px 40px;display:inline-block;margin-top:30px;text-align:left;max-width:540px;}' +
+    '.cover-label{font-size:9pt;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;margin-top:14px;}' +
+    '.cover-label:first-child{margin-top:0;}' +
+    '.cover-value{font-size:14pt;color:#0f172a;font-weight:600;margin-top:4px;}' +
+    '.cover-meta{margin-top:80px;color:#64748b;font-size:10pt;}' +
+    '.cover-brand{margin-top:140px;font-size:10pt;color:#94a3b8;letter-spacing:0.5px;}' +
+    'h1{font-size:22pt;color:#1e3a8a;border-bottom:3px solid #1e3a8a;padding-bottom:6px;margin-top:40px;margin-bottom:18px;page-break-before:always;}' +
+    'h1.no-break{page-break-before:auto;}' +
+    'h2{font-size:14pt;color:#1e3a8a;margin-top:22px;margin-bottom:10px;border-left:4px solid #1e3a8a;padding-left:10px;}' +
+    'h3{font-size:12pt;color:#0f172a;margin-top:16px;margin-bottom:8px;font-weight:700;}' +
+    'h4{font-size:11pt;color:#334155;margin-top:12px;margin-bottom:6px;font-weight:700;}' +
+    'p{margin:8px 0;text-align:justify;}' +
+    '.exec-summary-box{background:#f1f5f9;border-left:5px solid #1e3a8a;padding:14px 18px;margin:14px 0;}' +
+    '.kpi-grid{display:table;width:100%;border-collapse:collapse;margin:14px 0;}' +
+    '.kpi-row{display:table-row;}' +
+    '.kpi-cell{display:table-cell;border:1px solid #cbd5e1;padding:10px 12px;text-align:center;width:14.28%;}' +
+    '.kpi-num{font-size:18pt;font-weight:700;color:#1e3a8a;display:block;}' +
+    '.kpi-lbl{font-size:8pt;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;}' +
+    'table{width:100%;border-collapse:collapse;margin:10px 0;font-size:10pt;}' +
+    'th{background:#1e3a8a;color:#fff;padding:8px 10px;text-align:left;font-weight:700;border:1px solid #1e3a8a;font-size:10pt;}' +
+    'td{padding:7px 10px;border:1px solid #cbd5e1;vertical-align:top;}' +
+    'tr:nth-child(even) td{background:#f8fafc;}' +
+    '.priority-H{background:#fef2f2!important;color:#991b1b;font-weight:700;text-align:center;}' +
+    '.priority-M{background:#fffbeb!important;color:#92400e;font-weight:700;text-align:center;}' +
+    '.priority-L{background:#f0fdf4!important;color:#166534;font-weight:700;text-align:center;}' +
+    '.threat-row{border-left:5px solid #3b82f6;background:#eff6ff;padding:10px 14px;margin:14px 0 8px 0;font-weight:700;font-size:12pt;color:#1e40af;}' +
+    '.cons-row{border-left:5px solid #ef4444;background:#fef2f2;padding:10px 14px;margin:14px 0 8px 0;font-weight:700;font-size:12pt;color:#991b1b;}' +
+    '.barrier-list{margin:6px 0 14px 18px;}' +
+    '.barrier-item{padding:6px 10px;border:1px solid #e2e8f0;border-radius:4px;margin:6px 0;background:#fff;}' +
+    '.barrier-sce{border-left:4px solid #dc2626;background:#fef7f7;}' +
+    '.barrier-name{font-weight:700;font-size:11pt;color:#1e293b;}' +
+    '.barrier-meta{font-size:9pt;color:#64748b;margin-top:3px;}' +
+    '.df-block{margin-left:20px;margin-top:8px;font-size:10pt;}' +
+    '.df-item{color:#9a3412;font-weight:600;margin-top:4px;}' +
+    '.dc-item{color:#166534;margin-left:14px;font-size:9.5pt;margin-top:2px;}' +
+    '.sct-card{border:1px solid #cbd5e1;border-radius:6px;padding:14px 16px;margin:16px 0;page-break-inside:avoid;}' +
+    '.sct-card-header{border-bottom:2px solid #1e3a8a;padding-bottom:8px;margin-bottom:10px;}' +
+    '.sct-card-title{font-size:13pt;font-weight:700;color:#1e3a8a;}' +
+    '.sct-card-sub{font-size:9.5pt;color:#64748b;margin-top:3px;}' +
+    '.scta-section-title{font-size:11pt;font-weight:700;color:#1e3a8a;margin-top:14px;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.4px;}' +
+    '.step-row{display:table;width:100%;margin:3px 0;font-size:10pt;}' +
+    '.step-num{display:table-cell;width:40px;font-weight:700;color:#1e3a8a;}' +
+    '.step-desc{display:table-cell;}' +
+    '.step-flag{color:#dc2626;font-weight:700;font-size:9pt;}' +
+    '.footer{margin-top:50px;border-top:1px solid #cbd5e1;padding-top:10px;color:#64748b;font-size:9pt;font-style:italic;text-align:center;}' +
+    '.no-data{padding:14px;background:#f1f5f9;border:1px dashed #94a3b8;color:#64748b;font-style:italic;text-align:center;border-radius:4px;}' +
+    'ul{margin:4px 0;padding-left:22px;}' +
+    'ul li{margin:2px 0;}' +
+    '.toc{margin:20px 0;}' +
+    '.toc-item{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dotted #cbd5e1;}' +
+    '</style>';
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Bow Tie Risk Assessment Report</title>' + css + '</head><body>';
+
+  // ── COVER PAGE ──
+  html += '<div class="cover">';
+  html += '<div class="cover-title">Bow Tie Risk Assessment</div>';
+  html += '<div class="cover-sub">with Safety Critical Task Analysis</div>';
+  html += '<div class="cover-box">';
+  html += '<div class="cover-label">Hazard</div><div class="cover-value">' + esc(h) + '</div>';
+  html += '<div class="cover-label">Top Event</div><div class="cover-value">' + esc(te) + '</div>';
+  html += '<div class="cover-label">Report Date</div><div class="cover-value">' + esc(dateStr) + '</div>';
+  html += '</div>';
+  html += '<div class="cover-meta">Confidential — Process Safety Document</div>';
+  html += '<div class="cover-brand">Risk2Safe BowTie Studio</div>';
+  html += '</div>';
+
+  // ── TABLE OF CONTENTS ──
+  html += '<h1 class="no-break">Table of Contents</h1>';
+  html += '<div class="toc">';
+  var tocItems = [
+    ['1. Executive Summary', '3'],
+    ['2. Methodology', '4'],
+    ['3. Bow Tie Risk Assessment', '6'],
+    ['   3.1 Threats and Prevention Barriers', '6'],
+    ['   3.2 Consequences and Recovery Barriers', '8'],
+    ['4. Safety Critical Elements (SCE) Register', '10'],
+    ['5. Safety Critical Tasks (SCT) Register', '12'],
+    ['6. Deep SCTA Proformas', '14'],
+    ['7. Consolidated Recommendations', '20'],
+    ['Appendix A: Degradation Factors and Controls Register', '22'],
+    ['Appendix B: Management System Linkage Summary', '24']
+  ];
+  for (var ti = 0; ti < tocItems.length; ti++) {
+    html += '<div class="toc-item"><span>' + tocItems[ti][0] + '</span><span style="color:#64748b">' + tocItems[ti][1] + '</span></div>';
+  }
+  html += '</div>';
+
+  // ── 1. EXECUTIVE SUMMARY ──
+  html += '<h1>1. Executive Summary</h1>';
+  html += '<p>This report documents a comprehensive Bow Tie Risk Assessment with integrated Safety Critical Task Analysis for the hazard <strong>' + esc(h) + '</strong> with top event <strong>' + esc(te) + '</strong>. The analysis identifies the threats that can lead to the top event, the consequences that may follow if the top event occurs, the barriers in place to prevent each threat and mitigate each consequence, and the degradation factors that could undermine those barriers.</p>';
+  html += '<p>From the bow tie, Safety Critical Elements (SCEs) have been identified using a structured risk matrix combining consequence severity with the level of human involvement in barrier operation. For each SCE, the human tasks required to operate, test, maintain or activate the barrier have been registered as Safety Critical Tasks (SCTs) and, where indicated, subjected to detailed task analysis covering task steps, human failure modes, performance influencing factors, recovery potential, and recommended risk-reduction measures.</p>';
+
+  html += '<h3>Assessment Profile</h3>';
+  html += '<div class="kpi-grid">';
+  html += '<div class="kpi-row">';
+  html += '<div class="kpi-cell"><span class="kpi-num">' + nThreats + '</span><span class="kpi-lbl">Threats</span></div>';
+  html += '<div class="kpi-cell"><span class="kpi-num">' + nCons + '</span><span class="kpi-lbl">Consequences</span></div>';
+  html += '<div class="kpi-cell"><span class="kpi-num">' + nBarriers + '</span><span class="kpi-lbl">Barriers</span></div>';
+  html += '<div class="kpi-cell"><span class="kpi-num">' + nDFs + '</span><span class="kpi-lbl">Deg. Factors</span></div>';
+  html += '<div class="kpi-cell"><span class="kpi-num">' + nDCs + '</span><span class="kpi-lbl">Deg. Controls</span></div>';
+  html += '<div class="kpi-cell"><span class="kpi-num">' + (nSCEs_H + nSCEs_M) + '</span><span class="kpi-lbl">SCEs (H+M)</span></div>';
+  html += '<div class="kpi-cell"><span class="kpi-num">' + nSCTs + '</span><span class="kpi-lbl">SCTs</span></div>';
+  html += '</div></div>';
+
+  html += '<h3>Key Findings</h3>';
+  html += '<div class="exec-summary-box">';
+  if (nSCEs_H > 0) html += '<p><strong>' + nSCEs_H + ' Safety Critical Element' + (nSCEs_H !== 1 ? 's' : '') + '</strong> have been classified as <strong>High priority</strong> — these are barriers whose failure could lead directly to the top event and have significant human involvement. They demand the highest level of management attention, verification frequency, and ALARP demonstration.</p>';
+  if (nSCEs_M > 0) html += '<p><strong>' + nSCEs_M + ' Safety Critical Element' + (nSCEs_M !== 1 ? 's' : '') + '</strong> at <strong>Medium priority</strong> require regular monitoring and integrity assurance within the management system.</p>';
+  html += '<p><strong>' + nSCTs + ' Safety Critical Task' + (nSCTs !== 1 ? 's' : '') + '</strong> have been registered across operation, testing/maintenance, and recovery activities. Of these, <strong>' + nAnalysed + '</strong> have been subjected to detailed task analysis in this assessment.</p>';
+  if (nDFs > 0) html += '<p>The assessment identifies <strong>' + nDFs + ' degradation factor' + (nDFs !== 1 ? 's' : '') + '</strong> that could weaken one or more barriers, with <strong>' + nDCs + ' degradation control' + (nDCs !== 1 ? 's' : '') + '</strong> in place to address them. Where degradation factors exist without sufficient controls, recommended actions are listed in Section 7.</p>';
+  html += '</div>';
+
+  // ── 1A. PROCESS CONTEXT (if provided) ──
+  var procDesc = ((document.getElementById('ctxDescription') || {}).value || '').trim();
+  var esdCE = ((document.getElementById('ctxESD') || {}).value || '').trim();
+  var ctxFileNames = contextFiles.map(function(f){ return f.name + ' (' + f.kind + ', ' + formatFileSize(f.size) + ')'; });
+  if (procDesc || esdCE || ctxFileNames.length) {
+    html += '<h1>1A. Process Context</h1>';
+    html += '<p>The following process information was provided as context to support the bow tie analysis and detailed task analyses.</p>';
+    if (procDesc) {
+      html += '<h2>1A.1 Process Description</h2>';
+      // Preserve line breaks
+      html += '<div style="white-space:pre-wrap;background:#f8fafc;border-left:3px solid #1e3a8a;padding:10px 14px;font-size:10.5pt;">' + esc(procDesc) + '</div>';
+    }
+    if (esdCE) {
+      html += '<h2>1A.2 ESD Cause and Effect</h2>';
+      html += '<div style="white-space:pre-wrap;background:#f8fafc;border-left:3px solid #dc2626;padding:10px 14px;font-size:10.5pt;">' + esc(esdCE) + '</div>';
+    }
+    if (ctxFileNames.length) {
+      html += '<h2>1A.3 Supporting Documents</h2>';
+      html += '<p>The following documents were referenced during AI-assisted analysis:</p>';
+      html += '<ul>';
+      for (var ctxfi = 0; ctxfi < ctxFileNames.length; ctxfi++) {
+        html += '<li>' + esc(ctxFileNames[ctxfi]) + '</li>';
+      }
+      html += '</ul>';
+      html += '<p style="font-size:9.5pt;color:#64748b;font-style:italic">Note: Document contents are not embedded in this report. The documents themselves should be retained alongside this report for audit and review purposes.</p>';
+    }
+  }
+
+  // ── 2. METHODOLOGY ──
+  html += '<h1>2. Methodology</h1>';
+
+  html += '<h2>2.1 Bow Tie Risk Assessment</h2>';
+  html += '<p>The bow tie is a visual risk assessment technique that combines fault tree (cause) and event tree (consequence) analysis around a central Top Event. It places the hazard at the highest level, the top event (typically a loss of containment, loss of control or other realisation of the hazard) at the centre, threats that can cause the top event on the left, and consequences that may follow on the right.</p>';
+  html += '<p>Barriers are placed on the pathways between threats and the top event (prevention barriers) and between the top event and consequences (recovery and mitigation barriers). Each barrier must be specific, independent, auditable, and effective. Degradation factors are conditions or events that could undermine the effectiveness of a barrier, and degradation controls address those degradation factors.</p>';
+  html += '<p>Every barrier is linked to one element of the management system:</p>';
+  html += '<ul>';
+  html += '<li><strong>Policy</strong> — organisational commitments and high-level rules governing the barrier</li>';
+  html += '<li><strong>Activity</strong> — direct human or operational activities required for the barrier to function</li>';
+  html += '<li><strong>Procedure</strong> — documented procedural steps that drive the barrier</li>';
+  html += '<li><strong>Standard</strong> — engineering or technical standards specifying the barrier design and performance</li>';
+  html += '</ul>';
+
+  html += '<h2>2.2 Safety Critical Element (SCE) Identification</h2>';
+  html += '<p>Barriers are classified as Safety Critical Elements based on a two-dimensional risk matrix combining (a) the consequence severity of barrier failure and (b) the level of human involvement in barrier operation. The matrix is bumped where degradation factors are present, reflecting that a barrier with known vulnerabilities warrants heightened criticality.</p>';
+  html += '<table>';
+  html += '<thead><tr><th>SCE Priority</th><th>Interpretation</th><th>Treatment</th></tr></thead>';
+  html += '<tbody>';
+  html += '<tr><td class="priority-H">High</td><td>Barrier failure could lead directly to the top event; sole barrier on a pathway, or high human dependency, or known degradation factors.</td><td>Mandatory written procedure; periodic functional testing; integrity assurance KPI; competence-assured personnel.</td></tr>';
+  html += '<tr><td class="priority-M">Medium</td><td>Barrier failure contributes to a multi-barrier defence chain; moderate human dependency.</td><td>Documented operating instruction; risk-based inspection; routine performance monitoring.</td></tr>';
+  html += '<tr><td class="priority-L">Low</td><td>Barrier failure unlikely to lead directly to a MAH; low human dependency.</td><td>Standard maintenance regime; included in routine HSE walks.</td></tr>';
+  html += '</tbody></table>';
+
+  html += '<h2>2.3 Safety Critical Task (SCT) Analysis</h2>';
+  html += '<p>For every SCE flagged as High or Medium priority, the associated human tasks are registered as Safety Critical Tasks. These typically include:</p>';
+  html += '<ul>';
+  html += '<li><strong>Operate barrier</strong> — the direct activity of using the barrier in normal operations</li>';
+  html += '<li><strong>Test or maintain barrier</strong> — periodic functional verification and maintenance to assure availability</li>';
+  html += '<li><strong>Activate recovery barrier</strong> — invoking the barrier in response to a deviation or incident</li>';
+  html += '</ul>';
+  html += '<p>Each SCT may be subjected to deep task analysis comprising:</p>';
+  html += '<ul>';
+  html += '<li>Task description and link to the Major Accident Hazard</li>';
+  html += '<li>Breakdown of task steps, flagging which steps are themselves safety critical</li>';
+  html += '<li>Identification of likely human failures using a standard guideword set covering action failures (A1–A13), checking failures (C1–C5), selection failures (S1–S2), information retrieval failures (R1–R4), planning failures (P1–P2), communication failures (I1–I4), and violations (V1)</li>';
+  html += '<li>Performance Influencing Factors (PIFs) including job factors (procedures, interface, workload), person factors (fatigue, competence), and organisational factors (supervision, communication, culture)</li>';
+  html += '<li>Recovery potential and consequences if the failure is not recovered</li>';
+  html += '<li>Preventive and mitigation measures, leading to prioritised recommendations following the As Low As Reasonably Practicable (ALARP) principle</li>';
+  html += '</ul>';
+
+  // ── 3. BOW TIE ANALYSIS ──
+  html += '<h1>3. Bow Tie Risk Assessment</h1>';
+  html += '<p><strong>Hazard:</strong> ' + esc(h) + '</p>';
+  html += '<p><strong>Top Event:</strong> ' + esc(te) + '</p>';
+
+  html += '<h2>3.1 Threats and Prevention Barriers</h2>';
+  if (!state.threats.length) {
+    html += '<div class="no-data">No threats have been defined.</div>';
+  } else {
+    for (var ti2 = 0; ti2 < state.threats.length; ti2++) {
+      var t = state.threats[ti2];
+      html += '<div class="threat-row">Threat ' + (ti2+1) + ': ' + esc(t.text) + '</div>';
+      if (!t.barriers.length) {
+        html += '<div class="no-data">No barriers defined for this threat.</div>';
+      } else {
+        html += '<div class="barrier-list">';
+        for (var bi2 = 0; bi2 < t.barriers.length; bi2++) {
+          var b = t.barriers[bi2];
+          var sceClass = (b.scePriority === 'H' || b.scePriority === 'M') ? ' barrier-sce' : '';
+          html += '<div class="barrier-item' + sceClass + '">';
+          html += '<div class="barrier-name">Barrier ' + (bi2+1) + ': ' + esc(b.name);
+          if (b.scePriority === 'H' || b.scePriority === 'M') {
+            html += ' <span class="priority-' + b.scePriority + '" style="padding:2px 8px;border-radius:3px;font-size:9pt;margin-left:6px">SCE ' + b.scePriority + '</span>';
+          }
+          html += '</div>';
+          html += '<div class="barrier-meta">Management system: ' + esc(b.mgmt || 'Not specified') + '</div>';
+          if (b.dfs && b.dfs.length) {
+            var realDFs = b.dfs.filter(function(d){return d.factor.trim();});
+            if (realDFs.length) {
+              html += '<div class="df-block"><strong>Degradation factors and controls:</strong>';
+              for (var di = 0; di < realDFs.length; di++) {
+                var df = realDFs[di];
+                html += '<div class="df-item">▼ ' + esc(df.factor) + '</div>';
+                if (df.controls && df.controls.length) {
+                  var realDCs = df.controls.filter(function(c){return c.trim();});
+                  for (var dci = 0; dci < realDCs.length; dci++) {
+                    html += '<div class="dc-item">✓ ' + esc(realDCs[dci]) + '</div>';
+                  }
+                }
+              }
+              html += '</div>';
+            }
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+    }
+  }
+
+  html += '<h2>3.2 Consequences and Recovery Barriers</h2>';
+  if (!state.consequences.length) {
+    html += '<div class="no-data">No consequences have been defined.</div>';
+  } else {
+    for (var ci = 0; ci < state.consequences.length; ci++) {
+      var c = state.consequences[ci];
+      html += '<div class="cons-row">Consequence ' + (ci+1) + ': ' + esc(c.text) + '</div>';
+      if (!c.barriers.length) {
+        html += '<div class="no-data">No barriers defined for this consequence.</div>';
+      } else {
+        html += '<div class="barrier-list">';
+        for (var cbi = 0; cbi < c.barriers.length; cbi++) {
+          var cb = c.barriers[cbi];
+          var csceClass = (cb.scePriority === 'H' || cb.scePriority === 'M') ? ' barrier-sce' : '';
+          html += '<div class="barrier-item' + csceClass + '">';
+          html += '<div class="barrier-name">Barrier ' + (cbi+1) + ': ' + esc(cb.name);
+          if (cb.scePriority === 'H' || cb.scePriority === 'M') {
+            html += ' <span class="priority-' + cb.scePriority + '" style="padding:2px 8px;border-radius:3px;font-size:9pt;margin-left:6px">SCE ' + cb.scePriority + '</span>';
+          }
+          html += '</div>';
+          html += '<div class="barrier-meta">Management system: ' + esc(cb.mgmt || 'Not specified') + '</div>';
+          if (cb.dfs && cb.dfs.length) {
+            var realDFs2 = cb.dfs.filter(function(d){return d.factor.trim();});
+            if (realDFs2.length) {
+              html += '<div class="df-block"><strong>Degradation factors and controls:</strong>';
+              for (var cdi = 0; cdi < realDFs2.length; cdi++) {
+                var cdf = realDFs2[cdi];
+                html += '<div class="df-item">▼ ' + esc(cdf.factor) + '</div>';
+                if (cdf.controls && cdf.controls.length) {
+                  var realDCs2 = cdf.controls.filter(function(c){return c.trim();});
+                  for (var cdci = 0; cdci < realDCs2.length; cdci++) {
+                    html += '<div class="dc-item">✓ ' + esc(realDCs2[cdci]) + '</div>';
+                  }
+                }
+              }
+              html += '</div>';
+            }
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+    }
+  }
+
+  // ── 4. SCE REGISTER ──
+  html += '<h1>4. Safety Critical Elements (SCE) Register</h1>';
+  html += '<p>The following barriers have been classified as Safety Critical Elements at High or Medium priority and require structured assurance under the management system.</p>';
+  var sceRows = [];
+  var allItems = state.threats.map(function(t){return{side:'Prevention',pathway:t.text,barriers:t.barriers};}).concat(state.consequences.map(function(c){return{side:'Recovery',pathway:c.text,barriers:c.barriers};}));
+  for (var aii = 0; aii < allItems.length; aii++) {
+    var item = allItems[aii];
+    for (var bii = 0; bii < item.barriers.length; bii++) {
+      var bb = item.barriers[bii];
+      if (bb.scePriority === 'H' || bb.scePriority === 'M') {
+        sceRows.push({ barrier: bb.name, side: item.side, pathway: item.pathway, mgmt: bb.mgmt||'Not specified', priority: bb.scePriority, dfs: (bb.dfs||[]).filter(function(d){return d.factor.trim();}).length });
+      }
+    }
+  }
+  if (!sceRows.length) {
+    html += '<div class="no-data">No Safety Critical Elements identified at the High or Medium level.</div>';
+  } else {
+    html += '<table><thead><tr><th>#</th><th>Priority</th><th>Barrier</th><th>Side</th><th>Pathway</th><th>Mgmt Link</th><th>Deg. Factors</th></tr></thead><tbody>';
+    for (var sri = 0; sri < sceRows.length; sri++) {
+      var sr = sceRows[sri];
+      html += '<tr>';
+      html += '<td>' + (sri+1) + '</td>';
+      html += '<td class="priority-' + sr.priority + '">' + sr.priority + '</td>';
+      html += '<td>' + esc(sr.barrier) + '</td>';
+      html += '<td>' + sr.side + '</td>';
+      html += '<td>' + esc(sr.pathway) + '</td>';
+      html += '<td>' + esc(sr.mgmt) + '</td>';
+      html += '<td style="text-align:center">' + sr.dfs + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+
+  // ── 5. SCT REGISTER ──
+  html += '<h1>5. Safety Critical Tasks (SCT) Register</h1>';
+  html += '<p>The following human tasks have been registered as Safety Critical based on their role in operating, testing, maintaining or activating Safety Critical Elements.</p>';
+  if (!nSCTs) {
+    html += '<div class="no-data">No SCTs identified.</div>';
+  } else {
+    html += '<table><thead><tr><th>#</th><th>Priority</th><th>Task Type</th><th>Barrier (SCE)</th><th>Side</th><th>Pathway</th><th>Mgmt Link</th><th>Deep SCTA</th></tr></thead><tbody>';
+    for (var si = 0; si < state.scts.length; si++) {
+      var s = state.scts[si];
+      html += '<tr>';
+      html += '<td>' + (si+1) + '</td>';
+      html += '<td class="priority-' + s.priority + '">' + s.priority + '</td>';
+      html += '<td>' + esc(s.taskType) + '</td>';
+      html += '<td>' + esc(s.barrier) + '</td>';
+      html += '<td>' + (s.side === 'threat' ? 'Prevention' : 'Recovery') + '</td>';
+      html += '<td>' + esc(s.pathway) + '</td>';
+      html += '<td>' + esc(s.mgmt) + '</td>';
+      html += '<td style="text-align:center">' + (s.analysis ? '✓' : '—') + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+
+  // ── 6. DEEP SCTA PROFORMAS ──
+  html += '<h1>6. Deep SCTA Proformas</h1>';
+  if (!nAnalysed) {
+    html += '<div class="no-data">No deep SCTA analyses have been performed yet. Open the application, select any SCT from the panel beneath the bow tie diagram, and click Deep SCTA Analysis to generate detailed proformas.</div>';
+  } else {
+    html += '<p>Detailed task analysis for each SCT that has been subjected to deep analysis. Each proforma follows a structured 7-step process covering task understanding, failure identification, performance influencing factors, and risk-reduction recommendations.</p>';
+    for (var sai = 0; sai < state.scts.length; sai++) {
+      var sct = state.scts[sai];
+      if (!sct.analysis) continue;
+      var a = sct.analysis;
+      html += '<div class="sct-card">';
+      html += '<div class="sct-card-header">';
+      html += '<div class="sct-card-title">SCT ' + (sai+1) + ' — ' + esc(sct.taskType) + '</div>';
+      html += '<div class="sct-card-sub"><strong>Barrier (SCE):</strong> ' + esc(sct.barrier) + ' &nbsp;|&nbsp; <strong>Priority:</strong> ' + sct.priority + ' &nbsp;|&nbsp; <strong>Pathway:</strong> ' + esc(sct.pathway) + '</div>';
+      html += '</div>';
+
+      if (a.taskDescription) {
+        html += '<div class="scta-section-title">Task Description</div>';
+        html += '<p>' + esc(a.taskDescription) + '</p>';
+      }
+      if (a.mahLink) {
+        html += '<div class="scta-section-title">Link to Major Accident Hazard</div>';
+        html += '<p>' + esc(a.mahLink) + '</p>';
+      }
+      if (a.taskSteps && a.taskSteps.length) {
+        html += '<div class="scta-section-title">Task Steps</div>';
+        for (var tsi = 0; tsi < a.taskSteps.length; tsi++) {
+          var ts = a.taskSteps[tsi];
+          html += '<div class="step-row"><span class="step-num">' + esc(ts.step || '') + '</span><span class="step-desc">' + esc(ts.description || '') + (ts.sct ? ' <span class="step-flag">[SAFETY CRITICAL STEP]</span>' : '') + '</span></div>';
+        }
+      }
+      if (a.humanFailures && a.humanFailures.length) {
+        html += '<div class="scta-section-title">Human Failures and Performance Influencing Factors</div>';
+        html += '<table><thead><tr><th style="width:6%">Step</th><th style="width:18%">Failure (Code)</th><th style="width:14%">PIFs</th><th style="width:14%">Recovery Potential</th><th style="width:14%">Consequences</th><th style="width:17%">Preventive Measures</th><th style="width:17%">Mitigation Measures</th></tr></thead><tbody>';
+        for (var hfi = 0; hfi < a.humanFailures.length; hfi++) {
+          var hf = a.humanFailures[hfi];
+          html += '<tr>';
+          html += '<td>' + esc(hf.taskStep || '—') + '</td>';
+          html += '<td><strong>' + esc(hf.failure || '—') + '</strong>' + (hf.failureCode ? '<br><span style="color:#1e3a8a;font-size:9pt"><em>' + esc(hf.failureCode) + '</em></span>' : '') + '</td>';
+          html += '<td>' + (hf.pifs ? hf.pifs.map(esc).join(', ') : '—') + '</td>';
+          html += '<td>' + esc(hf.recoveryPotential || '—') + '</td>';
+          html += '<td>' + esc(hf.consequences || '—') + '</td>';
+          html += '<td>' + (hf.preventiveMeasures ? '<ul style="margin:0;padding-left:14px"><li>' + hf.preventiveMeasures.map(esc).join('</li><li>') + '</li></ul>' : '—') + '</td>';
+          html += '<td>' + (hf.mitigationMeasures ? '<ul style="margin:0;padding-left:14px"><li>' + hf.mitigationMeasures.map(esc).join('</li><li>') + '</li></ul>' : '—') + '</td>';
+          html += '</tr>';
+        }
+        html += '</tbody></table>';
+      }
+      if (a.recommendations && a.recommendations.length) {
+        html += '<div class="scta-section-title">Recommendations (ALARP)</div>';
+        html += '<table><thead><tr><th style="width:10%">Priority</th><th style="width:35%">Measure</th><th style="width:35%">Rationale</th><th style="width:20%">Owner</th></tr></thead><tbody>';
+        for (var rci = 0; rci < a.recommendations.length; rci++) {
+          var rec = a.recommendations[rci];
+          html += '<tr>';
+          html += '<td class="priority-' + (rec.priority || 'M') + '">' + esc(rec.priority || 'M') + '</td>';
+          html += '<td>' + esc(rec.measure || '—') + '</td>';
+          html += '<td>' + esc(rec.rationale || '—') + '</td>';
+          html += '<td>' + esc(rec.owner || '—') + '</td>';
+          html += '</tr>';
+        }
+        html += '</tbody></table>';
+      }
+      html += '</div>';
+    }
+  }
+
+  // ── 7. CONSOLIDATED RECOMMENDATIONS ──
+  html += '<h1>7. Consolidated Recommendations</h1>';
+  var allRecs = [];
+  if (state.scts) {
+    for (var rsi = 0; rsi < state.scts.length; rsi++) {
+      var rsct = state.scts[rsi];
+      if (rsct.analysis && rsct.analysis.recommendations) {
+        for (var rri = 0; rri < rsct.analysis.recommendations.length; rri++) {
+          var rr = rsct.analysis.recommendations[rri];
+          allRecs.push({ sct: rsi+1, taskType: rsct.taskType, barrier: rsct.barrier, priority: rr.priority||'M', measure: rr.measure||'', rationale: rr.rationale||'', owner: rr.owner||'' });
+        }
+      }
+    }
+  }
+  if (!allRecs.length) {
+    html += '<div class="no-data">No recommendations consolidated. Perform deep SCTAs to generate recommendations.</div>';
+  } else {
+    // Sort by priority H > M > L
+    var order = { 'H':0, 'M':1, 'L':2 };
+    allRecs.sort(function(a,b){ return (order[a.priority]||3) - (order[b.priority]||3); });
+    html += '<p>The following ' + allRecs.length + ' recommendations have been consolidated from the deep SCTA analyses, sorted by priority. Each recommendation should be assigned to the responsible function, given a target completion date, and tracked through the management system.</p>';
+    html += '<table><thead><tr><th>#</th><th>Priority</th><th>SCT</th><th>Barrier</th><th>Recommendation</th><th>Rationale</th><th>Owner</th></tr></thead><tbody>';
+    for (var ari = 0; ari < allRecs.length; ari++) {
+      var ar = allRecs[ari];
+      html += '<tr>';
+      html += '<td>' + (ari+1) + '</td>';
+      html += '<td class="priority-' + ar.priority + '">' + ar.priority + '</td>';
+      html += '<td>SCT ' + ar.sct + ': ' + esc(ar.taskType) + '</td>';
+      html += '<td>' + esc(ar.barrier) + '</td>';
+      html += '<td>' + esc(ar.measure) + '</td>';
+      html += '<td>' + esc(ar.rationale) + '</td>';
+      html += '<td>' + esc(ar.owner) + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+
+  // ── APPENDIX A ──
+  html += '<h1>Appendix A: Degradation Factors and Controls Register</h1>';
+  html += '<p>Complete register of all degradation factors identified across the assessment, with their associated degradation controls.</p>';
+  var dfRows = [];
+  for (var dai = 0; dai < allItems.length; dai++) {
+    var ditem = allItems[dai];
+    for (var dbi = 0; dbi < ditem.barriers.length; dbi++) {
+      var dbb = ditem.barriers[dbi];
+      var ddfs = (dbb.dfs || []).filter(function(d){return d.factor.trim();});
+      for (var ddi = 0; ddi < ddfs.length; ddi++) {
+        var ddf = ddfs[ddi];
+        dfRows.push({ side: ditem.side, pathway: ditem.pathway, barrier: dbb.name, sce: dbb.scePriority || '—', factor: ddf.factor, controls: (ddf.controls || []).filter(function(c){return c.trim();}) });
+      }
+    }
+  }
+  if (!dfRows.length) {
+    html += '<div class="no-data">No degradation factors have been documented.</div>';
+  } else {
+    html += '<table><thead><tr><th>#</th><th>Side</th><th>Pathway</th><th>Barrier</th><th>SCE</th><th>Degradation Factor</th><th>Degradation Controls</th></tr></thead><tbody>';
+    for (var dfi = 0; dfi < dfRows.length; dfi++) {
+      var dfr = dfRows[dfi];
+      html += '<tr>';
+      html += '<td>' + (dfi+1) + '</td>';
+      html += '<td>' + dfr.side + '</td>';
+      html += '<td>' + esc(dfr.pathway) + '</td>';
+      html += '<td>' + esc(dfr.barrier) + '</td>';
+      html += '<td' + (dfr.sce==='H'||dfr.sce==='M' ? ' class="priority-'+dfr.sce+'"' : '') + '>' + dfr.sce + '</td>';
+      html += '<td>' + esc(dfr.factor) + '</td>';
+      html += '<td>' + (dfr.controls.length ? '<ul style="margin:0;padding-left:14px"><li>' + dfr.controls.map(esc).join('</li><li>') + '</li></ul>' : '<em style="color:#dc2626">No controls documented</em>') + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+  }
+
+  // ── APPENDIX B ──
+  html += '<h1>Appendix B: Management System Linkage Summary</h1>';
+  html += '<p>Distribution of barriers across the four management system elements. A balanced distribution indicates that the management system is being used across all four levels; concentration in one element may suggest the others are underused.</p>';
+  var mgmtCounts = { Policy:0, Activity:0, Procedure:0, Standard:0, '':0 };
+  for (var mi = 0; mi < allItems.length; mi++) {
+    for (var mbi = 0; mbi < allItems[mi].barriers.length; mbi++) {
+      var mmgmt = allItems[mi].barriers[mbi].mgmt || '';
+      if (mgmtCounts[mmgmt] !== undefined) mgmtCounts[mmgmt]++;
+      else mgmtCounts['']++;
+    }
+  }
+  html += '<table><thead><tr><th>Management Element</th><th>Description</th><th>Barrier Count</th><th>% of Total</th></tr></thead><tbody>';
+  var totalB = nBarriers || 1;
+  var mgmtDesc = {
+    'Policy': 'Organisational commitments and high-level rules governing the barrier',
+    'Activity': 'Direct human or operational activities required for the barrier to function',
+    'Procedure': 'Documented procedural steps that drive the barrier',
+    'Standard': 'Engineering or technical standards specifying the barrier design and performance'
+  };
+  var elements = ['Policy', 'Activity', 'Procedure', 'Standard'];
+  for (var ei = 0; ei < elements.length; ei++) {
+    var el = elements[ei];
+    var cnt = mgmtCounts[el] || 0;
+    var pct = ((cnt / totalB) * 100).toFixed(1);
+    html += '<tr><td><strong>' + el + '</strong></td><td>' + mgmtDesc[el] + '</td><td style="text-align:center">' + cnt + '</td><td style="text-align:center">' + pct + '%</td></tr>';
+  }
+  if (mgmtCounts[''] > 0) {
+    var unsPct = ((mgmtCounts[''] / totalB) * 100).toFixed(1);
+    html += '<tr><td><strong style="color:#dc2626">Unspecified</strong></td><td><em style="color:#dc2626">Barriers without a management system link — should be assigned during review</em></td><td style="text-align:center">' + mgmtCounts[''] + '</td><td style="text-align:center">' + unsPct + '%</td></tr>';
+  }
+  html += '</tbody></table>';
+
+  // ── FOOTER ──
+  html += '<div class="footer">Generated by Risk2Safe BowTie Studio on ' + esc(dateStr) + ' — This report supports the risk assessment process and should be reviewed by competent persons and integrated into the formal safety management system.</div>';
+
+  html += '</body></html>';
+  return html;
+}
+
+function exportAsWord(htmlReport, dateISO) {
+  try {
+    if (typeof htmlDocx === 'undefined') {
+      alert('Word export library failed to load. Please check your internet connection and refresh the page.');
+      return;
+    }
+    var converted = htmlDocx.asBlob(htmlReport, { orientation: 'portrait', margins: { top: 720, bottom: 720, left: 720, right: 720 } });
+    var url = URL.createObjectURL(converted);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'risk2safe_bowtie_report_' + dateISO + '.docx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+  } catch (err) {
+    console.error('Word export error:', err);
+    alert('Word export failed: ' + err.message);
+  }
+}
+
+function exportAsPDF(htmlReport, dateISO) {
+  // Open the report in a new window styled for printing, then trigger print dialog
+  try {
+    var win = window.open('', '_blank');
+    if (!win) {
+      alert('Please allow pop-ups for this site to generate the PDF report.');
+      return;
+    }
+    // Inject print-friendly meta and instructions
+    var pdfHtml = htmlReport.replace('</head>', '<style>@page{size:A4;margin:20mm 15mm;} @media print{body{margin:0}}</style></head>');
+    pdfHtml = pdfHtml.replace('<body>', '<body><div style="position:fixed;top:6px;right:6px;background:#1e3a8a;color:#fff;padding:6px 12px;border-radius:4px;font-family:Arial,sans-serif;font-size:11pt;z-index:9999;cursor:pointer" onclick="window.print()" class="no-print-btn">📕 Click here or press Ctrl+P / Cmd+P to save as PDF</div><style>@media print{.no-print-btn{display:none!important;}}</style>');
+    win.document.open();
+    win.document.write(pdfHtml);
+    win.document.close();
+    // Automatically trigger print dialog after rendering
+    setTimeout(function(){ try { win.focus(); win.print(); } catch(e){} }, 700);
+  } catch (err) {
+    console.error('PDF export error:', err);
+    alert('PDF export failed: ' + err.message);
+  }
+}
+
+
+
+// ─── PROCESS CONTEXT MANAGEMENT ───────────────────────────────────────────
+// Allows user to provide process description, ESD cause-effect, and upload
+// PDF/image documents (P&IDs, PFDs, etc.) that get sent to Claude as context
+// to dramatically improve the quality of bow tie and SCTA analyses.
+var contextFiles = [];  // array of { name, size, type, base64, mediaType }
+var MAX_CONTEXT_FILES = 5;
+var MAX_FILE_SIZE_MB = 30;  // Anthropic limit is 32 MB; leaving headroom
+
+function handleContextFiles(files) {
+  if (!files || !files.length) return;
+  var errors = [];
+  var processed = 0;
+  var total = files.length;
+
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    if (contextFiles.length >= MAX_CONTEXT_FILES) {
+      errors.push('Maximum ' + MAX_CONTEXT_FILES + ' documents allowed; remove some to add more.');
+      break;
+    }
+    var sizeMB = f.size / (1024 * 1024);
+    if (sizeMB > MAX_FILE_SIZE_MB) {
+      errors.push(f.name + ': too large (' + sizeMB.toFixed(1) + 'MB, max ' + MAX_FILE_SIZE_MB + 'MB)');
+      processed++; if (processed === total && errors.length) alert(errors.join('\n'));
+      continue;
+    }
+    var type = f.type;
+    var mediaType, kind;
+    if (type === 'application/pdf') { mediaType = 'application/pdf'; kind = 'pdf'; }
+    else if (type.indexOf('image/') === 0) { mediaType = type; kind = 'image'; }
+    else {
+      errors.push(f.name + ': unsupported type (use PDF or image)');
+      processed++; if (processed === total && errors.length) alert(errors.join('\n'));
+      continue;
+    }
+
+    (function(file, mt, k) {
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var dataUrl = e.target.result;
+        var base64 = dataUrl.split(',')[1];
+        contextFiles.push({
+          name: file.name,
+          size: file.size,
+          mediaType: mt,
+          kind: k,
+          base64: base64
+        });
+        processed++;
+        renderContextFileList();
+        if (processed === total) {
+          // Reset file input so the same file can be re-added if needed
+          document.getElementById('ctxFileInput').value = '';
+          if (errors.length) alert(errors.join('\n'));
+        }
+      };
+      reader.onerror = function() {
+        errors.push(file.name + ': failed to read');
+        processed++;
+        if (processed === total && errors.length) alert(errors.join('\n'));
+      };
+      reader.readAsDataURL(file);
+    })(f, mediaType, kind);
+  }
+}
+
+function removeContextFile(index) {
+  contextFiles.splice(index, 1);
+  renderContextFileList();
+}
+
+function renderContextFileList() {
+  var listEl = document.getElementById('ctxFileList');
+  var counterEl = document.getElementById('ctxFileCounter');
+  if (!listEl) return;
+  if (!contextFiles.length) {
+    listEl.innerHTML = '';
+    if (counterEl) counterEl.textContent = 'No documents attached';
+    return;
+  }
+  var html = '';
+  var totalSize = 0;
+  for (var i = 0; i < contextFiles.length; i++) {
+    var f = contextFiles[i];
+    totalSize += f.size;
+    var icon = f.kind === 'pdf' ? '📄' : '🖼';
+    html += '<div class="ctx-file-item">';
+    html += '<span>' + icon + '</span>';
+    html += '<span class="ctx-file-name" title="' + esc(f.name) + '">' + esc(f.name) + '</span>';
+    html += '<span class="ctx-file-size">' + formatFileSize(f.size) + '</span>';
+    html += '<button class="ctx-file-rm" onclick="removeContextFile(' + i + ')" title="Remove">✕</button>';
+    html += '</div>';
+  }
+  listEl.innerHTML = html;
+  if (counterEl) counterEl.textContent = contextFiles.length + ' document' + (contextFiles.length !== 1 ? 's' : '') + ' attached, ' + formatFileSize(totalSize) + ' total';
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// ─── BUILD CONTEXT MESSAGE CONTENT FOR API CALLS ──────────────────────────
+// Returns an array of content blocks (documents + images + a text block)
+// or just the bare text if no documents are present.
+function buildContextContent(taskPrompt) {
+  var desc = (document.getElementById('ctxDescription') || {}).value || '';
+  var esd = (document.getElementById('ctxESD') || {}).value || '';
+  desc = desc.trim();
+  esd = esd.trim();
+
+  // If no context at all, just return the bare text task prompt
+  if (!desc && !esd && !contextFiles.length) {
+    return taskPrompt;
+  }
+
+  // Build a content array with documents/images first, then context text, then task
+  var content = [];
+
+  // Add documents and images as separate content blocks
+  for (var i = 0; i < contextFiles.length; i++) {
+    var f = contextFiles[i];
+    if (f.kind === 'pdf') {
+      content.push({
+        type: 'document',
+        source: { type: 'base64', media_type: f.mediaType, data: f.base64 }
+      });
+    } else {
+      content.push({
+        type: 'image',
+        source: { type: 'base64', media_type: f.mediaType, data: f.base64 }
+      });
+    }
+  }
+
+  // Build the combined text block
+  var contextText = '';
+  if (contextFiles.length) {
+    contextText += '=== ATTACHED DOCUMENTS ===\n';
+    contextText += 'I have attached ' + contextFiles.length + ' document(s) for your reference: ';
+    contextText += contextFiles.map(function(f){ return f.name + ' (' + f.kind + ')'; }).join(', ');
+    contextText += '. Use them to ground your analysis in the actual process design.\n\n';
+  }
+  if (desc) {
+    contextText += '=== PROCESS DESCRIPTION ===\n' + desc + '\n\n';
+  }
+  if (esd) {
+    contextText += '=== ESD CAUSE & EFFECT ===\n' + esd + '\n\n';
+  }
+  contextText += '=== TASK ===\n' + taskPrompt;
+
+  content.push({ type: 'text', text: contextText });
+  return content;
+}
+
+function getContextSummary() {
+  var desc = (document.getElementById('ctxDescription') || {}).value || '';
+  var esd = (document.getElementById('ctxESD') || {}).value || '';
+  var parts = [];
+  if (desc.trim()) parts.push('process description');
+  if (esd.trim()) parts.push('ESD cause-effect');
+  if (contextFiles.length) parts.push(contextFiles.length + ' document' + (contextFiles.length !== 1 ? 's' : ''));
+  return parts;
+}
+
+function isContextEnabledFor(callType) {
+  // callType: 'suggestions' or 'deepSCTA'
+  if (callType === 'suggestions') {
+    var el = document.getElementById('ctxIncludeInSuggestions');
+    return el && el.checked;
+  } else if (callType === 'deepSCTA') {
+    var el2 = document.getElementById('ctxIncludeInDeepSCTA');
+    return el2 && el2.checked;
+  }
+  return false;
+}
+
+
+// INIT
+render();
+renderBarrierFields('t');
+renderBarrierFields('c');
+updateKeyStatusUI();
+if (getApiKey()) document.getElementById('aiStatus').textContent = '✓ API key loaded. Enter Hazard and Top Event, then click Generate.';
+</script>
+
+<!-- API KEY MODAL -->
+<div class="modal-overlay" id="keyModal">
+  <div class="modal-box">
+    <div class="modal-title">🔑 Anthropic API Key Required</div>
+    <div class="modal-sub">
+      The AI Guidance feature uses Claude to suggest threats, consequences, barriers, degradation factors and degradation controls based on your hazard and top event. To use it, paste your Anthropic API key below.
+    </div>
+    <input type="password" class="modal-input" id="apiKeyInput" placeholder="sk-ant-api03-..." autocomplete="off" spellcheck="false">
+    <div class="modal-hint">
+      Don't have a key? Get one free at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a> — sign up gives you free trial credits.
+    </div>
+    <div class="modal-privacy">
+      <strong>🔒 Your key stays private.</strong> It is saved only in <em>your browser's local storage</em> on this device. It is never sent anywhere except directly to api.anthropic.com from your browser. This application has no backend server. You can clear it anytime via the "Clear key" button in the sidebar.
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-secondary" onclick="closeKeyModal()">Cancel</button>
+      <button class="modal-btn modal-btn-primary" onclick="saveApiKey()">Save Key</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- EDIT ELEMENT MODAL -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-box edit-modal-box">
+    <div class="modal-title">✏️ Edit Element <span id="editElementType" style="font-size:.7rem;color:var(--muted);font-weight:400;letter-spacing:.08em;margin-left:8px"></span></div>
+    <div id="editModalBody"></div>
+    <div class="modal-actions-split">
+      <button class="modal-btn modal-btn-danger" onclick="deleteFromEdit()" id="editDeleteBtn">🗑 Delete</button>
+      <div style="display:flex;gap:8px">
+        <button class="modal-btn modal-btn-secondary" onclick="closeEditModal()">Cancel</button>
+        <button class="modal-btn modal-btn-primary" onclick="saveEdit()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DEEP SCTA MODAL -->
+<div class="modal-overlay" id="sctaModal">
+  <div class="modal-box scta-modal-box">
+    <div class="modal-title">📋 Deep Safety Critical Task Analysis</div>
+    <div class="modal-sub" id="sctaModalSub"></div>
+    <div id="sctaModalBody">
+      <div style="text-align:center;padding:30px"><div class="dots"><span></span><span></span><span></span></div></div>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-secondary" onclick="closeSctaModal()">Close</button>
+      <button class="modal-btn modal-btn-primary" onclick="saveSctaAnalysis()" id="sctaSaveBtn" style="display:none">💾 Save to Diagram</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

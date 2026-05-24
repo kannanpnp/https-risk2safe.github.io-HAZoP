@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Risk2Safe BowTie Studio</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --hazard:#f5c800; --hazard-dk:#c49b00;
+  --threat:#1a3a6b; --threat-lt:#2a5298;
+  --cons:#c0392b;   --cons-lt:#e74c3c;
+  --barrier-lt:#5d7a96;
+  --esc:#e67e22;    --esc-lt:#f39c12;
+  --dc:#27ae60;     --dc-lt:#2ecc71;
+  --bg:#0a0e1a;     --bg-card:#111827; --bg-card2:#1a2235;
+  --text:#e8edf5;   --muted:#7a8fa8;   --border:#243050;
+  --accent:#00b4d8;
+  --pol:#7c3aed; --act:#0ea5e9; --proc:#10b981; --std:#f59e0b;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden; }
+
+/* HEADER */
+header { background:linear-gradient(135deg,#0d1f3c,#112244,#0a1628); border-bottom:2px solid var(--hazard); padding:14px 24px; display:flex; align-items:center; gap:14px; position:sticky; top:0; z-index:100; box-shadow:0 4px 20px rgba(0,0,0,.5); }
+.logo svg { width:38px; height:24px; }
+header h1 { font-family:'Rajdhani',sans-serif; font-size:1.35rem; font-weight:700; letter-spacing:.05em; }
+header h1 span { color:var(--hazard); }
+.hdr-sub { font-size:.68rem; color:var(--muted); letter-spacing:.1em; text-transform:uppercase; margin-left:auto; }
+
+/* LAYOUT */
+.app { display:flex; height:calc(100vh - 60px); }
+
+/* SIDEBAR */
+.sidebar { width:330px; background:var(--bg-card); border-right:1px solid var(--border); overflow-y:auto; flex-shrink:0; }
+.sidebar::-webkit-scrollbar { width:4px; }
+.sidebar::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+.s-sec { border-bottom:1px solid var(--border); padding:13px 15px; }
+.s-lbl { font-family:'Rajdhani',sans-serif; font-size:.68rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+label { display:block; font-size:.76rem; color:var(--muted); margin-bottom:3px; font-weight:500; }
+input[type=text] { width:100%; background:var(--bg-card2); border:1px solid var(--border); border-radius:5px; color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:.78rem; padding:6px 8px; outline:none; transition:border-color .2s; }
+input[type=text]:focus { border-color:var(--accent); box-shadow:0 0 0 2px rgba(0,180,216,.1); }
+select { width:100%; background:var(--bg-card2); border:1px solid var(--border); border-radius:5px; color:var(--text); font-family:'IBM Plex Sans',sans-serif; font-size:.78rem; padding:6px 8px; outline:none; }
+select:focus { border-color:var(--accent); }
+.btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:5px; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.78rem; letter-spacing:.04em; cursor:pointer; border:none; transition:all .15s; }
+.btn-primary { background:var(--accent); color:#0a0e1a; }
+.btn-primary:hover { background:#00d0f8; }
+.btn-threat { background:var(--threat); color:#fff; }
+.btn-threat:hover { background:var(--threat-lt); }
+.btn-cons { background:var(--cons); color:#fff; }
+.btn-cons:hover { background:var(--cons-lt); }
+.btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+.btn-ghost:hover { background:var(--bg-card2); color:var(--text); }
+.btn-group { display:flex; gap:7px; margin-top:8px; flex-wrap:wrap; }
+.rule { background:linear-gradient(90deg,rgba(0,180,216,.07),transparent); border-left:2px solid var(--accent); padding:5px 9px; font-size:.69rem; color:var(--muted); line-height:1.5; margin-top:7px; border-radius:0 4px 4px 0; }
+.rule strong { color:var(--accent); }
+.mt { margin-top:7px; }
+
+/* barrier sub-form inside sidebar */
+.barrier-entry { background:var(--bg-card2); border:1px solid var(--border); border-radius:6px; padding:10px 11px; margin-top:8px; }
+.barrier-entry-title { font-family:'Rajdhani',sans-serif; font-size:.7rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--barrier-lt); margin-bottom:8px; }
+.df-entry { background:rgba(230,126,34,.06); border:1px solid rgba(230,126,34,.25); border-radius:5px; padding:8px 10px; margin-top:7px; }
+.df-entry-title { font-family:'Rajdhani',sans-serif; font-size:.65rem; font-weight:700; color:var(--esc-lt); letter-spacing:.1em; text-transform:uppercase; margin-bottom:6px; }
+.dc-entry { background:rgba(39,174,96,.06); border:1px solid rgba(39,174,96,.2); border-radius:4px; padding:6px 8px; margin-top:5px; }
+.dc-entry-title { font-family:'Rajdhani',sans-serif; font-size:.63rem; font-weight:700; color:var(--dc-lt); letter-spacing:.08em; text-transform:uppercase; margin-bottom:4px; }
+.add-link { font-size:.72rem; color:var(--accent); cursor:pointer; display:inline-flex; align-items:center; gap:3px; margin-top:5px; background:none; border:none; padding:0; font-family:'IBM Plex Sans',sans-serif; }
+.add-link:hover { text-decoration:underline; }
+.remove-link { font-size:.68rem; color:#e74c3c; cursor:pointer; background:none; border:none; padding:0; font-family:'IBM Plex Sans',sans-serif; float:right; }
+.remove-link:hover { text-decoration:underline; }
+
+/* CANVAS */
+.canvas { flex:1; overflow:auto; background:radial-gradient(ellipse at 20% 40%,rgba(26,58,107,.12),transparent 60%),radial-gradient(ellipse at 80% 70%,rgba(192,57,43,.07),transparent 60%),var(--bg); padding:24px 16px 90px; display:flex; flex-direction:column; align-items:center; }
+.canvas::-webkit-scrollbar { width:6px; }
+.canvas::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+/* DIAGRAM */
+.diagram { width:100%; max-width:1600px; }
+.hazard-row { display:flex; justify-content:center; margin-bottom:14px; }
+.haz-box { background:linear-gradient(135deg,#1a1200,#2a1e00); border:2px solid var(--hazard); border-radius:8px; padding:10px 24px; text-align:center; min-width:200px; box-shadow:0 0 20px rgba(245,200,0,.16); position:relative; }
+.haz-box::before { content:''; position:absolute; top:0;left:0;right:0; height:3px; background:repeating-linear-gradient(90deg,var(--hazard) 0,var(--hazard) 8px,#000 8px,#000 14px); border-radius:8px 8px 0 0; }
+.el-lbl { font-family:'Rajdhani',sans-serif; font-size:.58rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; display:block; margin-bottom:2px; }
+.el-val { font-size:.8rem; font-weight:500; line-height:1.3; color:var(--text); word-break:break-word; }
+.el-ph { color:var(--muted); font-style:italic; font-size:.74rem; }
+
+/* BOWTIE */
+.bowtie { display:grid; grid-template-columns:1fr 124px 1fr; gap:0 8px; align-items:start; }
+.threats-col,.cons-col { display:flex; flex-direction:column; gap:10px; padding:4px 0; }
+.empty { color:var(--muted); font-size:.72rem; font-style:italic; text-align:center; padding:16px 0; }
+
+/* TOP EVENT */
+.top-event-wrap { display:flex; justify-content:center; align-items:flex-start; padding-top:20px; }
+.top-event { width:114px; height:114px; border-radius:50%; background:radial-gradient(circle,#7b1010,#4a0808 60%,#2a0404); border:3px solid var(--cons); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:10px; box-shadow:0 0 28px rgba(192,57,43,.35); position:relative; }
+.top-event::after { content:''; position:absolute; inset:-7px; border-radius:50%; border:1px solid rgba(192,57,43,.25); animation:rip 2.5s ease-out infinite; }
+@keyframes rip { 0%{transform:scale(1);opacity:.6} 100%{transform:scale(1.2);opacity:0} }
+.top-event .el-lbl { color:#ff8080; font-size:.56rem; }
+.top-event .el-val { font-size:.7rem; font-weight:600; }
+
+/* PATHWAY */
+.pathway { display:flex; flex-direction:column; gap:4px; }
+.t-row { display:flex; align-items:flex-start; justify-content:flex-end; }
+.c-row { display:flex; align-items:flex-start; justify-content:flex-start; }
+
+/* Threat/Consequence boxes */
+.t-box { background:linear-gradient(135deg,#0d1e3a,#152a50); border:1.5px solid var(--threat); border-right:3px solid var(--threat-lt); border-radius:6px 0 0 6px; padding:7px 10px; min-width:120px; max-width:170px; flex-shrink:0; position:relative; }
+.t-box .el-lbl { color:#5b8fd4; }
+.c-box { background:linear-gradient(135deg,#2a0808,#400c0c); border:1.5px solid var(--cons); border-left:3px solid var(--cons-lt); border-radius:0 6px 6px 0; padding:7px 10px; min-width:120px; max-width:170px; flex-shrink:0; position:relative; }
+.c-box .el-lbl { color:#e47670; }
+.mgmt-tag { font-size:.58rem; color:var(--muted); margin-top:3px; }
+.rm { position:absolute; top:3px; right:3px; width:14px; height:14px; border-radius:50%; background:rgba(231,76,60,.15); border:none; color:#e74c3c; font-size:9px; cursor:pointer; display:none; align-items:center; justify-content:center; }
+.t-box:hover .rm,.c-box:hover .rm { display:flex; }
+
+/* BARRIER TRACK — vertical stack with horizontal wire for each barrier */
+.btrack { display:flex; flex-direction:column; flex:1; min-width:0; gap:0; align-self:stretch; justify-content:flex-start; padding-top:14px; }
+.barrier-line { display:flex; align-items:center; margin-bottom:0; position:relative; }
+.wire { height:2px; flex:1; background:linear-gradient(90deg,var(--threat-lt),#3a5f8a); }
+.wire-r { height:2px; flex:1; background:linear-gradient(90deg,#8a2a2a,var(--cons-lt)); }
+.node { width:12px; height:12px; border:2px solid var(--barrier-lt); border-radius:50%; background:var(--bg); flex-shrink:0; }
+
+/* Barrier pill — with per-barrier data attached below */
+.barrier-group { display:flex; flex-direction:column; }
+.bpill { background:var(--bg-card2); border:1.5px solid var(--barrier-lt); border-radius:5px; padding:4px 7px; font-size:.66rem; font-weight:600; color:var(--text); white-space:normal; word-wrap:break-word; max-width:130px; min-width:60px; flex-shrink:0; position:relative; cursor:default; line-height:1.3; text-align:center; }
+.bpill::before { content:''; display:block; width:100%; height:2px; background:var(--barrier-lt); position:absolute; top:0;left:0; border-radius:5px 5px 0 0; }
+.bpill[data-mgmt="Policy"]::before    { background:var(--pol)!important; }
+.bpill[data-mgmt="Activity"]::before  { background:var(--act)!important; }
+.bpill[data-mgmt="Procedure"]::before { background:var(--proc)!important; }
+.bpill[data-mgmt="Standard"]::before  { background:var(--std)!important; }
+
+/* Degradation sub-path — hangs below each barrier pill */
+.deg-path { padding:3px 0 0 12px; border-left:1.5px dashed rgba(230,126,34,.4); margin-left:6px; }
+.df-row { display:flex; align-items:center; gap:4px; margin-top:3px; }
+.df-pill { background:rgba(230,126,34,.1); border:1px solid var(--esc); border-radius:4px; padding:3px 6px; font-size:.61rem; font-weight:600; color:var(--esc-lt); white-space:normal; word-wrap:break-word; max-width:140px; line-height:1.3; }
+.dc-list { display:flex; flex-direction:column; gap:2px; padding:3px 0 2px 12px; border-left:1.5px dashed rgba(39,174,96,.3); margin-left:10px; }
+.dc-pill { background:rgba(39,174,96,.08); border:1px solid var(--dc); border-radius:4px; padding:3px 6px; font-size:.59rem; color:var(--dc-lt); white-space:normal; word-wrap:break-word; max-width:160px; line-height:1.3; }
+.dc-arrow { font-size:.55rem; color:var(--dc); flex-shrink:0; }
+.df-arrow { font-size:.55rem; color:var(--esc); flex-shrink:0; }
+
+/* MANAGEMENT SYSTEM */
+.mgmt-section { margin-top:22px; border:1px solid var(--border); border-radius:9px; background:var(--bg-card); overflow:hidden; }
+.mgmt-hdr { background:linear-gradient(90deg,#0d1f3c,#0a1628); padding:9px 16px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border); }
+.mgmt-hdr-title { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.85rem; letter-spacing:.1em; text-transform:uppercase; }
+.mgmt-hdr-sub { font-size:.67rem; color:var(--muted); margin-left:auto; }
+.mgmt-body { padding:12px 16px; }
+.mgmt-explain { font-size:.71rem; color:var(--muted); line-height:1.6; margin-bottom:12px; }
+.mgmt-explain strong { color:var(--text); }
+.mgmt-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
+.mgmt-card { border-radius:7px; padding:11px 12px; }
+.mgmt-card.pol { background:rgba(124,58,237,.1); border:1.5px solid var(--pol); }
+.mgmt-card.act { background:rgba(14,165,233,.1); border:1.5px solid var(--act); }
+.mgmt-card.proc{ background:rgba(16,185,129,.1); border:1.5px solid var(--proc); }
+.mgmt-card.std { background:rgba(245,158,11,.1); border:1.5px solid var(--std); }
+.mc-icon { font-size:1.1rem; margin-bottom:5px; }
+.mc-title { font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.8rem; letter-spacing:.06em; text-transform:uppercase; margin-bottom:4px; }
+.mgmt-card.pol .mc-title{color:var(--pol)}.mgmt-card.act .mc-title{color:var(--act)}.mgmt-card.proc .mc-title{color:var(--proc)}.mgmt-card.std .mc-title{color:var(--std)}
+.mc-desc { font-size:.65rem; color:var(--muted); line-height:1.5; }
+.mc-count { display:inline-block; margin-top:6px; padding:2px 7px; border-radius:10px; font-size:.62rem; font-weight:700; }
+.mgmt-card.pol .mc-count{background:rgba(124,58,237,.2);color:var(--pol)}.mgmt-card.act .mc-count{background:rgba(14,165,233,.2);color:var(--act)}.mgmt-card.proc .mc-count{background:rgba(16,185,129,.2);color:var(--proc)}.mgmt-card.std .mc-count{background:rgba(245,158,11,.2);color:var(--std)}
+.legend-row { display:flex; gap:12px; margin-top:10px; flex-wrap:wrap; }
+.legend-item { display:flex; align-items:center; gap:5px; font-size:.66rem; color:var(--muted); }
+.legend-dot { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+
+/* INFO BAR */
+.info-bar { position:fixed; bottom:0;left:0;right:0; background:rgba(10,14,26,.96); border-top:1px solid var(--border); padding:5px 18px; display:flex; gap:14px; align-items:center; font-size:.7rem; color:var(--muted); backdrop-filter:blur(10px); z-index:50; flex-wrap:wrap; }
+.bdg { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border-radius:4px; font-weight:700; font-size:.65rem; }
+.bdg-t{background:rgba(26,58,107,.5);color:#5b8fd4;border:1px solid #1a3a6b}
+.bdg-c{background:rgba(192,57,43,.2);color:#e47670;border:1px solid #7b1010}
+.bdg-b{background:rgba(93,122,150,.2);color:#9ab4c8;border:1px solid #344e68}
+.bdg-e{background:rgba(230,126,34,.2);color:#e6a05c;border:1px solid #7a4800}
+.bdg-d{background:rgba(39,174,96,.15);color:#6edba0;border:1px solid #1a5c3a}
+
+/* PRINT */
+@media print {
+  @page { size:A3 landscape; margin:10mm 8mm; }
+  html { height:auto!important; overflow:visible!important; }
+  body { height:auto!important; overflow:visible!important; background:#fff!important; color:#000!important; font-size:9px!important; }
+  header,.sidebar,.info-bar,.btn,.btn-group,.ai-panel,.s-lbl,.rule,.rm,.add-link,.remove-link { display:none!important; }
+  .app { display:block!important; height:auto!important; overflow:visible!important; }
+  .canvas { display:block!important; overflow:visible!important; height:auto!important; width:100%!important; padding:0!important; background:#fff!important; flex:none!important; }
+  .diagram { width:100%!important; max-width:100%!important; }
+  .canvas::before { content:'BowTie Risk Assessment'; display:block; font-family:'Rajdhani',sans-serif; font-size:14px; font-weight:700; text-align:center; color:#1a3a6b; margin-bottom:8px; border-bottom:2px solid #c49b00; padding-bottom:5px; }
+  .haz-box{background:#fffde7!important;border:2px solid #c49b00!important;box-shadow:none!important;}
+  .haz-box::before{background:repeating-linear-gradient(90deg,#c49b00 0,#c49b00 8px,#fff 8px,#fff 14px)!important;}
+  .top-event{background:#fff0f0!important;border:3px solid #c0392b!important;box-shadow:none!important;}
+  .top-event::after{display:none!important;}
+  .t-box{background:#edf2fb!important;border:1.5px solid #2a5298!important;}
+  .c-box{background:#fdf0ef!important;border:1.5px solid #c0392b!important;}
+  .bpill{background:#f0f4f8!important;border:1px solid #5d7a96!important;color:#000!important;max-width:none!important;width:auto!important;min-width:0!important;white-space:normal!important;word-wrap:break-word!important;overflow:visible!important;text-overflow:clip!important;font-size:8.5px!important;padding:3px 5px!important;line-height:1.25!important;}
+  .df-pill{max-width:none!important;width:auto!important;white-space:normal!important;word-wrap:break-word!important;overflow:visible!important;text-overflow:clip!important;font-size:7.5px!important;padding:2px 4px!important;line-height:1.2!important;}
+  .dc-pill{max-width:none!important;width:auto!important;white-space:normal!important;word-wrap:break-word!important;overflow:visible!important;text-overflow:clip!important;font-size:7.5px!important;padding:2px 4px!important;line-height:1.2!important;}
+  .t-box,.c-box{max-width:none!important;min-width:0!important;width:auto!important;}
+  .el-val{font-size:9px!important;white-space:normal!important;word-wrap:break-word!important;overflow:visible!important;line-height:1.3!important;}
+  .haz-box .el-val{font-size:11px!important;}
+  .top-event .el-val{font-size:8px!important;line-height:1.2!important;}
+  .bpill::before{background:#5d7a96!important;}
+  .bpill[data-mgmt="Policy"]::before{background:#7c3aed!important;}
+  .bpill[data-mgmt="Activity"]::before{background:#0ea5e9!important;}
+  .bpill[data-mgmt="Procedure"]::before{background:#10b981!important;}
+  .bpill[data-mgmt="Standard"]::before{background:#f59e0b!important;}
+  .wire,.wire-r{background:#bbb!important;}
+  .btrack{padding-top:8px!important;}
+  .barrier-line{align-items:center!important;}
+  .barrier-group{min-width:0!important;flex-shrink:1!important;}
+  .node{border-color:#5d7a96!important;background:#fff!important;}
+  .df-pill{background:#fff8ee!important;border:1px solid #e67e22!important;color:#7a4000!important;}
+  .dc-pill{background:#f0fff4!important;border:1px solid #27ae60!important;color:#1a5c3a!important;}
+  .deg-path{border-left-color:rgba(230,126,34,.5)!important;}
+  .dc-list{border-left-color:rgba(39,174,96,.5)!important;}
+  .mgmt-section{border:1px solid #ccc!important;background:#fafafa!important;}
+  .mgmt-hdr{background:#f0f4f8!important;}
+  .mgmt-card.pol{background:#f5f0ff!important;}
+  .mgmt-card.act{background:#f0f8ff!important;}
+  .mgmt-card.proc{background:#f0fff8!important;}
+  .mgmt-card.std{background:#fffbf0!important;}
+  .mc-desc,.mgmt-explain{color:#555!important;}
+  .el-val,.el-lbl{color:#000!important;}
+  .el-ph{color:#999!important;}
+  .empty{display:none!important;}
+  .top-event .el-lbl{color:#7b1010!important;}
+  .t-box .el-lbl{color:#1a3a6b!important;}
+  .c-box .el-lbl{color:#7b1010!important;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 44 28" fill="none">
+      <path d="M2 14 L16 4 L22 14 L16 24 Z" fill="#1a3a6b" stroke="#2a5298" stroke-width="1.5"/>
+      <path d="M42 14 L28 4 L22 14 L28 24 Z" fill="#7b1010" stroke="#c0392b" stroke-width="1.5"/>
+      <circle cx="22" cy="14" r="4" fill="#c0392b"/>
+      <circle cx="22" cy="14" r="2" fill="#ff6666"/>
+    </svg>
+  </div>
+  <h1>Risk<span>2</span>Safe BowTie Studio</h1>
+  <div class="hdr-sub">Visual Bow Tie Risk Assessment &nbsp;|&nbsp; Process Safety</div>
+</header>
+
+<div class="app">
+<aside class="sidebar">
+
+  <div class="s-sec">
+    <div class="s-lbl">1. Hazard</div>
+    <label>Hazard Description</label>
+    <input type="text" id="hazardInput" placeholder="e.g. Hydrocarbons under pressure in pipeline" oninput="updateHazard()">
+    <div class="rule"><strong>Rule:</strong> Describe in controlled state. Part of normal business. Include material, scale, context.</div>
+  </div>
+
+  <div class="s-sec">
+    <div class="s-lbl">2. Top Event</div>
+    <label>Top Event</label>
+    <input type="text" id="topEventInput" placeholder="e.g. Loss of containment to atmosphere" oninput="updateTopEvent()">
+    <div class="rule"><strong>Rule:</strong> Loss of control/containment — NOT a consequence. Recovery still possible.</div>
+  </div>
+
+  
+
+  <!-- ADD THREAT -->
+  <div class="s-sec">
+    <div class="s-lbl">3. Add Threat (Left Side)</div>
+    <label>Threat Description</label>
+    <input type="text" id="tText" placeholder="e.g. Corrosion of pipeline wall">
+
+    <div id="tBarriersList"></div>
+    <button class="add-link" onclick="addBarrierField('t')">＋ Add Barrier</button>
+
+    <div class="rule mt"><strong>Per barrier:</strong> add Degradation Factor(s) + Degradation Control(s) for each barrier.</div>
+    <div class="btn-group">
+      <button class="btn btn-threat" onclick="addThreat()">+ Add Threat to Diagram</button>
+    </div>
+    <div class="rule"><strong>Rules:</strong> Threats must be direct, sufficient on own, not barrier failures.</div>
+  </div>
+
+  <!-- ADD CONSEQUENCE -->
+  <div class="s-sec">
+    <div class="s-lbl">4. Add Consequence (Right Side)</div>
+    <label>Consequence Description</label>
+    <input type="text" id="cText" placeholder="e.g. Asset damage due to pool fire">
+
+    <div id="cBarriersList"></div>
+    <button class="add-link" onclick="addBarrierField('c')">＋ Add Barrier</button>
+
+    <div class="rule mt"><strong>Per barrier:</strong> add Degradation Factor(s) + Degradation Control(s) for each barrier.</div>
+    <div class="btn-group">
+      <button class="btn btn-cons" onclick="addConsequence()">+ Add Consequence to Diagram</button>
+    </div>
+    <div class="rule"><strong>Rules:</strong> Format — [Damage] due to [Event]. Flows from top event.</div>
+  </div>
+
+  <div class="s-sec">
+    <div class="s-lbl">Actions</div>
+    <div class="btn-group">
+      <button class="btn btn-ghost" onclick="doPrint()">🖨 Print / PDF</button>
+      <button class="btn btn-ghost" onclick="exportJSON()">⬇ Export JSON</button>
+      <button class="btn btn-ghost" onclick="resetAll()">↺ Reset</button>
+    </div>
+  </div>
+
+</aside>
+
+<main class="canvas" id="mainCanvas">
+  <div class="diagram" id="diagram">
+
+    <div class="hazard-row">
+      <div class="haz-box">
+        <span class="el-lbl" style="color:#c49b00">⚠ Hazard</span>
+        <div class="el-val" id="hazardDisplay"><span class="el-ph">Define hazard in sidebar →</span></div>
+      </div>
+    </div>
+
+    <div class="bowtie">
+      <div class="threats-col" id="threatsCol"><div class="empty">No threats added yet</div></div>
+      <div class="top-event-wrap">
+        <div class="top-event">
+          <span class="el-lbl">Top Event</span>
+          <div class="el-val" id="topEventDisplay"><span class="el-ph">—</span></div>
+        </div>
+      </div>
+      <div class="cons-col" id="consCol"><div class="empty">No consequences added yet</div></div>
+    </div>
+
+    <div class="mgmt-section">
+      <div class="mgmt-hdr">
+        <span style="font-size:.9rem">▲</span>
+        <span class="mgmt-hdr-title">Management System</span>
+        <span class="mgmt-hdr-sub">Every barrier must be governed by one of the four elements below</span>
+      </div>
+      <div class="mgmt-body">
+        <div class="mgmt-explain">
+          In bow tie risk assessment, each barrier links to a management system element that governs its operation, maintenance and performance standard. The coloured top stripe on each barrier pill in the diagram shows this link. Degradation Controls are governed by the same element as their parent barrier.
+        </div>
+        <div class="mgmt-grid">
+          <div class="mgmt-card pol"><div class="mc-icon">📋</div><div class="mc-title">Policy</div><div class="mc-desc">High-level commitment and intent. E.g. HSE Policy, Process Safety Policy, Asset Integrity Policy.</div><div class="mc-count" id="cnt-pol">0 barriers</div></div>
+          <div class="mgmt-card act"><div class="mc-icon">🔧</div><div class="mc-title">Activity</div><div class="mc-desc">Specific tasks maintaining barrier integrity. E.g. Inspection rounds, maintenance tasks, operator checks.</div><div class="mc-count" id="cnt-act">0 barriers</div></div>
+          <div class="mgmt-card proc"><div class="mc-icon">📄</div><div class="mc-title">Procedure</div><div class="mc-desc">Step-by-step instructions governing barrier operation. E.g. Permit to Work, ESD Procedure, MOC.</div><div class="mc-count" id="cnt-proc">0 barriers</div></div>
+          <div class="mgmt-card std"><div class="mc-icon">📐</div><div class="mc-title">Standard</div><div class="mc-desc">Technical / engineering standards. E.g. API 510, NFPA 13, ISO 45001, company engineering standards.</div><div class="mc-count" id="cnt-std">0 barriers</div></div>
+        </div>
+        <div class="legend-row">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--esc)"></div> Degradation Factor — condition degrading barrier effectiveness</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--dc)"></div> Degradation Control — measure countering the degradation factor</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+</div>
+
+<div class="info-bar">
+  <span style="font-weight:600;color:#9ab4c8">Risk2Safe BowTie Studio</span>
+  <span>Risk2Safe BowTie Studio</span>
+  <span class="bdg bdg-t" id="cntT">0 Threats</span>
+  <span class="bdg bdg-c" id="cntC">0 Consequences</span>
+  <span class="bdg bdg-b" id="cntB">0 Barriers</span>
+  <span class="bdg bdg-e" id="cntE">0 Deg. Factors</span>
+  <span class="bdg bdg-d" id="cntD">0 Deg. Controls</span>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────────────────
+// Barrier: { name, mgmt, dfs: [ { factor, controls: [string] } ] }
+// Threat / Consequence: { id, text, barriers: [Barrier] }
+var state = { hazard:'', topEvent:'', threats:[], consequences:[] };
+var nextId = 1;
+
+// ── SIDEBAR DYNAMIC BARRIER FORM ──────────────────────────────────────────
+var tBarriers = [];  // array of { name, mgmt, dfs: [{factor, controls:[]}] }
+var cBarriers = [];
+
+function addBarrierField(side) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr.push({ name:'', mgmt:'', dfs:[] });
+  renderBarrierFields(side);
+}
+
+function removeBarrierField(side, bi) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr.splice(bi, 1);
+  renderBarrierFields(side);
+}
+
+function addDFField(side, bi) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs.push({ factor:'', controls:[] });
+  renderBarrierFields(side);
+}
+
+function removeDFField(side, bi, dfi) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs.splice(dfi, 1);
+  renderBarrierFields(side);
+}
+
+function addDCField(side, bi, dfi) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs[dfi].controls.push('');
+  renderBarrierFields(side);
+}
+
+function removeDCField(side, bi, dfi, dci) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs[dfi].controls.splice(dci, 1);
+  renderBarrierFields(side);
+}
+
+function updateBarrierField(side, bi, field, val) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi][field] = val;
+}
+
+function updateDFField(side, bi, dfi, val) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs[dfi].factor = val;
+}
+
+function updateDCField(side, bi, dfi, dci, val) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  arr[bi].dfs[dfi].controls[dci] = val;
+}
+
+function renderBarrierFields(side) {
+  var arr = side === 't' ? tBarriers : cBarriers;
+  var containerId = side === 't' ? 'tBarriersList' : 'cBarriersList';
+  var container = document.getElementById(containerId);
+  var html = '';
+  for (var bi = 0; bi < arr.length; bi++) {
+    var b = arr[bi];
+    html += '<div class="barrier-entry">';
+    html += '<div class="barrier-entry-title">Barrier ' + (bi+1) + ' <button class="remove-link" onclick="removeBarrierField(\''+side+'\','+bi+')">✕ Remove</button></div>';
+    html += '<label>Barrier Name</label>';
+    html += '<input type="text" placeholder="e.g. High pressure shutdown system" value="'+esc(b.name)+'" oninput="updateBarrierField(\''+side+'\','+bi+',\'name\',this.value)">';
+    html += '<label class="mt">Management System Link</label>';
+    html += '<select onchange="updateBarrierField(\''+side+'\','+bi+',\'mgmt\',this.value)">';
+    html += '<option value="">— None —</option>';
+    var opts = ['Policy','Activity','Procedure','Standard'];
+    for (var oi = 0; oi < opts.length; oi++) {
+      var sel = b.mgmt === opts[oi] ? ' selected' : '';
+      html += '<option value="'+opts[oi]+'"'+sel+'>'+opts[oi]+'</option>';
+    }
+    html += '</select>';
+
+    // Degradation Factors for this barrier
+    for (var dfi = 0; dfi < b.dfs.length; dfi++) {
+      var df = b.dfs[dfi];
+      html += '<div class="df-entry">';
+      html += '<div class="df-entry-title">⚠ Degradation Factor ' + (dfi+1) + ' <button class="remove-link" onclick="removeDFField(\''+side+'\','+bi+','+dfi+')">✕</button></div>';
+      html += '<label>Degradation Factor</label>';
+      html += '<input type="text" placeholder="e.g. Instrument calibration drift" value="'+esc(df.factor)+'" oninput="updateDFField(\''+side+'\','+bi+','+dfi+',this.value)">';
+      // Degradation Controls
+      for (var dci = 0; dci < df.controls.length; dci++) {
+        html += '<div class="dc-entry">';
+        html += '<div class="dc-entry-title">✓ Degradation Control ' + (dci+1) + ' <button class="remove-link" onclick="removeDCField(\''+side+'\','+bi+','+dfi+','+dci+')">✕</button></div>';
+        html += '<input type="text" placeholder="e.g. Quarterly calibration check" value="'+esc(df.controls[dci])+'" oninput="updateDCField(\''+side+'\','+bi+','+dfi+','+dci+',this.value)">';
+        html += '</div>';
+      }
+      html += '<button class="add-link" onclick="addDCField(\''+side+'\','+bi+','+dfi+')">＋ Add Degradation Control</button>';
+      html += '</div>';
+    }
+    html += '<button class="add-link" onclick="addDFField(\''+side+'\','+bi+')">⚠ Add Degradation Factor</button>';
+    html += '</div>';
+  }
+  container.innerHTML = html;
+}
+
+// ── ADD TO DIAGRAM ────────────────────────────────────────────────────────
+function addThreat() {
+  var text = document.getElementById('tText').value.trim();
+  if (!text) { alert('Please enter a threat description.'); return; }
+  var barriers = deepCopy(tBarriers).filter(function(b){ return b.name.trim(); });
+  state.threats.push({ id:nextId++, text:text, barriers:barriers });
+  document.getElementById('tText').value = '';
+  tBarriers = [];
+  renderBarrierFields('t');
+  render();
+}
+
+function addConsequence() {
+  var text = document.getElementById('cText').value.trim();
+  if (!text) { alert('Please enter a consequence description.'); return; }
+  var barriers = deepCopy(cBarriers).filter(function(b){ return b.name.trim(); });
+  state.consequences.push({ id:nextId++, text:text, barriers:barriers });
+  document.getElementById('cText').value = '';
+  cBarriers = [];
+  renderBarrierFields('c');
+  render();
+}
+
+function removeThreat(id) { state.threats = state.threats.filter(function(t){ return t.id !== id; }); render(); }
+function removeConsequence(id) { state.consequences = state.consequences.filter(function(c){ return c.id !== id; }); render(); }
+
+// ── RENDER ────────────────────────────────────────────────────────────────
+function render() { renderThreats(); renderConsequences(); updateCounters(); updateMgmtCounts(); }
+
+function renderThreats() {
+  var col = document.getElementById('threatsCol');
+  if (!state.threats.length) { col.innerHTML = '<div class="empty">No threats added yet</div>'; return; }
+  var html = '';
+  for (var i = 0; i < state.threats.length; i++) {
+    var t = state.threats[i];
+    html += '<div class="t-row">';
+    // Threat box
+    html += '<div class="t-box"><button class="rm" onclick="removeThreat('+t.id+')">✕</button>';
+    html += '<span class="el-lbl">▶ Threat</span><div class="el-val">'+esc(t.text)+'</div>';
+    html += '</div>';
+    // Barrier track
+    html += '<div class="btrack">';
+    if (!t.barriers.length) {
+      html += '<div class="barrier-line"><div class="wire"></div></div>';
+    } else {
+      for (var bi = 0; bi < t.barriers.length; bi++) {
+        var b = t.barriers[bi];
+        var mgmtA = b.mgmt ? ' data-mgmt="'+esc(b.mgmt)+'"' : '';
+        html += '<div class="barrier-line">';
+        html += '<div class="node"></div><div class="wire" style="flex:0 0 3px"></div>';
+        html += '<div class="barrier-group">';
+        html += '<div class="bpill"'+mgmtA+' title="'+esc(b.name)+(b.mgmt?' ['+b.mgmt+']':'')+'">' + esc(b.name) + '</div>';
+        // Degradation paths
+        if (b.dfs && b.dfs.length) {
+          html += '<div class="deg-path">';
+          for (var dfi = 0; dfi < b.dfs.length; dfi++) {
+            var df = b.dfs[dfi];
+            if (!df.factor.trim()) continue;
+            html += '<div class="df-row"><span class="df-arrow">↓</span><div class="df-pill" title="'+esc(df.factor)+'">'+esc(df.factor)+'</div></div>';
+            if (df.controls && df.controls.length) {
+              html += '<div class="dc-list">';
+              for (var dci = 0; dci < df.controls.length; dci++) {
+                if (df.controls[dci].trim()) {
+                  html += '<div class="dc-row" style="display:flex;align-items:center;gap:3px"><span class="dc-arrow">✓</span><div class="dc-pill" title="'+esc(df.controls[dci])+'">'+esc(df.controls[dci])+'</div></div>';
+                }
+              }
+              html += '</div>';
+            }
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+        html += '<div class="wire" style="flex:0 0 3px"></div>';
+        html += '</div>';
+      }
+      html += '<div class="barrier-line"><div class="wire"></div></div>';
+    }
+    html += '</div>';
+    html += '</div>';
+  }
+  col.innerHTML = html;
+}
+
+function renderConsequences() {
+  var col = document.getElementById('consCol');
+  if (!state.consequences.length) { col.innerHTML = '<div class="empty">No consequences added yet</div>'; return; }
+  var html = '';
+  for (var i = 0; i < state.consequences.length; i++) {
+    var c = state.consequences[i];
+    html += '<div class="c-row">';
+    // Barrier track
+    html += '<div class="btrack">';
+    if (!c.barriers.length) {
+      html += '<div class="barrier-line"><div class="wire wire-r"></div></div>';
+    } else {
+      html += '<div class="barrier-line"><div class="wire wire-r"></div></div>';
+      for (var bi = 0; bi < c.barriers.length; bi++) {
+        var b = c.barriers[bi];
+        var mgmtA = b.mgmt ? ' data-mgmt="'+esc(b.mgmt)+'"' : '';
+        html += '<div class="barrier-line">';
+        html += '<div class="wire wire-r" style="flex:0 0 3px"></div>';
+        html += '<div class="barrier-group">';
+        html += '<div class="bpill"'+mgmtA+' title="'+esc(b.name)+(b.mgmt?' ['+b.mgmt+']':'')+'">' + esc(b.name) + '</div>';
+        if (b.dfs && b.dfs.length) {
+          html += '<div class="deg-path">';
+          for (var dfi = 0; dfi < b.dfs.length; dfi++) {
+            var df = b.dfs[dfi];
+            if (!df.factor.trim()) continue;
+            html += '<div class="df-row"><span class="df-arrow">↓</span><div class="df-pill" title="'+esc(df.factor)+'">'+esc(df.factor)+'</div></div>';
+            if (df.controls && df.controls.length) {
+              html += '<div class="dc-list">';
+              for (var dci = 0; dci < df.controls.length; dci++) {
+                if (df.controls[dci].trim()) {
+                  html += '<div style="display:flex;align-items:center;gap:3px"><span class="dc-arrow">✓</span><div class="dc-pill" title="'+esc(df.controls[dci])+'">'+esc(df.controls[dci])+'</div></div>';
+                }
+              }
+              html += '</div>';
+            }
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+        html += '<div class="wire wire-r" style="flex:0 0 3px"></div>';
+        html += '<div class="node"></div>';
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+    // Consequence box
+    html += '<div class="c-box"><button class="rm" onclick="removeConsequence('+c.id+')">✕</button>';
+    html += '<span class="el-lbl">◀ Consequence</span><div class="el-val">'+esc(c.text)+'</div>';
+    html += '</div>';
+    html += '</div>';
+  }
+  col.innerHTML = html;
+}
+
+function updateMgmtCounts() {
+  var counts = { Policy:0, Activity:0, Procedure:0, Standard:0 };
+  var all = state.threats.concat(state.consequences);
+  for (var i = 0; i < all.length; i++) {
+    var item = all[i];
+    for (var bi = 0; bi < item.barriers.length; bi++) {
+      var m = item.barriers[bi].mgmt;
+      if (m && counts.hasOwnProperty(m)) counts[m]++;
+    }
+  }
+  document.getElementById('cnt-pol').textContent  = counts.Policy    + ' barrier' + (counts.Policy    !== 1?'s':'');
+  document.getElementById('cnt-act').textContent  = counts.Activity  + ' barrier' + (counts.Activity  !== 1?'s':'');
+  document.getElementById('cnt-proc').textContent = counts.Procedure + ' barrier' + (counts.Procedure !== 1?'s':'');
+  document.getElementById('cnt-std').textContent  = counts.Standard  + ' barrier' + (counts.Standard  !== 1?'s':'');
+}
+
+function updateCounters() {
+  var tb = 0, te = 0, td = 0;
+  var all = state.threats.concat(state.consequences);
+  for (var i = 0; i < all.length; i++) {
+    tb += all[i].barriers.length;
+    for (var bi = 0; bi < all[i].barriers.length; bi++) {
+      var dfs = all[i].barriers[bi].dfs || [];
+      te += dfs.filter(function(df){ return df.factor.trim(); }).length;
+      for (var dfi = 0; dfi < dfs.length; dfi++) {
+        td += (dfs[dfi].controls || []).filter(function(c){ return c.trim(); }).length;
+      }
+    }
+  }
+  document.getElementById('cntT').textContent = state.threats.length     + ' Threat'      + (state.threats.length!==1?'s':'');
+  document.getElementById('cntC').textContent = state.consequences.length + ' Consequence' + (state.consequences.length!==1?'s':'');
+  document.getElementById('cntB').textContent = tb + ' Barrier' + (tb!==1?'s':'');
+  document.getElementById('cntE').textContent = te + ' Deg. Factor' + (te!==1?'s':'');
+  document.getElementById('cntD').textContent = td + ' Deg. Control' + (td!==1?'s':'');
+}
+
+// ── HAZARD / TOP EVENT ────────────────────────────────────────────────────
+function updateHazard() {
+  state.hazard = document.getElementById('hazardInput').value.trim();
+  document.getElementById('hazardDisplay').innerHTML = state.hazard ? esc(state.hazard) : '<span class="el-ph">Define hazard in sidebar →</span>';
+}
+function updateTopEvent() {
+  state.topEvent = document.getElementById('topEventInput').value.trim();
+  document.getElementById('topEventDisplay').innerHTML = state.topEvent ? esc(state.topEvent) : '<span class="el-ph">—</span>';
+}
+
+// ── PRINT ─────────────────────────────────────────────────────────────────
+function doPrint() {
+  var app = document.querySelector('.app');
+  var canvas = document.getElementById('mainCanvas');
+  var prevAppH = app.style.height, prevAppD = app.style.display;
+  var prevCanvasO = canvas.style.overflow, prevCanvasH = canvas.style.height;
+  app.style.display = 'block'; app.style.height = 'auto';
+  canvas.style.overflow = 'visible'; canvas.style.height = 'auto';
+  window.print();
+  app.style.display = prevAppD; app.style.height = prevAppH;
+  canvas.style.overflow = prevCanvasO; canvas.style.height = prevCanvasH;
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function trunc(str,n){ return str && str.length>n ? str.slice(0,n)+'…' : str||''; }
+function deepCopy(obj){ return JSON.parse(JSON.stringify(obj)); }
+
+function resetAll() {
+  if (!confirm('Reset all bow tie data?')) return;
+  state = { hazard:'', topEvent:'', threats:[], consequences:[] };
+  tBarriers=[]; cBarriers=[];
+  document.getElementById('hazardInput').value='';
+  document.getElementById('topEventInput').value='';
+  document.getElementById('tText').value='';
+  document.getElementById('cText').value='';
+  renderBarrierFields('t'); renderBarrierFields('c');
+  updateHazard(); updateTopEvent(); render();
+}
+
+function exportJSON() {
+  var blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a'); a.href=url; a.download='bowtie_assessment.json'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// INIT
+render();
+renderBarrierFields('t');
+renderBarrierFields('c');
+</script>
+</body>
+</html>
