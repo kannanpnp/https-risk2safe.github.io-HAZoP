@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Risk2Safe HAZoP — AI-Powered HAZOP Study System</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-base:#07101f;
+  --bg-surface:#0e1b2e;
+  --bg-card:#162236;
+  --bg-card2:#1c2d45;
+  --bg-hover:#1e3152;
+  --border:#1d3452;
+  --border2:#264872;
+  --accent:#f59e0b;
+  --accent2:#fbbf24;
+  --accent-dim:#78350f;
+  --blue:#3b82f6;
+  --blue-dim:#1d3a6e;
+  --green:#22c55e;
+  --red:#ef4444;
+  --orange:#f97316;
+  --text1:#e2e8f0;
+  --text2:#94a3b8;
+  --text3:#475569;
+  --mono:'IBM Plex Mono',monospace;
+  --disp:'Rajdhani',sans-serif;
+  --body:'Inter',sans-serif;
+}
+body{background:var(--bg-base);color:var(--text1);font-family:var(--body);height:100vh;overflow:hidden;display:flex;flex-direction:column;font-size:14px}
+button{cursor:pointer;border:none;background:none;color:inherit;font-family:inherit;font-size:inherit}
+input,select,textarea{font-family:inherit;font-size:inherit;color:inherit;background:var(--bg-card2);border:1px solid var(--border2);border-radius:6px;padding:8px 10px;outline:none;width:100%;transition:border-color 0.15s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+select option{background:var(--bg-card)}
+textarea{resize:vertical;min-height:80px;line-height:1.5}
+label{font-size:12px;color:var(--text2);display:block;margin-bottom:4px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg-surface)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.scrollable{overflow-y:auto}
+/* HEADER */
+.hdr{display:flex;align-items:center;gap:16px;padding:0 20px;height:52px;background:var(--bg-surface);border-bottom:1px solid var(--border);flex-shrink:0;z-index:10}
+.logo{font-family:var(--disp);font-size:22px;font-weight:700;letter-spacing:0.05em;color:var(--text1);white-space:nowrap}
+.logo span{color:var(--accent)}
+.hdr-study{font-size:12px;color:var(--text2);font-family:var(--mono);border-left:1px solid var(--border);padding-left:16px;margin-left:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:500;letter-spacing:0.04em}
+.badge-hi{background:#7f1d1d;color:#fca5a5}
+.badge-hi2{background:#7c2d12;color:#fdba74}
+.badge-med{background:#713f12;color:#fde68a}
+.badge-lo{background:#14532d;color:#86efac}
+.badge-none{background:var(--bg-card2);color:var(--text2)}
+/* NAV */
+.nav{display:flex;align-items:stretch;padding:0 4px;background:var(--bg-surface);border-bottom:1px solid var(--border);flex-shrink:0;gap:2px}
+.nav-btn{padding:8px 18px;font-family:var(--disp);font-size:14px;font-weight:600;letter-spacing:0.08em;color:var(--text2);border-bottom:2px solid transparent;transition:all 0.15s;white-space:nowrap;position:relative;text-transform:uppercase}
+.nav-btn:hover{color:var(--text1);background:var(--bg-card)}
+.nav-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.nav-count{position:absolute;top:6px;right:8px;background:var(--accent);color:#000;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700;min-width:16px;text-align:center}
+/* LAYOUT */
+.main{display:flex;flex:1;overflow:hidden}
+.sidebar{width:240px;flex-shrink:0;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.content{flex:1;overflow:hidden;display:flex;flex-direction:column}
+/* SECTION HEADER */
+.sec-hdr{padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;gap:8px}
+.sec-title{font-family:var(--disp);font-size:16px;font-weight:700;letter-spacing:0.06em;color:var(--accent);text-transform:uppercase}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;font-weight:500;transition:all 0.15s;white-space:nowrap;font-size:13px}
+.btn-primary{background:var(--accent);color:#000;font-weight:600}
+.btn-primary:hover{background:var(--accent2)}
+.btn-secondary{background:var(--bg-card2);color:var(--text1);border:1px solid var(--border2)}
+.btn-secondary:hover{background:var(--bg-hover);border-color:var(--accent)}
+.btn-ghost{color:var(--text2);padding:6px 10px}
+.btn-ghost:hover{color:var(--text1);background:var(--bg-card2)}
+.btn-danger{background:#7f1d1d;color:#fca5a5;border:1px solid #b91c1c}
+.btn-danger:hover{background:#991b1b}
+.btn-ai{background:linear-gradient(135deg,#1d3a6e,#1e3a8a);color:#93c5fd;border:1px solid #2563eb;font-weight:600}
+.btn-ai:hover{background:linear-gradient(135deg,#1e3a8a,#1d4ed8)}
+.btn-ai:disabled{opacity:0.5;cursor:not-allowed}
+.btn-sm{padding:4px 10px;font-size:12px}
+/* CARDS */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:16px}
+.card2{background:var(--bg-card2);border:1px solid var(--border);border-radius:6px;padding:12px}
+/* FORM */
+.form-row{display:grid;gap:12px;margin-bottom:12px}
+.form-row-2{grid-template-columns:1fr 1fr}
+.form-row-3{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+/* RISK MATRIX */
+.matrix-grid{display:grid;grid-template-columns:80px repeat(6,1fr);gap:2px}
+.matrix-cell{display:flex;align-items:center;justify-content:center;padding:8px 4px;border-radius:4px;font-size:11px;font-weight:700;font-family:var(--mono);text-align:center;cursor:default;transition:all 0.15s;border:1px solid transparent;user-select:none}
+.matrix-cell.clickable{cursor:pointer}
+.matrix-cell.clickable:hover{filter:brightness(1.3);border-color:rgba(255,255,255,0.3)}
+.matrix-cell.selected{border-color:#fff !important;box-shadow:0 0 0 2px rgba(255,255,255,0.5)}
+.matrix-header{background:var(--bg-card2);color:var(--text2);font-size:11px;font-weight:600;border-radius:4px;border:1px solid var(--border)}
+.risk-1{background:#7f1d1d;color:#fca5a5}
+.risk-2{background:#7c2d12;color:#fdba74}
+.risk-3{background:#713f12;color:#fde68a}
+.risk-4{background:#14532d;color:#86efac}
+/* WORKSHEET */
+.dev-list-item{padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s;display:flex;flex-direction:column;gap:4px}
+.dev-list-item:hover{background:var(--bg-hover)}
+.dev-list-item.active{background:var(--bg-hover);border-left:3px solid var(--accent)}
+.dev-tag{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px;background:var(--bg-card2);color:var(--text2);display:inline-block}
+.dev-tag-gw{background:#1a2d50;color:#93c5fd}
+/* LISTS for analysis */
+.analysis-list{list-style:none;display:flex;flex-direction:column;gap:6px}
+.analysis-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:6px;font-size:13px;line-height:1.5}
+.analysis-item-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.analysis-item-dot.cause{background:#f59e0b}
+.analysis-item-dot.consequence{background:#ef4444}
+.analysis-item-dot.safeguard{background:#22c55e}
+.analysis-item-dot.recommendation{background:#3b82f6}
+.analysis-item-text{flex:1;color:var(--text1)}
+.analysis-item-del{opacity:0;transition:opacity 0.12s;color:var(--red);font-size:11px;flex-shrink:0}
+.analysis-item:hover .analysis-item-del{opacity:1}
+/* STATUS */
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{padding:8px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--text2);letter-spacing:0.06em;text-transform:uppercase;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--bg-surface)}
+.tbl td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top;font-size:13px}
+.tbl tr:hover td{background:var(--bg-hover)}
+/* API KEY */
+.api-bar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--accent-dim);border-bottom:1px solid #92400e;flex-shrink:0}
+.api-bar input{background:#1c0f02;border-color:#92400e;color:var(--accent2);font-family:var(--mono);font-size:12px;width:360px}
+/* GENERATING */
+.spin{animation:spin 1s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.pulse{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+/* REPORT */
+@media print{
+  .nav,.hdr,.api-bar,.btn,.sidebar{display:none!important}
+  body{background:#fff;color:#000}
+  .content{overflow:visible!important}
+  .report-page{padding:20px!important}
+}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:60px 20px;color:var(--text3);text-align:center}
+.empty-icon{font-size:48px;opacity:0.4}
+.divider{height:1px;background:var(--border);margin:12px 0}
+.tooltip{position:relative}
+.tooltip:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#0f1e33;color:var(--text1);padding:4px 8px;border-radius:4px;font-size:11px;white-space:nowrap;pointer-events:none;border:1px solid var(--border2);z-index:100}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useCallback,useRef,useEffect,useMemo}=React;
+
+/* ─── CONSTANTS ─────────────────────────────────────── */
+const GUIDE_WORDS=['NO / NONE','MORE','LESS','AS WELL AS','PART OF','REVERSE','OTHER THAN','EARLY','LATE'];
+const PARAMETERS=['FLOW','PRESSURE','TEMPERATURE','LEVEL','COMPOSITION','CONCENTRATION','PHASE','VISCOSITY','REACTION RATE','AGITATION / MIXING','SEQUENCE','SIGNAL / CONTROL','UTILITY / SERVICE','TIME'];
+const SNAMES={1:'Notable',2:'Minor',3:'Serious',4:'Major',5:'Catastrophic',6:'Disastrous'};
+const SDESC={1:'Slight injuries, short-term effects, near miss',2:'Minor injuries, reversible effects, first aid',3:'Serious injuries, RIDDOR reportable, LTI',4:'Single fatality or permanent total disability',5:'Multiple fatalities (2–10), major asset damage',6:'Multiple fatalities (>10), catastrophic damage, business continuity impact'};
+const LNAMES={A:'Term',B:'Rare',C:'Unlikely',D:'Possible',E:'Likely',F:'Almost Certain'};
+const LDESC={A:"Hasn't happened in industry in last 50 years (10⁻⁶ ≤ f < 10⁻⁵)",B:'Could happen in industry next 20–30 years (10⁻⁵ ≤ f < 10⁻⁴)',C:'Could be incurred within a 5–10 year time frame (10⁻⁴ ≤ f < 10⁻³)',D:'Could be incurred within 5 year Strategic Planning period (10⁻³ ≤ f < 10⁻²)',E:'Could be incurred more than once per year budget period (10⁻² ≤ f < 10⁻¹)',F:'Could be incurred more than once on site (10⁻¹ ≤ f < 1)'};
+
+// ADNOC 6×6 Risk Matrix — Category 1=HIGH-RED, 2=HIGH-ORG, 3=MEDIUM, 4=LOW
+const RMATRIX={
+  6:{A:2,B:2,C:1,D:1,E:1,F:1},
+  5:{A:2,B:2,C:2,D:1,E:1,F:1},
+  4:{A:3,B:3,C:2,D:2,E:1,F:1},
+  3:{A:4,B:3,C:3,D:2,E:2,F:1},
+  2:{A:4,B:4,C:3,D:3,E:2,F:2},
+  1:{A:4,B:4,C:4,D:3,E:3,F:2}
+};
+const RDISP={
+  1:{label:'HIGH',cat:'CAT 1',cls:'risk-1',badge:'badge-hi',txt:'#fca5a5',sign:'Director / GC CEO sign-off. ALARP required.'},
+  2:{label:'HIGH',cat:'CAT 2',cls:'risk-2',badge:'badge-hi2',txt:'#fdba74',sign:'Unit Manager / SVP sign-off. ALARP required.'},
+  3:{label:'MEDIUM',cat:'CAT 3',cls:'risk-3',badge:'badge-med',txt:'#fde68a',sign:'Dept Manager / VP sign-off. Monitor & control.'},
+  4:{label:'LOW',cat:'CAT 4',cls:'risk-4',badge:'badge-lo',txt:'#86efac',sign:'Line Manager sign-off. Monitor current controls.'}
+};
+
+const getRisk=(s,l)=>s&&l?RMATRIX[s]?.[l]||null:null;
+const uid=()=>Math.random().toString(36).slice(2,9);
+const today=()=>new Date().toISOString().split('T')[0];
+
+/* ─── COMPONENTS ─────────────────────────────────────── */
+const RiskBadge=({cat,small})=>{
+  if(!cat)return<span className="badge badge-none" style={{fontSize:small?10:12}}>—</span>;
+  const d=RDISP[cat];
+  return<span className={`badge ${d.badge}`} style={{fontSize:small?10:12}}>{d.label} · {d.cat}</span>;
+};
+
+const MatrixPicker=({sel,onPick,label})=>{
+  const rows=[6,5,4,3,2,1];
+  const cols=['A','B','C','D','E','F'];
+  return(
+    <div>
+      {label&&<div style={{fontSize:12,color:'var(--text2)',fontWeight:600,letterSpacing:'0.05em',textTransform:'uppercase',marginBottom:8}}>{label}</div>}
+      <div className="matrix-grid" style={{gap:3}}>
+        <div className="matrix-cell matrix-header" style={{fontSize:10}}>S / L</div>
+        {cols.map(c=>(
+          <div key={c} className="matrix-cell matrix-header" data-tip={LNAMES[c]} title={LNAMES[c]}>
+            {c}<br/><span style={{fontWeight:400,fontSize:9,color:'var(--text3)'}}>{LNAMES[c]}</span>
+          </div>
+        ))}
+        {rows.map(s=>(
+          <React.Fragment key={s}>
+            <div className="matrix-cell matrix-header" style={{flexDirection:'column',gap:1,fontSize:10}} title={SDESC[s]}>
+              <strong>S{s}</strong><span style={{fontSize:8,fontWeight:400,color:'var(--text3)'}}>{SNAMES[s]}</span>
+            </div>
+            {cols.map(l=>{
+              const cat=RMATRIX[s][l];
+              const isSel=sel&&sel.s===s&&sel.l===l;
+              return(
+                <div key={l}
+                  className={`matrix-cell clickable ${RDISP[cat].cls} ${isSel?'selected':''}`}
+                  style={{flexDirection:'column',gap:1,fontSize:10}}
+                  onClick={()=>onPick({s,l,cat})}
+                  title={`S${s}/${l} — ${RDISP[cat].label} (${RDISP[cat].cat})\nSeverity: ${SNAMES[s]}\nLikelihood: ${LNAMES[l]}`}
+                >
+                  <strong>{s}{l}</strong>
+                </div>
+              );
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+      {sel&&(
+        <div style={{marginTop:8,padding:'8px 10px',background:'var(--bg-card2)',borderRadius:6,border:'1px solid var(--border)',fontSize:12}}>
+          <span style={{color:'var(--text2)'}}>Selected: </span>
+          <strong style={{color:'var(--accent)',fontFamily:'var(--mono)'}}>S{sel.s}/{sel.l}</strong>
+          <span style={{margin:'0 8px',color:'var(--text3)'}}>|</span>
+          <RiskBadge cat={sel.cat} small/>
+          <div style={{color:'var(--text2)',marginTop:4}}>{RDISP[sel.cat].sign}</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AnalysisList=({items,dotClass,onAdd,onDel,placeholder})=>{
+  const [draft,setDraft]=useState('');
+  const handleAdd=()=>{
+    const t=draft.trim();
+    if(t){onAdd(t);setDraft('');}
+  };
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+      <ul className="analysis-list">
+        {items.map((it,i)=>(
+          <li key={i} className="analysis-item">
+            <div className={`analysis-item-dot ${dotClass}`}/>
+            <span className="analysis-item-text">{it}</span>
+            <button className="analysis-item-del" onClick={()=>onDel(i)}>✕</button>
+          </li>
+        ))}
+      </ul>
+      <div style={{display:'flex',gap:6}}>
+        <input value={draft} onChange={e=>setDraft(e.target.value)}
+          onKeyDown={e=>{if(e.key==='Enter'){handleAdd();}}}
+          placeholder={placeholder} style={{flex:1,fontSize:13}}/>
+        <button className="btn btn-secondary btn-sm" onClick={handleAdd}>Add</button>
+      </div>
+    </div>
+  );
+};
+
+/* ─── VIEWS ──────────────────────────────────────────── */
+
+// SETUP VIEW
+const SetupView=({study,setStudy})=>{
+  const upd=(k,v)=>setStudy(s=>({...s,[k]:v}));
+  const [newMember,setNewMember]=useState({name:'',role:'',dept:''});
+  const addMember=()=>{
+    if(!newMember.name.trim())return;
+    setStudy(s=>({...s,teamMembers:[...s.teamMembers,{...newMember,id:uid()}]}));
+    setNewMember({name:'',role:'',dept:''});
+  };
+  const delMember=id=>setStudy(s=>({...s,teamMembers:s.teamMembers.filter(m=>m.id!==id)}));
+  return(
+    <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20}}>
+      <div className="card">
+        <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',letterSpacing:'0.06em',marginBottom:16,textTransform:'uppercase'}}>Study & Project Details</div>
+        <div className="form-row form-row-2">
+          <div className="form-group"><label>Company / Client</label><input value={study.company} onChange={e=>upd('company',e.target.value)} placeholder="e.g. Dragon Oil (Turkmenistan) Ltd"/></div>
+          <div className="form-group"><label>Project Name</label><input value={study.projectName} onChange={e=>upd('projectName',e.target.value)} placeholder="e.g. Hazar CPF Expansion"/></div>
+        </div>
+        <div className="form-row form-row-3">
+          <div className="form-group"><label>Facility / Unit</label><input value={study.facility} onChange={e=>upd('facility',e.target.value)} placeholder="e.g. Gas Treatment Unit"/></div>
+          <div className="form-group"><label>Location</label><input value={study.location} onChange={e=>upd('location',e.target.value)} placeholder="e.g. Hazar, Turkmenistan"/></div>
+          <div className="form-group"><label>Document Ref.</label><input value={study.docRef} onChange={e=>upd('docRef',e.target.value)} placeholder="e.g. HAZOP-GTU-001"/></div>
+        </div>
+        <div className="form-row form-row-3">
+          <div className="form-group"><label>Study Date</label><input type="date" value={study.date} onChange={e=>upd('date',e.target.value)}/></div>
+          <div className="form-group"><label>Revision</label><input value={study.revision} onChange={e=>upd('revision',e.target.value)} placeholder="0"/></div>
+          <div className="form-group"><label>Methodology</label>
+            <select value={study.methodology} onChange={e=>upd('methodology',e.target.value)}>
+              <option>Guide Word HAZOP</option>
+              <option>Cause-by-Cause</option>
+              <option>Consequence-by-Consequence</option>
+              <option>Deviation-by-Deviation</option>
+              <option>Knowledge-Based HAZOP</option>
+            </select>
+          </div>
+        </div>
+        <div className="form-row form-row-2">
+          <div className="form-group"><label>Prepared By</label><input value={study.preparedBy} onChange={e=>upd('preparedBy',e.target.value)} placeholder="Lead facilitator name"/></div>
+          <div className="form-group"><label>Approved By</label><input value={study.approvedBy} onChange={e=>upd('approvedBy',e.target.value)} placeholder="Approving authority"/></div>
+        </div>
+        <div className="form-group"><label>Study Scope & Objectives</label>
+          <textarea value={study.scope} onChange={e=>upd('scope',e.target.value)} placeholder="Describe the scope of this HAZOP study, systems included/excluded, and primary objectives..." style={{minHeight:90}}/>
+        </div>
+        <div className="form-group" style={{marginTop:4}}><label>Risk Matrix Standard</label>
+          <input value="ADNOC Corporate Risk Matrix — 6×6 (Severity 1–6 × Likelihood A–F)" readOnly style={{color:'var(--text2)',background:'var(--bg-surface)'}}/>
+        </div>
+      </div>
+
+      <div className="card">
+        <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',letterSpacing:'0.06em',marginBottom:16,textTransform:'uppercase'}}>HAZOP Team Members</div>
+        <div style={{marginBottom:12}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr auto',gap:8}}>
+            <input value={newMember.name} onChange={e=>setNewMember(m=>({...m,name:e.target.value}))} placeholder="Full Name"/>
+            <input value={newMember.role} onChange={e=>setNewMember(m=>({...m,role:e.target.value}))} placeholder="Role (e.g. HAZOP Facilitator)"/>
+            <input value={newMember.dept} onChange={e=>setNewMember(m=>({...m,dept:e.target.value}))} placeholder="Discipline / Dept"/>
+            <button className="btn btn-primary" onClick={addMember}>+ Add</button>
+          </div>
+        </div>
+        {study.teamMembers.length===0?
+          <div style={{color:'var(--text3)',fontSize:13,textAlign:'center',padding:'20px 0'}}>No team members added yet. A typical HAZOP team includes: Facilitator, Process Engineer, Operations, Instrument Engineer, HSE, Mechanical.</div>:
+          <table className="tbl">
+            <thead><tr><th>#</th><th>Name</th><th>Role</th><th>Discipline</th><th></th></tr></thead>
+            <tbody>{study.teamMembers.map((m,i)=>(
+              <tr key={m.id}>
+                <td style={{color:'var(--text3)',fontFamily:'var(--mono)'}}>{i+1}</td>
+                <td style={{fontWeight:500}}>{m.name}</td>
+                <td style={{color:'var(--text2)'}}>{m.role}</td>
+                <td style={{color:'var(--text2)'}}>{m.dept}</td>
+                <td><button className="btn btn-ghost btn-sm" style={{color:'var(--red)'}} onClick={()=>delMember(m.id)}>✕</button></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        }
+      </div>
+    </div>
+  );
+};
+
+// NODES VIEW
+const NodesView=({nodes,setNodes})=>{
+  const [active,setActive]=useState(null);
+  const addNode=()=>{
+    const n={id:uid(),name:'',description:'',designIntent:'',type:'Process Line',drawings:''};
+    setNodes(ns=>[...ns,n]);
+    setActive(n.id);
+  };
+  const upd=(id,k,v)=>setNodes(ns=>ns.map(n=>n.id===id?{...n,[k]:v}:n));
+  const del=(id)=>{setNodes(ns=>ns.filter(n=>n.id!==id));if(active===id)setActive(null);};
+  const node=nodes.find(n=>n.id===active);
+  return(
+    <div className="main" style={{flex:1}}>
+      <div className="sidebar">
+        <div className="sec-hdr" style={{justifyContent:'space-between'}}>
+          <span className="sec-title">Nodes</span>
+          <button className="btn btn-primary btn-sm" onClick={addNode}>+ Node</button>
+        </div>
+        <div className="scrollable" style={{flex:1}}>
+          {nodes.length===0&&<div style={{padding:20,color:'var(--text3)',fontSize:13,textAlign:'center'}}>No nodes defined.<br/>Click <strong>+ Node</strong> to begin.</div>}
+          {nodes.map((n,i)=>(
+            <div key={n.id} className={`dev-list-item ${active===n.id?'active':''}`} onClick={()=>setActive(n.id)}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                <div>
+                  <span style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--accent)'}}>N{String(i+1).padStart(2,'0')}</span>
+                  <span style={{marginLeft:8,fontWeight:500,fontSize:13}}>{n.name||'Unnamed Node'}</span>
+                </div>
+                <span className="dev-tag">{n.type}</span>
+              </div>
+              {n.description&&<div style={{fontSize:12,color:'var(--text2)',marginTop:2}}>{n.description.substring(0,60)}{n.description.length>60?'…':''}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="content">
+        {!node?
+          <div className="empty-state" style={{flex:1,display:'flex'}}>
+            <div className="empty-icon">⬡</div>
+            <div style={{fontFamily:'var(--disp)',fontSize:18,fontWeight:600,color:'var(--text2)'}}>Select or create a node</div>
+            <div style={{fontSize:13,color:'var(--text3)',maxWidth:360}}>Nodes are sections of the process selected for HAZOP study. Size them by common function — not too small (repetition) nor too large (confusion).</div>
+            <button className="btn btn-primary" onClick={addNode}>+ Add First Node</button>
+          </div>:
+          <div className="scrollable" style={{flex:1,padding:20}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+              <div style={{fontFamily:'var(--disp)',fontSize:18,fontWeight:700,color:'var(--text1)'}}>Node Editor</div>
+              <button className="btn btn-danger btn-sm" onClick={()=>del(node.id)}>Delete Node</button>
+            </div>
+            <div className="card" style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div className="form-row form-row-2">
+                <div className="form-group"><label>Node Name / Tag</label><input value={node.name} onChange={e=>upd(node.id,'name',e.target.value)} placeholder="e.g. Feed Pump Suction Line — P-101"/></div>
+                <div className="form-group"><label>Node Type</label>
+                  <select value={node.type} onChange={e=>upd(node.id,'type',e.target.value)}>
+                    {['Process Line','Vessel / Drum','Heat Exchanger','Pump / Compressor','Column / Tower','Reactor','Storage Tank','Utility System','Control Loop','Fired Equipment','Valve / Instrumentation','Offshore Riser','Well / Wellhead'].map(t=><option key={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group"><label>Node Description</label>
+                <textarea value={node.description} onChange={e=>upd(node.id,'description',e.target.value)} placeholder="Describe what this node represents — equipment, process streams, boundary limits..."/>
+              </div>
+              <div className="form-group"><label>Design Intent</label>
+                <textarea value={node.designIntent} onChange={e=>upd(node.id,'designIntent',e.target.value)} placeholder="State what the node is designed to do under normal operating conditions — flow direction, purpose, process parameters..."/>
+              </div>
+              <div className="form-row form-row-2">
+                <div className="form-group"><label>Associated P&ID / Drawing Numbers</label><input value={node.drawings} onChange={e=>upd(node.id,'drawings',e.target.value)} placeholder="e.g. PID-001, PID-002"/></div>
+                <div className="form-group"><label>Design Conditions (Temp/Pressure/Flow)</label><input value={node.conditions||''} onChange={e=>upd(node.id,'conditions',e.target.value)} placeholder="e.g. 120°C / 15 barg / 500 m³/h"/></div>
+              </div>
+              <div className="form-group"><label>Operating Fluid / Material</label><input value={node.fluid||''} onChange={e=>upd(node.id,'fluid',e.target.value)} placeholder="e.g. Sour gas condensate (H₂S up to 3%), flammable"/></div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  );
+};
+
+// WORKSHEET VIEW (main)
+const WorksheetView=({state,setState,apiKey})=>{
+  const {nodes,deviations,activeNodeId,activeDevId}=state;
+  const set=f=>setState(s=>({...s,...f}));
+  const activeNode=nodes.find(n=>n.id===activeNodeId);
+  const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
+  const activeDev=deviations.find(d=>d.id===activeDevId);
+
+  const addDev=()=>{
+    if(!activeNodeId)return;
+    const d={id:uid(),nodeId:activeNodeId,guideWord:GUIDE_WORDS[0],parameter:PARAMETERS[0],deviation:'',causes:[],consequences:[],safeguards:[],recommendations:[],initialRisk:null,residualRisk:null,responsible:'',status:'Open',priority:'',dueDate:'',remarks:''};
+    setState(s=>({...s,deviations:[...s.deviations,d],activeDevId:d.id}));
+  };
+  const upd=(id,k,v)=>setState(s=>({...s,deviations:s.deviations.map(d=>d.id===id?{...d,[k]:v}:d)}));
+  const updList=(id,k,items)=>upd(id,k,items);
+  const addItem=(id,k,txt)=>{const d=deviations.find(x=>x.id===id);if(d)upd(id,k,[...d[k],txt]);};
+  const delItem=(id,k,i)=>{const d=deviations.find(x=>x.id===id);if(d)upd(id,k,d[k].filter((_,j)=>j!==i));};
+  const delDev=id=>{setState(s=>({...s,deviations:s.deviations.filter(d=>d.id!==id),activeDevId:s.activeDevId===id?null:s.activeDevId}));};
+
+  const generateAI=async()=>{
+    if(!activeDev||!activeNode)return;
+    if(!apiKey){alert('Please enter your Anthropic API key in the Settings bar above.');return;}
+    setState(s=>({...s,isGenerating:true}));
+    const deviation=`${activeDev.guideWord} ${activeDev.parameter}`;
+    const prompt=`You are an expert HAZOP facilitator with 30+ years in oil & gas, upstream/downstream, and process safety. 
+
+Study context:
+- Node: ${activeNode.name} (${activeNode.type})
+- Description: ${activeNode.description}
+- Design Intent: ${activeNode.designIntent}
+- Operating Conditions: ${activeNode.conditions||'Not specified'}
+- Fluid/Material: ${activeNode.fluid||'Not specified'}
+- Guide Word: ${activeDev.guideWord}
+- Parameter: ${activeDev.parameter}
+- Deviation: ${deviation}
+
+Generate a rigorous HAZOP analysis for this deviation. Respond ONLY with valid JSON, no markdown:
+{
+  "deviationDescription": "Clear statement of the deviation",
+  "causes": ["cause 1", "cause 2", "cause 3"],
+  "consequences": ["consequence 1 (include severity indicator)", "consequence 2"],
+  "safeguards": ["existing safeguard 1 (type: engineering/admin/PPE)", "safeguard 2"],
+  "recommendations": ["specific actionable recommendation 1", "recommendation 2"],
+  "initialSeverityHint": 1-6,
+  "initialLikelihoodHint": "A-F",
+  "residualLikelihoodHint": "A-F"
+}
+
+Be specific, technical, and practical. For oil & gas contexts consider: H₂S toxicity, hydrocarbon fires/explosions, pressure excursions, BLEVE, toxic releases, vapor cloud, LOC. Include 3-5 items per category minimum.`;
+
+    try{
+      const res=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content:prompt}]})
+      });
+      const data=await res.json();
+      if(data.error)throw new Error(data.error.message);
+      const txt=data.content[0].text.trim();
+      const clean=txt.replace(/```json|```/g,'').trim();
+      const parsed=JSON.parse(clean);
+      setState(s=>({
+        ...s,isGenerating:false,
+        deviations:s.deviations.map(d=>d.id===activeDevId?{
+          ...d,
+          deviation:parsed.deviationDescription||deviation,
+          causes:[...d.causes,...(parsed.causes||[])],
+          consequences:[...d.consequences,...(parsed.consequences||[])],
+          safeguards:[...d.safeguards,...(parsed.safeguards||[])],
+          recommendations:[...d.recommendations,...(parsed.recommendations||[])],
+        }:d)
+      }));
+    }catch(e){
+      setState(s=>({...s,isGenerating:false}));
+      alert('AI generation failed: '+e.message);
+    }
+  };
+
+  const pickInitial=({s:sv,l,cat})=>upd(activeDev.id,'initialRisk',{s:sv,l,cat});
+  const pickResidual=({s:sv,l,cat})=>upd(activeDev.id,'residualRisk',{s:sv,l,cat});
+
+  const devLabel=(d,i)=>`${String(i+1).padStart(2,'0')} · ${d.guideWord.split('/')[0].trim()} ${d.parameter}`;
+
+  return(
+    <div className="main" style={{flex:1,overflow:'hidden'}}>
+      {/* LEFT: node + deviation list */}
+      <div className="sidebar" style={{width:220}}>
+        <div className="sec-hdr" style={{flexDirection:'column',alignItems:'flex-start',gap:8}}>
+          <div style={{width:'100%'}}>
+            <label>Active Node</label>
+            <select value={activeNodeId||''} onChange={e=>set({activeNodeId:e.target.value,activeDevId:null})} style={{fontSize:12}}>
+              <option value="">— Select Node —</option>
+              {nodes.map(n=><option key={n.id} value={n.id}>{n.name||'Unnamed'}</option>)}
+            </select>
+          </div>
+          {activeNodeId&&<button className="btn btn-primary btn-sm" style={{width:'100%'}} onClick={addDev}>+ Add Deviation</button>}
+        </div>
+        <div className="scrollable" style={{flex:1}}>
+          {!activeNodeId&&<div style={{padding:16,color:'var(--text3)',fontSize:12}}>Select a node to see its deviations.</div>}
+          {activeNodeId&&nodeDevs.length===0&&<div style={{padding:16,color:'var(--text3)',fontSize:12}}>No deviations for this node yet.</div>}
+          {nodeDevs.map((d,i)=>(
+            <div key={d.id} className={`dev-list-item ${activeDevId===d.id?'active':''}`} onClick={()=>set({activeDevId:d.id})}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:4}}>
+                <span className="dev-tag dev-tag-gw" style={{fontSize:10}}>{devLabel(d,i)}</span>
+                {d.initialRisk&&<RiskBadge cat={d.initialRisk.cat} small/>}
+              </div>
+              {d.deviation&&<div style={{fontSize:11,color:'var(--text2)',marginTop:2,lineHeight:1.4}}>{d.deviation.substring(0,55)}…</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* MAIN: deviation editor */}
+      {!activeDev?
+        <div className="content" style={{alignItems:'center',justifyContent:'center',display:'flex'}}>
+          <div className="empty-state">
+            <div className="empty-icon">⚡</div>
+            <div style={{fontFamily:'var(--disp)',fontSize:18,fontWeight:600,color:'var(--text2)'}}>No deviation selected</div>
+            <div style={{fontSize:13,color:'var(--text3)',maxWidth:360}}>Select a node, then add a deviation. Apply a guide word and parameter to generate the deviation — the AI will analyze causes, consequences, safeguards, and recommendations.</div>
+            {nodes.length===0&&<div style={{color:'var(--orange)',fontSize:13}}>⚠ Add nodes first in the Nodes tab.</div>}
+          </div>
+        </div>:
+        <div className="content scrollable" style={{padding:20,gap:16,display:'flex',flexDirection:'column'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
+            <div>
+              <div style={{fontSize:11,color:'var(--text2)',fontFamily:'var(--mono)',marginBottom:4}}>Node: {activeNode?.name}</div>
+              <div style={{fontFamily:'var(--disp)',fontSize:18,fontWeight:700,color:'var(--text1)'}}>Deviation Analysis</div>
+            </div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              <button className="btn btn-ai" onClick={generateAI} disabled={state.isGenerating}>
+                {state.isGenerating?<><span className="spin">⟳</span> Generating…</>:<>✦ AI Generate Analysis</>}
+              </button>
+              <button className="btn btn-danger btn-sm" onClick={()=>delDev(activeDev.id)}>Delete</button>
+            </div>
+          </div>
+
+          {/* Guide Word / Parameter */}
+          <div className="card">
+            <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'var(--accent)',marginBottom:12,letterSpacing:'0.06em',textTransform:'uppercase'}}>Deviation Definition</div>
+            <div className="form-row" style={{gridTemplateColumns:'1fr 1fr 2fr',gap:12}}>
+              <div className="form-group">
+                <label>Guide Word</label>
+                <select value={activeDev.guideWord} onChange={e=>upd(activeDev.id,'guideWord',e.target.value)}>
+                  {GUIDE_WORDS.map(g=><option key={g}>{g}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Parameter</label>
+                <select value={activeDev.parameter} onChange={e=>upd(activeDev.id,'parameter',e.target.value)}>
+                  {PARAMETERS.map(p=><option key={p}>{p}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Deviation Statement</label>
+                <input value={activeDev.deviation||`${activeDev.guideWord} ${activeDev.parameter}`}
+                  onChange={e=>upd(activeDev.id,'deviation',e.target.value)}
+                  placeholder="Auto-filled or describe deviation..."/>
+              </div>
+            </div>
+          </div>
+
+          {/* Analysis 2-col */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+            <div className="card">
+              <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'#f59e0b',marginBottom:10,letterSpacing:'0.06em',textTransform:'uppercase'}}>⚠ Causes</div>
+              <AnalysisList items={activeDev.causes} dotClass="cause" placeholder="Add a cause…" onAdd={t=>addItem(activeDev.id,'causes',t)} onDel={i=>delItem(activeDev.id,'causes',i)}/>
+            </div>
+            <div className="card">
+              <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'#ef4444',marginBottom:10,letterSpacing:'0.06em',textTransform:'uppercase'}}>💥 Consequences</div>
+              <AnalysisList items={activeDev.consequences} dotClass="consequence" placeholder="Add a consequence…" onAdd={t=>addItem(activeDev.id,'consequences',t)} onDel={i=>delItem(activeDev.id,'consequences',i)}/>
+            </div>
+            <div className="card">
+              <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'#22c55e',marginBottom:10,letterSpacing:'0.06em',textTransform:'uppercase'}}>🛡 Safeguards</div>
+              <AnalysisList items={activeDev.safeguards} dotClass="safeguard" placeholder="Add an existing safeguard…" onAdd={t=>addItem(activeDev.id,'safeguards',t)} onDel={i=>delItem(activeDev.id,'safeguards',i)}/>
+            </div>
+            <div className="card">
+              <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'#3b82f6',marginBottom:10,letterSpacing:'0.06em',textTransform:'uppercase'}}>✅ Recommendations</div>
+              <AnalysisList items={activeDev.recommendations} dotClass="recommendation" placeholder="Add a recommendation…" onAdd={t=>addItem(activeDev.id,'recommendations',t)} onDel={i=>delItem(activeDev.id,'recommendations',i)}/>
+            </div>
+          </div>
+
+          {/* Risk Ranking */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+            <div className="card">
+              <MatrixPicker sel={activeDev.initialRisk} onPick={pickInitial} label="Initial Risk — Before Safeguards"/>
+            </div>
+            <div className="card">
+              <MatrixPicker sel={activeDev.residualRisk} onPick={pickResidual} label="Residual Risk — After Safeguards"/>
+            </div>
+          </div>
+
+          {/* Action details */}
+          <div className="card">
+            <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'var(--accent)',marginBottom:12,letterSpacing:'0.06em',textTransform:'uppercase'}}>Action & Tracking</div>
+            <div className="form-row" style={{gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:12}}>
+              <div className="form-group"><label>Responsible Person</label><input value={activeDev.responsible} onChange={e=>upd(activeDev.id,'responsible',e.target.value)} placeholder="Name or role"/></div>
+              <div className="form-group"><label>Priority</label>
+                <select value={activeDev.priority} onChange={e=>upd(activeDev.id,'priority',e.target.value)}>
+                  <option value="">— Select —</option>
+                  <option>Immediate</option><option>High</option><option>Medium</option><option>Low</option>
+                </select>
+              </div>
+              <div className="form-group"><label>Status</label>
+                <select value={activeDev.status} onChange={e=>upd(activeDev.id,'status',e.target.value)}>
+                  <option>Open</option><option>In Progress</option><option>Closed</option><option>On Hold</option><option>Accepted</option>
+                </select>
+              </div>
+              <div className="form-group"><label>Target Due Date</label><input type="date" value={activeDev.dueDate} onChange={e=>upd(activeDev.id,'dueDate',e.target.value)}/></div>
+            </div>
+            <div className="form-group"><label>Remarks / Notes</label><textarea value={activeDev.remarks} onChange={e=>upd(activeDev.id,'remarks',e.target.value)} placeholder="Additional notes, references, action details…" style={{minHeight:60}}/></div>
+          </div>
+        </div>
+      }
+    </div>
+  );
+};
+
+// RISK MATRIX OVERVIEW
+const MatrixView=({deviations,nodes})=>{
+  const rows=[6,5,4,3,2,1];
+  const cols=['A','B','C','D','E','F'];
+  const getCellDevs=(s,l)=>deviations.filter(d=>d.initialRisk&&d.initialRisk.s===s&&d.initialRisk.l===l);
+  const totalHigh=deviations.filter(d=>d.initialRisk&&[1,2].includes(d.initialRisk.cat)).length;
+  const totalMed=deviations.filter(d=>d.initialRisk&&d.initialRisk.cat===3).length;
+  const totalLow=deviations.filter(d=>d.initialRisk&&d.initialRisk.cat===4).length;
+  const unranked=deviations.filter(d=>!d.initialRisk).length;
+  return(
+    <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20}}>
+      {/* Summary cards */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+        {[
+          {label:'HIGH Risk',count:totalHigh,cls:'badge-hi',color:'#ef4444'},
+          {label:'MEDIUM Risk',count:totalMed,cls:'badge-med',color:'#d97706'},
+          {label:'LOW Risk',count:totalLow,cls:'badge-lo',color:'#22c55e'},
+          {label:'Not Ranked',count:unranked,cls:'badge-none',color:'var(--text3)'}
+        ].map(({label,count,color})=>(
+          <div key={label} className="card" style={{textAlign:'center'}}>
+            <div style={{fontSize:36,fontFamily:'var(--mono)',fontWeight:700,color}}>{count}</div>
+            <div style={{fontSize:12,color:'var(--text2)',marginTop:4}}>{label}</div>
+            <div style={{fontSize:11,color:'var(--text3)'}}>{deviations.length>0?Math.round(count/deviations.length*100):0}% of total</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Full matrix with deviation counts */}
+      <div className="card">
+        <div style={{fontFamily:'var(--disp)',fontSize:15,fontWeight:700,color:'var(--accent)',marginBottom:16,letterSpacing:'0.06em',textTransform:'uppercase'}}>ADNOC Corporate Risk Matrix — Initial Risk Distribution</div>
+        <div className="matrix-grid" style={{gap:4}}>
+          <div className="matrix-cell matrix-header" style={{fontSize:10}}>S / L →</div>
+          {cols.map(c=>(
+            <div key={c} className="matrix-cell matrix-header" style={{flexDirection:'column',gap:2,fontSize:11}}>
+              <strong>{c}</strong><span style={{fontSize:9,color:'var(--text3)',fontWeight:400}}>{LNAMES[c]}</span>
+            </div>
+          ))}
+          {rows.map(s=>(
+            <React.Fragment key={s}>
+              <div className="matrix-cell matrix-header" style={{flexDirection:'column',gap:1,fontSize:11}}>
+                <strong>S{s}</strong><span style={{fontSize:9,color:'var(--text3)',fontWeight:400}}>{SNAMES[s].substring(0,7)}</span>
+              </div>
+              {cols.map(l=>{
+                const cat=RMATRIX[s][l];
+                const cellDevs=getCellDevs(s,l);
+                return(
+                  <div key={l} className={`matrix-cell ${RDISP[cat].cls}`}
+                    style={{flexDirection:'column',gap:2,padding:'6px 4px',minHeight:52}}
+                    title={cellDevs.length?cellDevs.map(d=>`• ${d.deviation||d.guideWord+' '+d.parameter}`).join('\n'):'No deviations'}>
+                    <div style={{fontSize:11,fontWeight:700}}>{s}{l}</div>
+                    {cellDevs.length>0&&<div style={{fontSize:16,fontWeight:700,lineHeight:1}}>{cellDevs.length}</div>}
+                    <div style={{fontSize:9}}>{RDISP[cat].label}</div>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+        <div style={{marginTop:12,fontSize:12,color:'var(--text2)'}}>Numbers in cells = count of deviations at that risk level. Hover for deviation list.</div>
+      </div>
+
+      {/* Legend */}
+      <div className="card">
+        <div style={{fontFamily:'var(--disp)',fontSize:14,fontWeight:700,color:'var(--accent)',marginBottom:12,letterSpacing:'0.06em',textTransform:'uppercase'}}>Risk Category & Management Sign-Off Requirements</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          {[1,2,3,4].map(cat=>(
+            <div key={cat} className={`card2 ${RDISP[cat].cls}`} style={{border:'none',opacity:0.9}}>
+              <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{RDISP[cat].label} — {RDISP[cat].cat}</div>
+              <div style={{fontSize:12,lineHeight:1.5,opacity:0.85}}>{RDISP[cat].sign}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ACTIONS VIEW
+const ActionsView=({deviations,nodes,setState})=>{
+  const actions=deviations.filter(d=>d.recommendations.length>0||d.responsible||d.status);
+  const upd=(id,k,v)=>setState(s=>({...s,deviations:s.deviations.map(d=>d.id===id?{...d,[k]:v}:d)}));
+  const statusColor={Open:'var(--orange)','In Progress':'var(--blue)',Closed:'var(--green)','On Hold':'var(--text3)',Accepted:'var(--green)'};
+  return(
+    <div className="scrollable" style={{flex:1,padding:20}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <div style={{fontFamily:'var(--disp)',fontSize:18,fontWeight:700,color:'var(--text1)'}}>Action Register</div>
+        <div style={{display:'flex',gap:8}}>
+          <span className="badge badge-none">{actions.length} items</span>
+          <span className="badge badge-hi">{deviations.filter(d=>d.status==='Open').length} Open</span>
+        </div>
+      </div>
+      {actions.length===0?
+        <div className="empty-state"><div className="empty-icon">☑</div><div style={{color:'var(--text2)'}}>No actions yet. Complete HAZOP worksheets to generate recommendations.</div></div>:
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          {actions.map((d,i)=>{
+            const node=nodes.find(n=>n.id===d.nodeId);
+            return(
+              <div key={d.id} className="card" style={{borderLeft:`3px solid ${d.initialRisk?RDISP[d.initialRisk.cat].cls.includes('risk-1')?'#ef4444':d.initialRisk.cat===2?'#f97316':d.initialRisk.cat===3?'#f59e0b':'#22c55e':'var(--border)'}`}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8,marginBottom:10}}>
+                  <div>
+                    <span style={{fontFamily:'var(--mono)',fontSize:11,color:'var(--text2)'}}>#{String(i+1).padStart(3,'0')} · {node?.name||'Unknown node'}</span>
+                    <div style={{fontWeight:600,fontSize:14,color:'var(--text1)',marginTop:2}}>{d.deviation||`${d.guideWord} ${d.parameter}`}</div>
+                  </div>
+                  <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                    {d.initialRisk&&<><span style={{fontSize:11,color:'var(--text3)'}}>Initial:</span><RiskBadge cat={d.initialRisk.cat} small/></>}
+                    {d.residualRisk&&<><span style={{fontSize:11,color:'var(--text3)'}}>Residual:</span><RiskBadge cat={d.residualRisk.cat} small/></>}
+                  </div>
+                </div>
+                {d.recommendations.length>0&&(
+                  <div style={{marginBottom:10}}>
+                    <div style={{fontSize:11,color:'var(--text2)',marginBottom:6,fontWeight:600}}>RECOMMENDATIONS:</div>
+                    <ul style={{listStyle:'none',display:'flex',flexDirection:'column',gap:4}}>
+                      {d.recommendations.map((r,j)=>(
+                        <li key={j} style={{display:'flex',gap:8,fontSize:13,alignItems:'flex-start'}}>
+                          <span style={{color:'var(--blue)',flexShrink:0}}>→</span>{r}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:8}}>
+                  <div className="form-group">
+                    <label>Responsible</label>
+                    <input value={d.responsible} onChange={e=>upd(d.id,'responsible',e.target.value)} placeholder="Person/role" style={{fontSize:12}}/>
+                  </div>
+                  <div className="form-group">
+                    <label>Status</label>
+                    <select value={d.status} onChange={e=>upd(d.id,'status',e.target.value)} style={{fontSize:12,color:statusColor[d.status]||'inherit'}}>
+                      <option>Open</option><option>In Progress</option><option>Closed</option><option>On Hold</option><option>Accepted</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Priority</label>
+                    <select value={d.priority} onChange={e=>upd(d.id,'priority',e.target.value)} style={{fontSize:12}}>
+                      <option value="">—</option><option>Immediate</option><option>High</option><option>Medium</option><option>Low</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Due Date</label>
+                    <input type="date" value={d.dueDate} onChange={e=>upd(d.id,'dueDate',e.target.value)} style={{fontSize:12}}/>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      }
+    </div>
+  );
+};
+
+// REPORT VIEW
+const ReportView=({study,nodes,deviations})=>{
+  const handlePrint=()=>window.print();
+  const handleExport=()=>{
+    const data={study,nodes,deviations,exported:new Date().toISOString()};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=`HAZOP_${study.projectName||'study'}_${today()}.json`;a.click();
+  };
+  const totalDevs=deviations.length;
+  const ranked=deviations.filter(d=>d.initialRisk);
+  const highRisk=ranked.filter(d=>[1,2].includes(d.initialRisk.cat));
+  return(
+    <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+      <div style={{padding:'12px 20px',background:'var(--bg-surface)',borderBottom:'1px solid var(--border)',display:'flex',gap:8,flexShrink:0}}>
+        <button className="btn btn-primary" onClick={handlePrint}>🖨 Print / Save PDF</button>
+        <button className="btn btn-secondary" onClick={handleExport}>⬇ Export JSON</button>
+      </div>
+      <div className="scrollable report-page" style={{flex:1,padding:32,maxWidth:960,margin:'0 auto',width:'100%'}}>
+        {/* Report header */}
+        <div style={{textAlign:'center',marginBottom:32,borderBottom:'2px solid var(--accent)',paddingBottom:20}}>
+          <div style={{fontFamily:'var(--disp)',fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'0.08em'}}>HAZARD AND OPERABILITY STUDY</div>
+          <div style={{fontFamily:'var(--disp)',fontSize:18,color:'var(--text1)',marginTop:4}}>{study.projectName||'[Project Name]'}</div>
+          <div style={{fontSize:13,color:'var(--text2)',marginTop:8}}>{study.facility} · {study.company} · {study.location}</div>
+        </div>
+        {/* Study info table */}
+        <div className="card" style={{marginBottom:20}}>
+          <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:14,color:'var(--accent)',marginBottom:12,textTransform:'uppercase',letterSpacing:'0.06em'}}>Study Information</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            {[['Document Ref.',study.docRef],['Date',study.date],['Revision',study.revision],['Methodology',study.methodology],['Prepared By',study.preparedBy],['Approved By',study.approvedBy],['Total Nodes',nodes.length],['Total Deviations',totalDevs]].map(([k,v])=>(
+              <div key={k} style={{display:'flex',gap:8,fontSize:13}}>
+                <span style={{color:'var(--text2)',minWidth:130}}>{k}:</span>
+                <span style={{fontWeight:500}}>{v||'—'}</span>
+              </div>
+            ))}
+          </div>
+          {study.scope&&<div style={{marginTop:12,paddingTop:12,borderTop:'1px solid var(--border)'}}><span style={{color:'var(--text2)',fontSize:13}}>Scope: </span><span style={{fontSize:13}}>{study.scope}</span></div>}
+        </div>
+        {/* Team */}
+        {study.teamMembers.length>0&&(
+          <div className="card" style={{marginBottom:20}}>
+            <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:14,color:'var(--accent)',marginBottom:12,textTransform:'uppercase',letterSpacing:'0.06em'}}>HAZOP Team</div>
+            <table className="tbl" style={{fontSize:13}}>
+              <thead><tr><th>#</th><th>Name</th><th>Role</th><th>Discipline</th></tr></thead>
+              <tbody>{study.teamMembers.map((m,i)=><tr key={m.id}><td>{i+1}</td><td>{m.name}</td><td>{m.role}</td><td>{m.dept}</td></tr>)}</tbody>
+            </table>
+          </div>
+        )}
+        {/* Summary */}
+        <div className="card" style={{marginBottom:20}}>
+          <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:14,color:'var(--accent)',marginBottom:12,textTransform:'uppercase',letterSpacing:'0.06em'}}>Executive Summary</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:16}}>
+            {[['Total Nodes',nodes.length,'var(--blue)'],['Total Deviations',totalDevs,'var(--accent)'],['High Risk',highRisk.length,'var(--red)'],['Open Actions',deviations.filter(d=>d.status==='Open').length,'var(--orange)']].map(([l,v,c])=>(
+              <div key={l} style={{textAlign:'center',padding:'12px',background:'var(--bg-card2)',borderRadius:6}}>
+                <div style={{fontSize:28,fontWeight:700,color:c,fontFamily:'var(--mono)'}}>{v}</div>
+                <div style={{fontSize:12,color:'var(--text2)'}}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Worksheets by node */}
+        {nodes.map((node,ni)=>{
+          const nodeDevs=deviations.filter(d=>d.nodeId===node.id);
+          if(nodeDevs.length===0)return null;
+          return(
+            <div key={node.id} className="card" style={{marginBottom:20}}>
+              <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:15,color:'var(--accent)',marginBottom:4,letterSpacing:'0.06em',textTransform:'uppercase'}}>
+                Node {ni+1}: {node.name}
+              </div>
+              <div style={{fontSize:12,color:'var(--text2)',marginBottom:12}}>{node.description}</div>
+              <div style={{overflowX:'auto'}}>
+                <table className="tbl" style={{fontSize:12,minWidth:900}}>
+                  <thead><tr><th>#</th><th>Deviation</th><th>Causes</th><th>Consequences</th><th>Safeguards</th><th>Recommendations</th><th>Initial</th><th>Residual</th><th>Resp.</th><th>Status</th></tr></thead>
+                  <tbody>{nodeDevs.map((d,di)=>(
+                    <tr key={d.id}>
+                      <td style={{fontFamily:'var(--mono)',color:'var(--text3)'}}>{ni+1}.{di+1}</td>
+                      <td style={{fontWeight:500,color:'var(--text1)',maxWidth:140}}>{d.deviation||`${d.guideWord} ${d.parameter}`}</td>
+                      <td style={{color:'var(--text2)',maxWidth:160}}>{d.causes.map((c,i)=><div key={i} style={{marginBottom:2}}>• {c}</div>)}</td>
+                      <td style={{color:'var(--text2)',maxWidth:160}}>{d.consequences.map((c,i)=><div key={i} style={{marginBottom:2}}>• {c}</div>)}</td>
+                      <td style={{color:'var(--text2)',maxWidth:160}}>{d.safeguards.map((s,i)=><div key={i} style={{marginBottom:2}}>• {s}</div>)}</td>
+                      <td style={{color:'var(--blue)',maxWidth:180}}>{d.recommendations.map((r,i)=><div key={i} style={{marginBottom:2}}>→ {r}</div>)}</td>
+                      <td style={{textAlign:'center'}}>{d.initialRisk?<><span style={{fontFamily:'var(--mono)',fontSize:11}}>S{d.initialRisk.s}/{d.initialRisk.l}</span><br/><RiskBadge cat={d.initialRisk.cat} small/></>:'—'}</td>
+                      <td style={{textAlign:'center'}}>{d.residualRisk?<><span style={{fontFamily:'var(--mono)',fontSize:11}}>S{d.residualRisk.s}/{d.residualRisk.l}</span><br/><RiskBadge cat={d.residualRisk.cat} small/></>:'—'}</td>
+                      <td style={{color:'var(--text2)'}}>{d.responsible||'—'}</td>
+                      <td><span style={{fontSize:11,padding:'2px 6px',borderRadius:4,background:'var(--bg-card2)',color:'var(--text2)'}}>{d.status}</span></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+        <div style={{textAlign:'center',color:'var(--text3)',fontSize:12,marginTop:24,paddingTop:16,borderTop:'1px solid var(--border)'}}>
+          Generated by Risk2Safe HAZoP — AI-Powered HAZOP Study System · {new Date().toLocaleDateString()}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─── MAIN APP ───────────────────────────────────────── */
+const INIT_STUDY={projectName:'',company:'',facility:'',unit:'',location:'',docRef:'',date:today(),revision:'0',methodology:'Guide Word HAZOP',preparedBy:'',approvedBy:'',scope:'',teamMembers:[]};
+
+const App=()=>{
+  const [apiKey,setApiKey]=useState(()=>localStorage.getItem('hazop_api_key')||'');
+  const [showApi,setShowApi]=useState(false);
+  const [view,setView]=useState('setup');
+  const [study,setStudy]=useState(INIT_STUDY);
+  const [appState,setAppState]=useState({nodes:[],deviations:[],activeNodeId:null,activeDevId:null,isGenerating:false});
+
+  useEffect(()=>{localStorage.setItem('hazop_api_key',apiKey);},[apiKey]);
+
+  // Save/load from localStorage
+  useEffect(()=>{
+    const saved=localStorage.getItem('hazop_study_data');
+    if(saved){try{const d=JSON.parse(saved);setStudy(d.study||INIT_STUDY);setAppState(s=>({...s,nodes:d.nodes||[],deviations:d.deviations||[]}));}catch(e){}}
+  },[]);
+  useEffect(()=>{
+    localStorage.setItem('hazop_study_data',JSON.stringify({study,nodes:appState.nodes,deviations:appState.deviations}));
+  },[study,appState.nodes,appState.deviations]);
+
+  const devCount=appState.deviations.length;
+  const nodeCount=appState.nodes.length;
+  const highCount=appState.deviations.filter(d=>d.initialRisk&&[1,2].includes(d.initialRisk.cat)).length;
+  const openCount=appState.deviations.filter(d=>d.status==='Open'&&d.recommendations.length>0).length;
+
+  const clearAll=()=>{if(window.confirm('Clear all study data? This cannot be undone.')){setStudy(INIT_STUDY);setAppState({nodes:[],deviations:[],activeNodeId:null,activeDevId:null,isGenerating:false});localStorage.removeItem('hazop_study_data');}};
+
+  return(
+    <div style={{display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
+      {/* HEADER */}
+      <div className="hdr">
+        <div className="logo">Risk2Safe <span>HAZoP</span></div>
+        <div className="hdr-study">{study.projectName||'New Study'} · {study.facility||'No facility'} · Rev {study.revision}</div>
+        <div className="hdr-right" style={{gap:6}}>
+          {highCount>0&&<span className="badge badge-hi">⚠ {highCount} HIGH</span>}
+          {openCount>0&&<span className="badge badge-hi2">{openCount} OPEN ACTIONS</span>}
+          <button className="btn btn-ghost btn-sm" onClick={()=>setShowApi(s=>!s)} title="API Settings">⚙ API</button>
+          <button className="btn btn-ghost btn-sm" style={{color:'var(--red)'}} onClick={clearAll} title="Clear all data">⟳ Reset</button>
+        </div>
+      </div>
+
+      {/* API KEY BAR */}
+      {showApi&&(
+        <div className="api-bar">
+          <span style={{fontSize:12,color:'var(--accent)',fontWeight:600,whiteSpace:'nowrap'}}>🔑 Anthropic API Key:</span>
+          <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-api03-…" style={{width:360}}/>
+          <span style={{fontSize:11,color:'#92400e'}}>Stored locally in browser. Required for AI analysis generation.</span>
+          <button style={{marginLeft:'auto',fontSize:12,color:'var(--accent)',cursor:'pointer',background:'none',border:'none'}} onClick={()=>setShowApi(false)}>✕ Close</button>
+        </div>
+      )}
+
+      {/* NAV */}
+      <div className="nav">
+        {[
+          {id:'setup',label:'Study Setup'},
+          {id:'nodes',label:'Nodes',count:nodeCount},
+          {id:'worksheet',label:'Worksheet',count:devCount},
+          {id:'matrix',label:'Risk Matrix'},
+          {id:'actions',label:'Actions',count:openCount||undefined},
+          {id:'report',label:'Report'}
+        ].map(({id,label,count})=>(
+          <button key={id} className={`nav-btn ${view===id?'active':''}`} onClick={()=>setView(id)}>
+            {label}
+            {count>0&&<span className="nav-count">{count}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* CONTENT */}
+      <div className="main" style={{flex:1,overflow:'hidden'}}>
+        <div className="content" style={{overflow:'hidden',display:'flex',flexDirection:'column'}}>
+          {view==='setup'&&<SetupView study={study} setStudy={setStudy}/>}
+          {view==='nodes'&&<NodesView nodes={appState.nodes} setNodes={nodes=>setAppState(s=>({...s,nodes}))}/>}
+          {view==='worksheet'&&<WorksheetView state={appState} setState={setAppState} apiKey={apiKey}/>}
+          {view==='matrix'&&<MatrixView deviations={appState.deviations} nodes={appState.nodes}/>}
+          {view==='actions'&&<ActionsView deviations={appState.deviations} nodes={appState.nodes} setState={setAppState}/>}
+          {view==='report'&&<ReportView study={study} nodes={appState.nodes} deviations={appState.deviations}/>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
