@@ -118,12 +118,12 @@ label{font-size:12px;color:var(--text2);display:block;margin-bottom:4px;font-wei
 .form-row-3{grid-template-columns:1fr 1fr 1fr}
 .form-group{display:flex;flex-direction:column;gap:4px}
 /* RISK MATRIX */
-.matrix-grid{display:grid;grid-template-columns:80px repeat(6,1fr);gap:2px}
-.matrix-cell{display:flex;align-items:center;justify-content:center;padding:8px 4px;border-radius:4px;font-size:11px;font-weight:700;font-family:var(--mono);text-align:center;cursor:default;transition:all 0.15s;border:1px solid transparent;user-select:none}
+.matrix-grid{display:grid;grid-template-columns:66px repeat(6,1fr);gap:2px}
+.matrix-cell{display:flex;align-items:center;justify-content:center;padding:5px 3px;border-radius:4px;font-size:10px;font-weight:700;font-family:var(--mono);text-align:center;cursor:default;transition:all 0.15s;border:1px solid transparent;user-select:none;min-height:40px}
 .matrix-cell.clickable{cursor:pointer}
 .matrix-cell.clickable:hover{filter:brightness(1.3);border-color:rgba(255,255,255,0.3)}
 .matrix-cell.selected{border-color:#fff !important;box-shadow:0 0 0 2px rgba(255,255,255,0.5)}
-.matrix-header{background:var(--bg-card2);color:var(--text2);font-size:11px;font-weight:600;border-radius:4px;border:1px solid var(--border)}
+.matrix-header{background:var(--bg-card2);color:var(--text2);font-size:10px;font-weight:600;border-radius:4px;border:1px solid var(--border);padding:4px 2px}
 .risk-1{background:#7f1d1d;color:#fca5a5}
 .risk-2{background:#7c2d12;color:#fdba74}
 .risk-3{background:#713f12;color:#fde68a}
@@ -178,7 +178,7 @@ label{font-size:12px;color:var(--text2);display:block;margin-bottom:4px;font-wei
 <div id="root"></div>
 <script type="text/babel">
 const {useState,useCallback,useRef,useEffect,useMemo}=React;
-
+ 
 /* ─── CONSTANTS ─────────────────────────────────────── */
 const GUIDE_WORDS=['NO / NONE','MORE','LESS','AS WELL AS','PART OF','REVERSE','OTHER THAN','EARLY','LATE'];
 const PARAMETERS=['FLOW','PRESSURE','TEMPERATURE','LEVEL','COMPOSITION','CONCENTRATION','PHASE','VISCOSITY','REACTION RATE','AGITATION / MIXING','SEQUENCE','SIGNAL / CONTROL','UTILITY / SERVICE','TIME'];
@@ -186,7 +186,7 @@ const SNAMES={1:'Notable',2:'Minor',3:'Serious',4:'Major',5:'Catastrophic',6:'Di
 const SDESC={1:'Slight injuries, short-term effects, near miss',2:'Minor injuries, reversible effects, first aid',3:'Serious injuries, RIDDOR reportable, LTI',4:'Single fatality or permanent total disability',5:'Multiple fatalities (2–10), major asset damage',6:'Multiple fatalities (>10), catastrophic damage, business continuity impact'};
 const LNAMES={A:'Term',B:'Rare',C:'Unlikely',D:'Possible',E:'Likely',F:'Almost Certain'};
 const LDESC={A:"Hasn't happened in industry in last 50 years (10⁻⁶ ≤ f < 10⁻⁵)",B:'Could happen in industry next 20–30 years (10⁻⁵ ≤ f < 10⁻⁴)',C:'Could be incurred within a 5–10 year time frame (10⁻⁴ ≤ f < 10⁻³)',D:'Could be incurred within 5 year Strategic Planning period (10⁻³ ≤ f < 10⁻²)',E:'Could be incurred more than once per year budget period (10⁻² ≤ f < 10⁻¹)',F:'Could be incurred more than once on site (10⁻¹ ≤ f < 1)'};
-
+ 
 // ADNOC 6×6 Risk Matrix — Category 1=HIGH-RED, 2=HIGH-ORG, 3=MEDIUM, 4=LOW
 const RMATRIX={
   6:{A:2,B:2,C:1,D:1,E:1,F:1},
@@ -202,18 +202,18 @@ const RDISP={
   3:{label:'MEDIUM',cat:'CAT 3',cls:'risk-3',badge:'badge-med',txt:'#fde68a',sign:'Dept Manager / VP sign-off. Monitor & control.'},
   4:{label:'LOW',cat:'CAT 4',cls:'risk-4',badge:'badge-lo',txt:'#86efac',sign:'Line Manager sign-off. Monitor current controls.'}
 };
-
+ 
 const getRisk=(s,l)=>s&&l?RMATRIX[s]?.[l]||null:null;
 const uid=()=>Math.random().toString(36).slice(2,9);
 const today=()=>new Date().toISOString().split('T')[0];
-
+ 
 /* ─── COMPONENTS ─────────────────────────────────────── */
 const RiskBadge=({cat,small})=>{
   if(!cat)return<span className="badge badge-none" style={{fontSize:small?10:12}}>—</span>;
   const d=RDISP[cat];
   return<span className={`badge ${d.badge}`} style={{fontSize:small?10:12}}>{d.label} · {d.cat}</span>;
 };
-
+ 
 const MatrixPicker=({sel,onPick,label})=>{
   const rows=[6,5,4,3,2,1];
   const cols=['A','B','C','D','E','F'];
@@ -261,7 +261,7 @@ const MatrixPicker=({sel,onPick,label})=>{
     </div>
   );
 };
-
+ 
 const AnalysisList=({items,dotClass,onAdd,onDel,placeholder})=>{
   const [draft,setDraft]=useState('');
   const handleAdd=()=>{
@@ -288,9 +288,9 @@ const AnalysisList=({items,dotClass,onAdd,onDel,placeholder})=>{
     </div>
   );
 };
-
+ 
 /* ─── VIEWS ──────────────────────────────────────────── */
-
+ 
 // SETUP VIEW
 const SetupView=({study,setStudy})=>{
   const upd=(k,v)=>setStudy(s=>({...s,[k]:v}));
@@ -302,7 +302,7 @@ const SetupView=({study,setStudy})=>{
   };
   const delMember=id=>setStudy(s=>({...s,teamMembers:s.teamMembers.filter(m=>m.id!==id)}));
   return(
-    <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20,minHeight:0}}>
+    <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20,minHeight:0,overflowY:'auto'}}>
       <div className="card">
         <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',letterSpacing:'0.06em',marginBottom:16,textTransform:'uppercase'}}>Study & Project Details</div>
         <div className="form-row form-row-2">
@@ -338,7 +338,7 @@ const SetupView=({study,setStudy})=>{
           <input value="ADNOC Corporate Risk Matrix — 6×6 (Severity 1–6 × Likelihood A–F)" readOnly style={{color:'var(--text2)',background:'var(--bg-surface)'}}/>
         </div>
       </div>
-
+ 
       <div className="card">
         <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',letterSpacing:'0.06em',marginBottom:16,textTransform:'uppercase'}}>HAZOP Team Members</div>
         <div style={{marginBottom:12}}>
@@ -368,7 +368,7 @@ const SetupView=({study,setStudy})=>{
     </div>
   );
 };
-
+ 
 // NODES VIEW
 const NodesView=({nodes,setNodes})=>{
   const [active,setActive]=useState(null);
@@ -381,13 +381,13 @@ const NodesView=({nodes,setNodes})=>{
   const del=(id)=>{setNodes(nodes.filter(n=>n.id!==id));if(active===id)setActive(null);};
   const node=nodes.find(n=>n.id===active);
   return(
-    <div className="main" style={{flex:1,minHeight:0}}>
+    <div className="main" style={{flex:1,minHeight:0,overflowY:'auto'}}>
       <div className="sidebar">
         <div className="sec-hdr" style={{justifyContent:'space-between'}}>
           <span className="sec-title">Nodes</span>
           <button className="btn btn-primary btn-sm" onClick={addNode}>+ Node</button>
         </div>
-        <div className="scrollable" style={{flex:1,minHeight:0}}>
+        <div className="scrollable" style={{flex:1,minHeight:0,overflowY:'auto'}}>
           {nodes.length===0&&<div style={{padding:20,color:'var(--text3)',fontSize:13,textAlign:'center'}}>No nodes defined.<br/>Click <strong>+ Node</strong> to begin.</div>}
           {nodes.map((n,i)=>(
             <div key={n.id} className={`dev-list-item ${active===n.id?'active':''}`} onClick={()=>setActive(n.id)}>
@@ -411,7 +411,7 @@ const NodesView=({nodes,setNodes})=>{
             <div style={{fontSize:13,color:'var(--text3)',maxWidth:360}}>Nodes are sections of the process selected for HAZOP study. Size them by common function — not too small (repetition) nor too large (confusion).</div>
             <button className="btn btn-primary" onClick={addNode}>+ Add First Node</button>
           </div>:
-          <div className="scrollable" style={{flex:1,padding:20,minHeight:0}}>
+          <div className="scrollable" style={{flex:1,padding:20,minHeight:0,overflowY:'auto'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
               <div style={{fontFamily:'var(--disp)',fontSize:18,fontWeight:700,color:'var(--text1)'}}>Node Editor</div>
               <button className="btn btn-danger btn-sm" onClick={()=>del(node.id)}>Delete Node</button>
@@ -443,15 +443,15 @@ const NodesView=({nodes,setNodes})=>{
     </div>
   );
 };
-
+ 
 // WORKSHEET VIEW (main)
-const WorksheetView=({state,setState,apiKey})=>{
+const WorksheetView=({state,setState,apiKey,aiModel})=>{
   const {nodes,deviations,activeNodeId,activeDevId}=state;
   const set=f=>setState(s=>({...s,...f}));
   const activeNode=nodes.find(n=>n.id===activeNodeId);
   const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
   const activeDev=deviations.find(d=>d.id===activeDevId);
-
+ 
   const addDev=()=>{
     if(!activeNodeId)return;
     const d={id:uid(),nodeId:activeNodeId,guideWord:GUIDE_WORDS[0],parameter:PARAMETERS[0],deviation:'',causes:[],consequences:[],safeguards:[],recommendations:[],initialRisk:null,residualRisk:null,responsible:'',status:'Open',priority:'',dueDate:'',remarks:''};
@@ -462,14 +462,14 @@ const WorksheetView=({state,setState,apiKey})=>{
   const addItem=(id,k,txt)=>{const d=deviations.find(x=>x.id===id);if(d)upd(id,k,[...d[k],txt]);};
   const delItem=(id,k,i)=>{const d=deviations.find(x=>x.id===id);if(d)upd(id,k,d[k].filter((_,j)=>j!==i));};
   const delDev=id=>{setState(s=>({...s,deviations:s.deviations.filter(d=>d.id!==id),activeDevId:s.activeDevId===id?null:s.activeDevId}));};
-
+ 
   const generateAI=async()=>{
     if(!activeDev||!activeNode)return;
     if(!apiKey){alert('Please enter your Anthropic API key in the Settings bar above.');return;}
     setState(s=>({...s,isGenerating:true}));
     const deviation=`${activeDev.guideWord} ${activeDev.parameter}`;
     const prompt=`You are an expert HAZOP facilitator with 30+ years in oil & gas, upstream/downstream, and process safety. 
-
+ 
 Study context:
 - Node: ${activeNode.name} (${activeNode.type})
 - Description: ${activeNode.description}
@@ -479,7 +479,7 @@ Study context:
 - Guide Word: ${activeDev.guideWord}
 - Parameter: ${activeDev.parameter}
 - Deviation: ${deviation}
-
+ 
 Generate a rigorous HAZOP analysis for this deviation. Respond ONLY with valid JSON, no markdown:
 {
   "deviationDescription": "Clear statement of the deviation",
@@ -491,9 +491,9 @@ Generate a rigorous HAZOP analysis for this deviation. Respond ONLY with valid J
   "initialLikelihoodHint": "A-F",
   "residualLikelihoodHint": "A-F"
 }
-
+ 
 Be specific, technical, and practical. For oil & gas contexts consider: H₂S toxicity, hydrocarbon fires/explosions, pressure excursions, BLEVE, toxic releases, vapor cloud, LOC. Include 3-5 items per category minimum.`;
-
+ 
     const systemPrompt=`You are an expert HAZOP facilitator with 30+ years experience in oil & gas (upstream/downstream), petrochemicals, and process safety. You are deeply familiar with IChemE Guide to Best Practice, CCPS Guidelines for Hazard Evaluation Procedures, and IEC 61882. Respond ONLY with valid JSON — no markdown, no backticks, no preamble.`;
     const userPrompt=`Study context:
 - Node: ${activeNode.name} (${activeNode.type})
@@ -504,14 +504,14 @@ Be specific, technical, and practical. For oil & gas contexts consider: H₂S to
 - Guide Word: ${activeDev.guideWord}
 - Parameter: ${activeDev.parameter}
 - Deviation: ${deviation}
-
+ 
 Generate a rigorous HAZOP analysis. Return ONLY this JSON structure (no markdown):
 {"deviationDescription":"Full deviation statement","causes":["cause 1 (equipment/human/process)","cause 2","cause 3","cause 4"],"consequences":["consequence 1 with severity note","consequence 2","consequence 3"],"safeguards":["[Engineering] safeguard 1","[Admin] safeguard 2","[Instrumentation] safeguard 3"],"recommendations":["Specific actionable recommendation 1","Recommendation 2","Recommendation 3"]}
-
+ 
 For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pressure excursions, BLEVE, toxic/flammable releases, vapor cloud, loss of containment, knock-on effects. Include 3-5 items per category.`;
-
+ 
     try{
-      const txt = await window.callAnthropicAPI(apiKey,'claude-3-5-sonnet-20241022',systemPrompt,userPrompt);
+      const txt = await window.callAnthropicAPI(apiKey,aiModel||'claude-3-haiku-20240307',systemPrompt,userPrompt);
       const clean=txt.replace(/```json|```/g,'').trim();
       let parsed;
       try { parsed=JSON.parse(clean); }
@@ -535,21 +535,26 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
     }catch(e){
       setState(s=>({...s,isGenerating:false}));
       const msg=e.message||'Unknown error';
+      const raw=e.toString();
       if(msg.includes('Invalid or missing API key')||msg.includes('sk-ant')){
-        alert('API Key issue: '+msg);
+        alert('API Key issue: '+msg+'\n\nClick ⚙ API in the top-right header to enter your key.');
+      } else if(msg.includes('not_found')||msg.includes('404')||raw.includes('404')){
+        alert('Model not found (404).\n\nThe selected model is not available on your API plan.\n\nFix: Click ⚙ API in the header and try a different model.\nStart with: Claude 3 Haiku — it is the most widely available.');
       } else if(msg.includes('SDK failed to load')||msg.includes('fetch')){
-        alert('Connection error: '+msg+'\n\nMake sure:\n1. Your API key is entered (click ⚙ API in header)\n2. You have internet access\n3. Refresh the page and try again');
+        alert('Connection error: '+msg+'\n\nCheck:\n1. API key entered (click ⚙ API)\n2. Internet connection\n3. Try refreshing the page');
+      } else if(msg.includes('401')||msg.includes('authentication')){
+        alert('Authentication failed (401).\n\nYour API key is invalid or expired.\nGet a new key at console.anthropic.com\n\nClick ⚙ API in the header to update it.');
       } else {
-        alert('AI generation failed: '+msg);
+        alert('AI generation failed: '+msg+'\n\nIf this persists, try a different model in ⚙ API settings.');
       }
     }
   };
-
+ 
   const pickInitial=({s:sv,l,cat})=>upd(activeDev.id,'initialRisk',{s:sv,l,cat});
   const pickResidual=({s:sv,l,cat})=>upd(activeDev.id,'residualRisk',{s:sv,l,cat});
-
+ 
   const devLabel=(d,i)=>`${String(i+1).padStart(2,'0')} · ${d.guideWord.split('/')[0].trim()} ${d.parameter}`;
-
+ 
   return(
     <div className="main" style={{flex:1,overflow:'hidden'}}>
       {/* LEFT: node + deviation list */}
@@ -564,7 +569,7 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
           </div>
           {activeNodeId&&<button className="btn btn-primary btn-sm" style={{width:'100%'}} onClick={addDev}>+ Add Deviation</button>}
         </div>
-        <div className="scrollable" style={{flex:1,minHeight:0}}>
+        <div className="scrollable" style={{flex:1,minHeight:0,overflowY:'auto'}}>
           {!activeNodeId&&<div style={{padding:16,color:'var(--text3)',fontSize:12}}>Select a node to see its deviations.</div>}
           {activeNodeId&&nodeDevs.length===0&&<div style={{padding:16,color:'var(--text3)',fontSize:12}}>No deviations for this node yet.</div>}
           {nodeDevs.map((d,i)=>(
@@ -578,7 +583,7 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
           ))}
         </div>
       </div>
-
+ 
       {/* MAIN: deviation editor */}
       {!activeDev?
         <div className="content" style={{alignItems:'center',justifyContent:'center',display:'flex'}}>
@@ -589,7 +594,7 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
             {nodes.length===0&&<div style={{color:'var(--orange)',fontSize:13}}>⚠ Add nodes first in the Nodes tab.</div>}
           </div>
         </div>:
-        <div className="content scrollable" style={{padding:20,gap:16,display:'flex',flexDirection:'column',minHeight:0,flex:1}}>
+        <div className="content scrollable" style={{padding:20,gap:16,display:'flex',flexDirection:'column',minHeight:0,flex:1,overflowY:'auto'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
             <div>
               <div style={{fontSize:11,color:'var(--text2)',fontFamily:'var(--mono)',marginBottom:4}}>Node: {activeNode?.name}</div>
@@ -602,7 +607,7 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
               <button className="btn btn-danger btn-sm" onClick={()=>delDev(activeDev.id)}>Delete</button>
             </div>
           </div>
-
+ 
           {/* Guide Word / Parameter */}
           <div className="card">
             <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'var(--accent)',marginBottom:12,letterSpacing:'0.06em',textTransform:'uppercase'}}>Deviation Definition</div>
@@ -627,7 +632,7 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
               </div>
             </div>
           </div>
-
+ 
           {/* Analysis 2-col */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
             <div className="card">
@@ -647,7 +652,7 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
               <AnalysisList items={activeDev.recommendations} dotClass="recommendation" placeholder="Add a recommendation…" onAdd={t=>addItem(activeDev.id,'recommendations',t)} onDel={i=>delItem(activeDev.id,'recommendations',i)}/>
             </div>
           </div>
-
+ 
           {/* Risk Ranking */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
             <div className="card">
@@ -657,7 +662,7 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
               <MatrixPicker sel={activeDev.residualRisk} onPick={pickResidual} label="Residual Risk — After Safeguards"/>
             </div>
           </div>
-
+ 
           {/* Action details */}
           <div className="card">
             <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'var(--accent)',marginBottom:12,letterSpacing:'0.06em',textTransform:'uppercase'}}>Action & Tracking</div>
@@ -683,7 +688,7 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
     </div>
   );
 };
-
+ 
 // RISK MATRIX OVERVIEW
 const MatrixView=({deviations,nodes})=>{
   const rows=[6,5,4,3,2,1];
@@ -694,7 +699,7 @@ const MatrixView=({deviations,nodes})=>{
   const totalLow=deviations.filter(d=>d.initialRisk&&d.initialRisk.cat===4).length;
   const unranked=deviations.filter(d=>!d.initialRisk).length;
   return(
-    <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20,minHeight:0}}>
+    <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20,minHeight:0,overflowY:'auto'}}>
       {/* Summary cards */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
         {[
@@ -710,7 +715,7 @@ const MatrixView=({deviations,nodes})=>{
           </div>
         ))}
       </div>
-
+ 
       {/* Full matrix with deviation counts */}
       <div className="card">
         <div style={{fontFamily:'var(--disp)',fontSize:15,fontWeight:700,color:'var(--accent)',marginBottom:16,letterSpacing:'0.06em',textTransform:'uppercase'}}>ADNOC Corporate Risk Matrix — Initial Risk Distribution</div>
@@ -744,7 +749,7 @@ const MatrixView=({deviations,nodes})=>{
         </div>
         <div style={{marginTop:12,fontSize:12,color:'var(--text2)'}}>Numbers in cells = count of deviations at that risk level. Hover for deviation list.</div>
       </div>
-
+ 
       {/* Legend */}
       <div className="card">
         <div style={{fontFamily:'var(--disp)',fontSize:14,fontWeight:700,color:'var(--accent)',marginBottom:12,letterSpacing:'0.06em',textTransform:'uppercase'}}>Risk Category & Management Sign-Off Requirements</div>
@@ -760,14 +765,14 @@ const MatrixView=({deviations,nodes})=>{
     </div>
   );
 };
-
+ 
 // ACTIONS VIEW
 const ActionsView=({deviations,nodes,setState})=>{
   const actions=deviations.filter(d=>d.recommendations.length>0||d.responsible||d.status);
   const upd=(id,k,v)=>setState(s=>({...s,deviations:s.deviations.map(d=>d.id===id?{...d,[k]:v}:d)}));
   const statusColor={Open:'var(--orange)','In Progress':'var(--blue)',Closed:'var(--green)','On Hold':'var(--text3)',Accepted:'var(--green)'};
   return(
-    <div className="scrollable" style={{flex:1,padding:20,minHeight:0}}>
+    <div className="scrollable" style={{flex:1,padding:20,minHeight:0,overflowY:'auto'}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
         <div style={{fontFamily:'var(--disp)',fontSize:18,fontWeight:700,color:'var(--text1)'}}>Action Register</div>
         <div style={{display:'flex',gap:8}}>
@@ -834,7 +839,7 @@ const ActionsView=({deviations,nodes,setState})=>{
     </div>
   );
 };
-
+ 
 // REPORT VIEW
 const ReportView=({study,nodes,deviations})=>{
   const handlePrint=()=>window.print();
@@ -853,7 +858,7 @@ const ReportView=({study,nodes,deviations})=>{
         <button className="btn btn-primary" onClick={handlePrint}>🖨 Print / Save PDF</button>
         <button className="btn btn-secondary" onClick={handleExport}>⬇ Export JSON</button>
       </div>
-      <div className="scrollable report-page" style={{flex:1,padding:32,maxWidth:960,margin:'0 auto',width:'100%',minHeight:0}}>
+      <div className="scrollable report-page" style={{flex:1,padding:32,maxWidth:960,margin:'0 auto',width:'100%',minHeight:0,overflowY:'auto'}}>
         {/* Report header */}
         <div style={{textAlign:'center',marginBottom:32,borderBottom:'2px solid var(--accent)',paddingBottom:20}}>
           <div style={{fontFamily:'var(--disp)',fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'0.08em'}}>HAZARD AND OPERABILITY STUDY</div>
@@ -934,19 +939,21 @@ const ReportView=({study,nodes,deviations})=>{
     </div>
   );
 };
-
+ 
 /* ─── MAIN APP ───────────────────────────────────────── */
 const INIT_STUDY={projectName:'',company:'',facility:'',unit:'',location:'',docRef:'',date:today(),revision:'0',methodology:'Guide Word HAZOP',preparedBy:'',approvedBy:'',scope:'',teamMembers:[]};
-
+ 
 const App=()=>{
   const [apiKey,setApiKey]=useState(()=>localStorage.getItem('hazop_api_key')||'');
+  const [aiModel,setAiModel]=useState(()=>localStorage.getItem('hazop_ai_model')||'claude-3-haiku-20240307');
   const [showApi,setShowApi]=useState(false);
   const [view,setView]=useState('setup');
   const [study,setStudy]=useState(INIT_STUDY);
   const [appState,setAppState]=useState({nodes:[],deviations:[],activeNodeId:null,activeDevId:null,isGenerating:false});
-
+ 
   useEffect(()=>{localStorage.setItem('hazop_api_key',apiKey);},[apiKey]);
-
+  useEffect(()=>{localStorage.setItem('hazop_ai_model',aiModel);},[aiModel]);
+ 
   // Save/load from localStorage
   useEffect(()=>{
     const saved=localStorage.getItem('hazop_study_data');
@@ -955,14 +962,14 @@ const App=()=>{
   useEffect(()=>{
     localStorage.setItem('hazop_study_data',JSON.stringify({study,nodes:appState.nodes,deviations:appState.deviations}));
   },[study,appState.nodes,appState.deviations]);
-
+ 
   const devCount=appState.deviations.length;
   const nodeCount=appState.nodes.length;
   const highCount=appState.deviations.filter(d=>d.initialRisk&&[1,2].includes(d.initialRisk.cat)).length;
   const openCount=appState.deviations.filter(d=>d.status==='Open'&&d.recommendations.length>0).length;
-
+ 
   const clearAll=()=>{if(window.confirm('Clear all study data? This cannot be undone.')){setStudy(INIT_STUDY);setAppState({nodes:[],deviations:[],activeNodeId:null,activeDevId:null,isGenerating:false});localStorage.removeItem('hazop_study_data');}};
-
+ 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'100vh',overflow:'hidden'}}>
       {/* HEADER */}
@@ -976,22 +983,29 @@ const App=()=>{
           <button className="btn btn-ghost btn-sm" style={{color:'var(--red)'}} onClick={clearAll} title="Clear all data">⟳ Reset</button>
         </div>
       </div>
-
+ 
       {/* API KEY BAR */}
       {showApi&&(
-        <div className="api-bar">
+        <div className="api-bar" style={{flexWrap:'wrap',gap:8}}>
           <span style={{fontSize:12,color:'var(--accent)',fontWeight:600,whiteSpace:'nowrap'}}>🔑 API Key:</span>
-          <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-api03-…" style={{width:340,fontFamily:'var(--mono)',fontSize:12}}/>
-          <span style={{fontSize:11,color:'#92400e',maxWidth:360}}>
-            Enter your Anthropic API key (starts with <strong style={{color:'var(--accent)'}}>sk-ant-</strong>). Get one at <strong>console.anthropic.com</strong>. Stored only in your browser.
-          </span>
-          {!apiKey&&<span style={{fontSize:11,color:'var(--red)',fontWeight:600}}>⚠ Key required for AI analysis</span>}
+          <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-api03-…" style={{width:300,fontFamily:'var(--mono)',fontSize:12}}/>
+          <span style={{fontSize:12,color:'var(--accent)',fontWeight:600,whiteSpace:'nowrap',marginLeft:8}}>🤖 Model:</span>
+          <select value={aiModel} onChange={e=>setAiModel(e.target.value)} style={{fontSize:12,fontFamily:'var(--mono)',background:'#1c0f02',borderColor:'#92400e',color:'var(--accent2)',width:240}}>
+            <option value="claude-3-haiku-20240307">Claude 3 Haiku — Fast &amp; reliable</option>
+            <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku — Smarter Haiku</option>
+            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet — Best quality</option>
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 — Latest fast</option>
+            <option value="claude-sonnet-4-6">Claude Sonnet 4.6 — Latest balanced</option>
+            <option value="claude-opus-4-6">Claude Opus 4.6 — Latest powerful</option>
+          </select>
+          <span style={{fontSize:11,color:'#92400e'}}>Key &amp; model stored locally. Get key at <strong>console.anthropic.com</strong></span>
+          {!apiKey&&<span style={{fontSize:11,color:'var(--red)',fontWeight:600}}>⚠ API key required</span>}
           {apiKey&&!apiKey.startsWith('sk-ant')&&<span style={{fontSize:11,color:'var(--red)',fontWeight:600}}>⚠ Key should start with sk-ant-…</span>}
-          {apiKey&&apiKey.startsWith('sk-ant')&&<span style={{fontSize:11,color:'var(--green)',fontWeight:600}}>✓ Key looks valid</span>}
+          {apiKey&&apiKey.startsWith('sk-ant')&&<span style={{fontSize:11,color:'var(--green)',fontWeight:600}}>✓ Key valid</span>}
           <button style={{marginLeft:'auto',fontSize:12,color:'var(--accent)',cursor:'pointer',background:'none',border:'none'}} onClick={()=>setShowApi(false)}>✕ Close</button>
         </div>
       )}
-
+ 
       {/* NAV */}
       <div className="nav">
         {[
@@ -1008,13 +1022,13 @@ const App=()=>{
           </button>
         ))}
       </div>
-
+ 
       {/* CONTENT */}
       <div className="main" style={{flex:1,overflow:'hidden'}}>
         <div className="content" style={{overflow:'hidden',display:'flex',flexDirection:'column'}}>
           {view==='setup'&&<SetupView study={study} setStudy={setStudy}/>}
           {view==='nodes'&&<NodesView nodes={appState.nodes} setNodes={nodes=>setAppState(s=>({...s,nodes}))}/>}
-          {view==='worksheet'&&<WorksheetView state={appState} setState={setAppState} apiKey={apiKey}/>}
+          {view==='worksheet'&&<WorksheetView state={appState} setState={setAppState} apiKey={apiKey} aiModel={aiModel}/>}
           {view==='matrix'&&<MatrixView deviations={appState.deviations} nodes={appState.nodes}/>}
           {view==='actions'&&<ActionsView deviations={appState.deviations} nodes={appState.nodes} setState={setAppState}/>}
           {view==='report'&&<ReportView study={study} nodes={appState.nodes} deviations={appState.deviations}/>}
@@ -1023,8 +1037,9 @@ const App=()=>{
     </div>
   );
 };
-
+ 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
 </html>
+ 
