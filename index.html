@@ -1159,6 +1159,91 @@ const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConA
   );
 };
 
+// ── Node Recommendations Register (extracted component to avoid IIFE in JSX) ──
+const NodeRecsPanel=({nodeDevs,nodeName})=>{
+  const allRecs=[];
+  nodeDevs.forEach((d,di)=>{
+    const nd=normalizeDev(d);
+    const devLabel=nd.deviation||nd.guideWord+' '+nd.parameter;
+    const devNum=di+1;
+    nd.causes.forEach((c,ci)=>{
+      c.consequences.forEach((cn,qi)=>{
+        const ref='D'+devNum+'-C'+(ci+1)+'.'+(qi+1);
+        (Array.isArray(cn.recommendations)?cn.recommendations:[]).forEach(r=>{
+          const rec=typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r;
+          if(rec.text)allRecs.push({ref,level:'Consequence',devLabel,cause:c.text,con:cn.text,rec});
+        });
+      });
+      (Array.isArray(c.recommendations)?c.recommendations:[]).forEach(r=>{
+        const rec=typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r;
+        if(rec.text)allRecs.push({ref:'D'+devNum+'-C'+(ci+1),level:'Cause',devLabel,cause:c.text,con:'—',rec});
+      });
+    });
+    (Array.isArray(nd.recommendations)?nd.recommendations:[]).forEach(r=>{
+      const rec=typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r;
+      if(rec.text)allRecs.push({ref:'D'+devNum,level:'Deviation',devLabel,cause:'—',con:'—',rec});
+    });
+  });
+  if(allRecs.length===0)return(
+    <div className="card">
+      <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'#3b82f6',marginBottom:8,letterSpacing:'0.06em',textTransform:'uppercase'}}>
+        📋 Node Recommendations Register — {nodeName}
+      </div>
+      <div style={{fontSize:12,color:'var(--text3)',fontStyle:'italic'}}>No recommendations entered yet. Add them inside each cause card above.</div>
+    </div>
+  );
+  return(
+    <div className="card">
+      <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'#3b82f6',marginBottom:12,letterSpacing:'0.06em',textTransform:'uppercase'}}>
+        📋 Node Recommendations Register — {nodeName}
+        <span style={{marginLeft:8,fontFamily:'var(--mono)',fontSize:11,color:'var(--text3)',fontWeight:400}}>({allRecs.length} items)</span>
+      </div>
+      <div style={{overflowX:'auto'}}>
+        <table className="tbl" style={{fontSize:11,minWidth:900}}>
+          <thead><tr>
+            <th style={{width:100}}>Ref</th>
+            <th style={{width:85}}>Level</th>
+            <th style={{minWidth:120}}>Deviation</th>
+            <th style={{minWidth:130}}>Cause</th>
+            <th style={{minWidth:200}}>Recommendation</th>
+            <th style={{width:130}}>Action Owner</th>
+            <th style={{width:95}}>Target Date</th>
+            <th style={{width:65}}>Status</th>
+          </tr></thead>
+          <tbody>
+            {allRecs.map((item,idx)=>(
+              <tr key={idx}>
+                <td style={{fontFamily:'var(--mono)',color:'var(--accent)',fontSize:10,fontWeight:700}}>{item.ref}</td>
+                <td>
+                  <span style={{fontSize:10,padding:'2px 5px',borderRadius:3,
+                    background:item.level==='Consequence'?'#1e3a5f':item.level==='Cause'?'#451a03':'#1a1a2e',
+                    color:item.level==='Consequence'?'#93c5fd':item.level==='Cause'?'#f59e0b':'var(--text2)'}}>
+                    {item.level}
+                  </span>
+                </td>
+                <td style={{color:'var(--text2)',maxWidth:120,fontSize:11}}>{item.devLabel}</td>
+                <td style={{color:'#fca5a5',maxWidth:130,fontSize:11}}>
+                  {item.cause&&item.cause.length>55?item.cause.substring(0,55)+'…':item.cause}
+                </td>
+                <td style={{color:'var(--text1)',lineHeight:1.45}}>→ {item.rec.text}</td>
+                <td style={{color:'var(--text2)'}}>
+                  {item.rec.actionOwner||<span style={{color:'var(--text3)',fontStyle:'italic'}}>Not assigned</span>}
+                </td>
+                <td style={{color:'var(--text2)'}}>
+                  {item.rec.targetDate||<span style={{color:'var(--text3)',fontStyle:'italic'}}>Not set</span>}
+                </td>
+                <td>
+                  <span style={{fontSize:10,padding:'2px 5px',borderRadius:3,background:'var(--bg-card2)',color:'var(--text3)'}}>Open</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 // WORKSHEET VIEW ─────────────────────────────────────────────────────
 const WorksheetView=({state,setState,apiKey,aiModel})=>{
   const {nodes,deviations,activeNodeId,activeDevId}=state;
@@ -1406,6 +1491,8 @@ Generate 3-4 causes, 2 consequences each with 1-2 safeguards and 1 recommendatio
               💡 Consequence-specific recommendations are inside each consequence row above.
             </div>
           </div>
+
+          {activeNode&&nodeDevs.length>0&&<NodeRecsPanel nodeDevs={nodeDevs} nodeName={activeNode.name}/>}
 
           <div className="card">
             <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'var(--accent)',marginBottom:12,letterSpacing:'0.06em',textTransform:'uppercase'}}>Action & Tracking</div>
@@ -1959,66 +2046,4 @@ const App=()=>{
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
-</html>          {/* ── Consolidated Recommendations for this Node ── */}
-          {activeNode&&(()=>{
-            const allRecs=[];
-            nodeDevs.forEach((d,di)=>{
-              const nd=normalizeDev(d);
-              const devLabel=nd.deviation||`${nd.guideWord} ${nd.parameter}`;
-              const devNum=di+1;
-              nd.causes.forEach((c,ci)=>{
-                c.consequences.forEach((cn,qi)=>{
-                  const ref=`D${devNum}-C${ci+1}.${qi+1}`;
-                  (Array.isArray(cn.recommendations)?cn.recommendations:[]).forEach((r,ri)=>{
-                    const rec=typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r;
-                    if(rec.text)allRecs.push({ref,level:'Consequence',devLabel,cause:c.text,con:cn.text,rec});
-                  });
-                });
-                (Array.isArray(c.recommendations)?c.recommendations:[]).forEach((r,ri)=>{
-                  const rec=typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r;
-                  if(rec.text)allRecs.push({ref:`D${devNum}-C${ci+1}`,level:'Cause',devLabel,cause:c.text,con:'—',rec});
-                });
-              });
-              (Array.isArray(nd.recommendations)?nd.recommendations:[]).forEach((r,ri)=>{
-                const rec=typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r;
-                if(rec.text)allRecs.push({ref:`D${devNum}`,level:'Deviation',devLabel,cause:'—',con:'—',rec});
-              });
-            });
-            if(allRecs.length===0)return null;
-            return(
-              <div className="card">
-                <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'#3b82f6',marginBottom:12,letterSpacing:'0.06em',textTransform:'uppercase'}}>
-                  📋 Node Recommendations Register — {activeNode.name}
-                  <span style={{marginLeft:8,fontFamily:'var(--mono)',fontSize:11,color:'var(--text3)',fontWeight:400}}>({allRecs.length} items)</span>
-                </div>
-                <div style={{overflowX:'auto'}}>
-                  <table className="tbl" style={{fontSize:11,minWidth:900}}>
-                    <thead><tr>
-                      <th style={{width:90}}>Ref</th>
-                      <th style={{width:80}}>Level</th>
-                      <th style={{minWidth:120}}>Deviation</th>
-                      <th style={{minWidth:120}}>Cause</th>
-                      <th style={{minWidth:200}}>Recommendation</th>
-                      <th style={{width:120}}>Action Owner</th>
-                      <th style={{width:90}}>Target Date</th>
-                      <th style={{width:70}}>Status</th>
-                    </tr></thead>
-                    <tbody>
-                      {allRecs.map((item,idx)=>(
-                        <tr key={idx}>
-                          <td style={{fontFamily:'var(--mono)',color:'var(--accent)',fontSize:10,fontWeight:700}}>{item.ref}</td>
-                          <td><span style={{fontSize:10,padding:'2px 5px',borderRadius:3,background:item.level==='Consequence'?'#1e3a5f':item.level==='Cause'?'#451a03':'#1a1a2e',color:item.level==='Consequence'?'#93c5fd':item.level==='Cause'?'#f59e0b':'var(--text2)'}}>{item.level}</span></td>
-                          <td style={{color:'var(--text2)',maxWidth:120}}>{item.devLabel}</td>
-                          <td style={{color:'#fca5a5',maxWidth:120,fontSize:11}}>{item.cause?.substring(0,60)}{item.cause?.length>60?'…':''}</td>
-                          <td style={{color:'var(--text1)',lineHeight:1.4}}>→ {item.rec.text}</td>
-                          <td style={{color:'var(--text2)'}}>{item.rec.actionOwner||<span style={{color:'var(--text3)',fontStyle:'italic'}}>Not assigned</span>}</td>
-                          <td style={{color:'var(--text2)'}}>{item.rec.targetDate||<span style={{color:'var(--text3)',fontStyle:'italic'}}>Not set</span>}</td>
-                          <td><span style={{fontSize:10,padding:'2px 5px',borderRadius:3,background:'var(--bg-card2)',color:'var(--text3)'}}>Open</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })()}
+</html>
