@@ -69,7 +69,7 @@ label{font-size:12px;color:var(--text2);display:block;margin-bottom:4px;font-wei
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:var(--bg-surface)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
-.scrollable{overflow-y:auto}
+.scrollable{overflow-y:auto;min-height:0;min-width:0}
 /* HEADER */
 .hdr{display:flex;align-items:center;gap:16px;padding:0 20px;height:52px;background:var(--bg-surface);border-bottom:1px solid var(--border);flex-shrink:0;z-index:10}
 .logo{font-family:var(--disp);font-size:22px;font-weight:700;letter-spacing:0.05em;color:var(--text1);white-space:nowrap}
@@ -89,9 +89,9 @@ label{font-size:12px;color:var(--text2);display:block;margin-bottom:4px;font-wei
 .nav-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
 .nav-count{position:absolute;top:6px;right:8px;background:var(--accent);color:#000;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700;min-width:16px;text-align:center}
 /* LAYOUT */
-.main{display:flex;flex:1;overflow:hidden}
-.sidebar{width:240px;flex-shrink:0;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.content{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.main{display:flex;flex:1;overflow:hidden;min-height:0}
+.sidebar{width:240px;flex-shrink:0;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.content{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0}
 /* SECTION HEADER */
 .sec-hdr{padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;gap:8px}
 .sec-title{font-family:var(--disp);font-size:16px;font-weight:700;letter-spacing:0.06em;color:var(--accent);text-transform:uppercase}
@@ -302,7 +302,7 @@ const SetupView=({study,setStudy})=>{
   };
   const delMember=id=>setStudy(s=>({...s,teamMembers:s.teamMembers.filter(m=>m.id!==id)}));
   return(
-    <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20}}>
+    <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20,minHeight:0}}>
       <div className="card">
         <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',letterSpacing:'0.06em',marginBottom:16,textTransform:'uppercase'}}>Study & Project Details</div>
         <div className="form-row form-row-2">
@@ -381,13 +381,13 @@ const NodesView=({nodes,setNodes})=>{
   const del=(id)=>{setNodes(nodes.filter(n=>n.id!==id));if(active===id)setActive(null);};
   const node=nodes.find(n=>n.id===active);
   return(
-    <div className="main" style={{flex:1}}>
+    <div className="main" style={{flex:1,minHeight:0}}>
       <div className="sidebar">
         <div className="sec-hdr" style={{justifyContent:'space-between'}}>
           <span className="sec-title">Nodes</span>
           <button className="btn btn-primary btn-sm" onClick={addNode}>+ Node</button>
         </div>
-        <div className="scrollable" style={{flex:1}}>
+        <div className="scrollable" style={{flex:1,minHeight:0}}>
           {nodes.length===0&&<div style={{padding:20,color:'var(--text3)',fontSize:13,textAlign:'center'}}>No nodes defined.<br/>Click <strong>+ Node</strong> to begin.</div>}
           {nodes.map((n,i)=>(
             <div key={n.id} className={`dev-list-item ${active===n.id?'active':''}`} onClick={()=>setActive(n.id)}>
@@ -411,7 +411,7 @@ const NodesView=({nodes,setNodes})=>{
             <div style={{fontSize:13,color:'var(--text3)',maxWidth:360}}>Nodes are sections of the process selected for HAZOP study. Size them by common function — not too small (repetition) nor too large (confusion).</div>
             <button className="btn btn-primary" onClick={addNode}>+ Add First Node</button>
           </div>:
-          <div className="scrollable" style={{flex:1,padding:20}}>
+          <div className="scrollable" style={{flex:1,padding:20,minHeight:0}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
               <div style={{fontFamily:'var(--disp)',fontSize:18,fontWeight:700,color:'var(--text1)'}}>Node Editor</div>
               <button className="btn btn-danger btn-sm" onClick={()=>del(node.id)}>Delete Node</button>
@@ -564,7 +564,7 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
           </div>
           {activeNodeId&&<button className="btn btn-primary btn-sm" style={{width:'100%'}} onClick={addDev}>+ Add Deviation</button>}
         </div>
-        <div className="scrollable" style={{flex:1}}>
+        <div className="scrollable" style={{flex:1,minHeight:0}}>
           {!activeNodeId&&<div style={{padding:16,color:'var(--text3)',fontSize:12}}>Select a node to see its deviations.</div>}
           {activeNodeId&&nodeDevs.length===0&&<div style={{padding:16,color:'var(--text3)',fontSize:12}}>No deviations for this node yet.</div>}
           {nodeDevs.map((d,i)=>(
@@ -589,7 +589,7 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
             {nodes.length===0&&<div style={{color:'var(--orange)',fontSize:13}}>⚠ Add nodes first in the Nodes tab.</div>}
           </div>
         </div>:
-        <div className="content scrollable" style={{padding:20,gap:16,display:'flex',flexDirection:'column'}}>
+        <div className="content scrollable" style={{padding:20,gap:16,display:'flex',flexDirection:'column',minHeight:0,flex:1}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:8}}>
             <div>
               <div style={{fontSize:11,color:'var(--text2)',fontFamily:'var(--mono)',marginBottom:4}}>Node: {activeNode?.name}</div>
@@ -694,7 +694,7 @@ const MatrixView=({deviations,nodes})=>{
   const totalLow=deviations.filter(d=>d.initialRisk&&d.initialRisk.cat===4).length;
   const unranked=deviations.filter(d=>!d.initialRisk).length;
   return(
-    <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20}}>
+    <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20,minHeight:0}}>
       {/* Summary cards */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
         {[
@@ -767,7 +767,7 @@ const ActionsView=({deviations,nodes,setState})=>{
   const upd=(id,k,v)=>setState(s=>({...s,deviations:s.deviations.map(d=>d.id===id?{...d,[k]:v}:d)}));
   const statusColor={Open:'var(--orange)','In Progress':'var(--blue)',Closed:'var(--green)','On Hold':'var(--text3)',Accepted:'var(--green)'};
   return(
-    <div className="scrollable" style={{flex:1,padding:20}}>
+    <div className="scrollable" style={{flex:1,padding:20,minHeight:0}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
         <div style={{fontFamily:'var(--disp)',fontSize:18,fontWeight:700,color:'var(--text1)'}}>Action Register</div>
         <div style={{display:'flex',gap:8}}>
@@ -853,7 +853,7 @@ const ReportView=({study,nodes,deviations})=>{
         <button className="btn btn-primary" onClick={handlePrint}>🖨 Print / Save PDF</button>
         <button className="btn btn-secondary" onClick={handleExport}>⬇ Export JSON</button>
       </div>
-      <div className="scrollable report-page" style={{flex:1,padding:32,maxWidth:960,margin:'0 auto',width:'100%'}}>
+      <div className="scrollable report-page" style={{flex:1,padding:32,maxWidth:960,margin:'0 auto',width:'100%',minHeight:0}}>
         {/* Report header */}
         <div style={{textAlign:'center',marginBottom:32,borderBottom:'2px solid var(--accent)',paddingBottom:20}}>
           <div style={{fontFamily:'var(--disp)',fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'0.08em'}}>HAZARD AND OPERABILITY STUDY</div>
