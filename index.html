@@ -601,16 +601,23 @@ const NodesView=({nodes,setNodes})=>{
 /* ── HELPERS ─────────────────────────────────────────────────────── */
 const normalizeDev=(d)=>{
   if(!d)return d;
-  if(d.causes&&d.causes.length>0&&typeof d.causes[0]==='object'&&Array.isArray(d.causes[0].consequences))return d;
+  // Already new nested format — but ensure risk fields exist on every cause
+  if(d.causes&&d.causes.length>0&&typeof d.causes[0]==='object'&&Array.isArray(d.causes[0].consequences)){
+    return {...d,
+      causes:d.causes.map(c=>({initialRisk:null,residualRisk:null,...c})),
+      recommendations:Array.isArray(d.recommendations)?d.recommendations:[]
+    };
+  }
+  // Convert old flat format
   const oc=Array.isArray(d.causes)?d.causes:[];
   const ocon=Array.isArray(d.consequences)?d.consequences:[];
   const osg=Array.isArray(d.safeguards)?d.safeguards:[];
   const newCauses=oc.map((txt,ci)=>({
-    id:uid(),text:txt,
+    id:uid(),text:txt,initialRisk:null,residualRisk:null,
     consequences:ci<ocon.length?[{id:uid(),text:ocon[ci],safeguard:ci<osg.length?osg[ci]:''}]:[]
   }));
   for(let i=oc.length;i<ocon.length;i++){
-    if(!newCauses.length)newCauses.push({id:uid(),text:'',consequences:[]});
+    if(!newCauses.length)newCauses.push({id:uid(),text:'',initialRisk:null,residualRisk:null,consequences:[]});
     newCauses[newCauses.length-1].consequences.push({id:uid(),text:ocon[i],safeguard:i<osg.length?osg[i]:''});
   }
   return {...d,causes:newCauses,recommendations:Array.isArray(d.recommendations)?d.recommendations:[]};
@@ -645,6 +652,115 @@ const InlineEdit=({value,onChange,placeholder,multiline,style,textStyle})=>{
       style={{flex:1,cursor:'text',lineHeight:1.55,...textStyle}}>
       {value||<em style={{color:'var(--text3)',fontStyle:'italic'}}>{placeholder}</em>}
     </span>
+  );
+};
+
+
+// ── Mini matrix picker (compact, for per-cause risk) ─────────────────
+const MiniMatrixPicker=({sel,onPick})=>{
+  const rows=[6,5,4,3,2,1];
+  const cols=['A','B','C','D','E','F'];
+  return(
+    <div style={{overflowX:'auto'}}>
+      <div className="matrix-grid" style={{gap:2,gridTemplateColumns:'52px repeat(6,1fr)',minWidth:310}}>
+        <div className="matrix-cell matrix-header" style={{fontSize:9,padding:'3px'}}>S \ L</div>
+        {cols.map(c=>(
+          <div key={c} className="matrix-cell matrix-header"
+            style={{fontSize:9,padding:'3px 2px',flexDirection:'column',gap:0}} title={LNAMES[c]}>
+            <strong>{c}</strong>
+            <span style={{fontSize:8,color:'var(--text3)',fontWeight:400}}>{LNAMES[c].substring(0,5)}</span>
+          </div>
+        ))}
+        {rows.map(s=>(
+          <React.Fragment key={s}>
+            <div className="matrix-cell matrix-header"
+              style={{flexDirection:'column',gap:0,fontSize:9,padding:'3px 2px'}} title={SNAMES[s]}>
+              <strong>S{s}</strong>
+              <span style={{fontSize:8,color:'var(--text3)',fontWeight:400}}>{SNAMES[s].substring(0,6)}</span>
+            </div>
+            {cols.map(l=>{
+              const cat=RMATRIX[s][l];
+              const isSel=sel&&sel.s===s&&sel.l===l;
+              return(
+                <div key={l} className={`matrix-cell clickable ${RDISP[cat].cls} ${isSel?'selected':''}`}
+                  style={{fontSize:9,padding:'3px 2px',minHeight:28,flexDirection:'column',gap:0}}
+                  onClick={()=>onPick({s,l,cat})}
+                  title={`S${s}/${l} — ${RDISP[cat].label} (${RDISP[cat].cat})\n${SNAMES[s]} / ${LNAMES[l]}`}>
+                  <strong>{s}{l}</strong>
+                </div>
+              );
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+      {sel&&(
+        <div style={{marginTop:5,padding:'5px 8px',background:'var(--bg-card2)',borderRadius:4,
+          border:'1px solid var(--border)',fontSize:11,display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+          <span style={{color:'var(--text2)'}}>Selected:</span>
+          <strong style={{fontFamily:'var(--mono)',color:'var(--accent)'}}>S{sel.s}/{sel.l}</strong>
+          <span style={{color:'var(--text3)'}}>|</span>
+          <RiskBadge cat={sel.cat} small/>
+          <span style={{color:'var(--text2)',fontSize:10,flex:1}}>{RDISP[sel.cat].sign}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Per-cause risk section ─────────────────────────────────────────────
+const CauseRisk=({cause,devId,onSetRisk})=>{
+  const [open,setOpen]=useState(null); // null | 'initial' | 'residual'
+  const pick=(type)=>(r)=>{onSetRisk(devId,cause.id,type,r);setOpen(null);};
+  const RiskSlot=({riskVal,type,label,color,accentBg,borderColor})=>(
+    <div style={{flex:1}}>
+      <div style={{fontSize:11,color:color,fontWeight:700,letterSpacing:'0.04em',
+        textTransform:'uppercase',marginBottom:5}}>{label}</div>
+      <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',marginBottom:4}}>
+        {riskVal?(
+          <>
+            <span style={{fontFamily:'var(--mono)',fontSize:12,color:color,fontWeight:700}}>
+              S{riskVal.s}/{riskVal.l}
+            </span>
+            <RiskBadge cat={riskVal.cat}/>
+            <button onClick={()=>setOpen(open===type?null:type)}
+              style={{fontSize:11,padding:'2px 8px',borderRadius:4,cursor:'pointer',
+                background:'transparent',color:color,border:`1px solid ${borderColor}`}}>
+              {open===type?'▲ Close':'✎ Change'}
+            </button>
+          </>
+        ):(
+          <button onClick={()=>setOpen(open===type?null:type)}
+            style={{fontSize:11,padding:'4px 12px',borderRadius:5,cursor:'pointer',
+              background:accentBg,color:color,border:`1px solid ${borderColor}`,fontWeight:600}}>
+            + Set Risk
+          </button>
+        )}
+      </div>
+      {open===type&&(
+        <div style={{marginTop:4,padding:8,background:'var(--bg-surface)',
+          borderRadius:6,border:`1px solid ${borderColor}`}}>
+          <MiniMatrixPicker sel={riskVal} onPick={pick(type)}/>
+        </div>
+      )}
+    </div>
+  );
+  return(
+    <div style={{borderTop:'2px solid var(--border2)',marginTop:10,paddingTop:10,
+      display:'flex',flexDirection:'column',gap:10,background:'var(--bg-surface)',
+      margin:'10px -12px -12px',padding:'10px 12px 12px'}}>
+      <div style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:'0.05em',textTransform:'uppercase'}}>
+        Risk Assessment for this Cause
+      </div>
+      <div style={{display:'flex',gap:16,flexWrap:'wrap'}}>
+        <RiskSlot riskVal={cause.initialRisk} type="initialRisk"
+          label="Initial Risk — with existing safeguards"
+          color="#f59e0b" accentBg="#451a03" borderColor="#f59e0b55"/>
+        <div style={{width:1,background:'var(--border)',flexShrink:0}}/>
+        <RiskSlot riskVal={cause.residualRisk} type="residualRisk"
+          label="Residual Risk — after recommendations"
+          color="#22c55e" accentBg="#052e16" borderColor="#22c55e55"/>
+      </div>
+    </div>
   );
 };
 
@@ -710,8 +826,9 @@ const ConBlock=({con,conIdx,devId,cid,onUpdate,onDelete,onSgUpdate,onSgDelete})=
 );
 
 // ── Cause card ────────────────────────────────────────────────────────
-const CauseCard=({cause,causeIdx,devId,onCauseUpdate,onCauseDelete,onConAdd,onConUpdate,onConDelete,onSgUpdate,onSgDelete})=>(
+const CauseCard=({cause,causeIdx,devId,onCauseUpdate,onCauseDelete,onConAdd,onConUpdate,onConDelete,onSgUpdate,onSgDelete,onSetRisk})=>(
   <div className="cause-card">
+    {/* Cause header */}
     <div className="cause-hdr">
       <span style={{fontFamily:'var(--mono)',fontWeight:700,fontSize:11,color:'#f59e0b',
         background:'#451a03',padding:'3px 7px',borderRadius:4,marginTop:2,flexShrink:0}}>
@@ -720,9 +837,17 @@ const CauseCard=({cause,causeIdx,devId,onCauseUpdate,onCauseDelete,onConAdd,onCo
       <InlineEdit value={cause.text} onChange={t=>onCauseUpdate(devId,cause.id,t)} multiline
         placeholder="Describe cause — equipment failure, human error, external event, process upset…"
         style={{minHeight:60,fontWeight:500}} textStyle={{fontSize:13,fontWeight:500,color:'var(--text1)',flex:1}}/>
-      <button title="Delete cause" onClick={()=>onCauseDelete(devId,cause.id)}
-        style={{width:22,height:22,borderRadius:4,cursor:'pointer',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',background:'transparent',color:'#ef4444',border:'1px solid #ef444455',flexShrink:0,marginTop:2}}>✕</button>
+      <div style={{display:'flex',gap:5,flexShrink:0,alignItems:'flex-start',marginTop:2}}>
+        {/* Risk summary badges in header */}
+        {cause.initialRisk&&<RiskBadge cat={cause.initialRisk.cat} small/>}
+        {cause.residualRisk&&cause.initialRisk&&<span style={{color:'var(--text3)',fontSize:10}}>→</span>}
+        {cause.residualRisk&&<RiskBadge cat={cause.residualRisk.cat} small/>}
+        <button title="Delete cause" onClick={()=>onCauseDelete(devId,cause.id)}
+          style={{width:22,height:22,borderRadius:4,cursor:'pointer',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',background:'transparent',color:'#ef4444',border:'1px solid #ef444455'}}>✕</button>
+      </div>
     </div>
+
+    {/* Cause body — consequences */}
     <div className="cause-body">
       {cause.consequences.length===0&&(
         <div style={{fontSize:12,color:'var(--text3)',fontStyle:'italic',padding:'4px 0'}}>
@@ -735,9 +860,12 @@ const CauseCard=({cause,causeIdx,devId,onCauseUpdate,onCauseDelete,onConAdd,onCo
           onSgUpdate={onSgUpdate} onSgDelete={onSgDelete}/>
       ))}
       <button className="add-row-btn" onClick={()=>onConAdd(devId,cause.id)}
-        style={{color:'#ef4444',borderColor:'#ef444455',alignSelf:'flex-start'}}>
+        style={{color:'#ef4444',borderColor:'#ef444455',alignSelf:'flex-start',marginTop:4}}>
         + Add Consequence
       </button>
+
+      {/* Per-cause risk ranking (initial + residual) */}
+      <CauseRisk cause={cause} devId={devId} onSetRisk={onSetRisk}/>
     </div>
   </div>
 );
@@ -761,7 +889,7 @@ const WorksheetView=({state,setState,apiKey,aiModel})=>{
   const delDev=id=>setState(s=>({...s,deviations:s.deviations.filter(d=>d.id!==id),activeDevId:s.activeDevId===id?null:s.activeDevId}));
 
   // ── Cause CRUD ─────────────────────────────────────────────────────
-  const causeAdd=(devId)=>updDev(devId,d=>({...d,causes:[...d.causes,{id:uid(),text:'',consequences:[]}]}));
+  const causeAdd=(devId)=>updDev(devId,d=>({...d,causes:[...d.causes,{id:uid(),text:'',consequences:[],initialRisk:null,residualRisk:null}]}));
   const causeUpdate=(devId,cid,text)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,text}:c)}));
   const causeDelete=(devId,cid)=>updDev(devId,d=>({...d,causes:d.causes.filter(c=>c.id!==cid)}));
 
@@ -773,6 +901,10 @@ const WorksheetView=({state,setState,apiKey,aiModel})=>{
   // ── Safeguard update / delete ──────────────────────────────────────
   const sgUpdate=(devId,cid,conId,safeguard)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,safeguard}:cn)}:c)}));
   const sgDelete=(devId,cid,conId)=>sgUpdate(devId,cid,conId,'');
+  // ── Per-cause risk update ────────────────────────────────────────────
+  const causeRiskUpdate=(devId,cid,type,risk)=>updDev(devId,d=>({
+    ...d,causes:d.causes.map(c=>c.id===cid?{...c,[type]:risk}:c)
+  }));
 
   // ── Recommendation CRUD ────────────────────────────────────────────
   const recAdd=(devId,txt)=>updDev(devId,d=>({...d,recommendations:[...(d.recommendations||[]),txt]}));
@@ -784,7 +916,7 @@ const WorksheetView=({state,setState,apiKey,aiModel})=>{
     if(!activeNodeId)return;
     const d={id:uid(),nodeId:activeNodeId,guideWord:GUIDE_WORDS[0],parameter:PARAMETERS[0],
       deviation:'',causes:[],recommendations:[],
-      initialRisk:null,residualRisk:null,responsible:'',status:'Open',priority:'',dueDate:'',remarks:''};
+      responsible:'',status:'Open',priority:'',dueDate:'',remarks:''};
     setState(s=>({...s,deviations:[...s.deviations,d],activeDevId:d.id}));
   };
 
@@ -829,15 +961,22 @@ Generate 3-5 causes, 1-3 consequences per cause (each consequence paired with it
       let parsed;
       try{parsed=JSON.parse(clean);}
       catch{const m=clean.match(/\{[\s\S]*\}/);if(m)parsed=JSON.parse(m[0]);else throw new Error('AI returned unexpected format. Try again.');}
-      const newCauses=(parsed.causes||[]).map(c=>({
-        id:uid(),
-        text:typeof c==='string'?c:(c.text||''),
-        consequences:Array.isArray(c.consequences)?c.consequences.map(cn=>({
+      const newCauses=(parsed.causes||[]).map(c=>{
+        const is=c.initialSeverity,il=c.initialLikelihood,rs=c.residualSeverity,rl=c.residualLikelihood;
+        const iCat=is&&il?RMATRIX[is]?.[il]:null;
+        const rCat=rs&&rl?RMATRIX[rs]?.[rl]:null;
+        return {
           id:uid(),
-          text:typeof cn==='string'?cn:(cn.text||''),
-          safeguard:(typeof cn==='object'&&cn.safeguard)||''
-        })):[]
-      }));
+          text:typeof c==='string'?c:(c.text||''),
+          initialRisk:is&&il&&iCat?{s:is,l:il,cat:iCat}:null,
+          residualRisk:rs&&rl&&rCat?{s:rs,l:rl,cat:rCat}:null,
+          consequences:Array.isArray(c.consequences)?c.consequences.map(cn=>({
+            id:uid(),
+            text:typeof cn==='string'?cn:(cn.text||''),
+            safeguard:(typeof cn==='object'&&cn.safeguard)||''
+          })):[]
+        };
+      });
       setState(s=>({...s,isGenerating:false,
         deviations:s.deviations.map(d=>d.id===activeDevId?{
           ...normalizeDev(d),
@@ -856,8 +995,6 @@ Generate 3-5 causes, 1-3 consequences per cause (each consequence paired with it
     }
   };
 
-  const pickInitial=({s:sv,l,cat})=>updField(activeDev.id,'initialRisk',{s:sv,l,cat});
-  const pickResidual=({s:sv,l,cat})=>updField(activeDev.id,'residualRisk',{s:sv,l,cat});
   const devLabel=(d,i)=>`${String(i+1).padStart(2,'0')} · ${d.guideWord.split('/')[0].trim()} ${d.parameter}`;
 
   return(
@@ -969,7 +1106,8 @@ Generate 3-5 causes, 1-3 consequences per cause (each consequence paired with it
               <CauseCard key={cause.id} cause={cause} causeIdx={ci} devId={activeDev.id}
                 onCauseUpdate={causeUpdate} onCauseDelete={causeDelete}
                 onConAdd={conAdd} onConUpdate={conUpdate} onConDelete={conDelete}
-                onSgUpdate={sgUpdate} onSgDelete={sgDelete}/>
+                onSgUpdate={sgUpdate} onSgDelete={sgDelete}
+                onSetRisk={causeRiskUpdate}/>
             ))}
 
             {activeDev.causes.length>0&&(
@@ -990,16 +1128,6 @@ Generate 3-5 causes, 1-3 consequences per cause (each consequence paired with it
               onAdd={t=>recAdd(activeDev.id,t)}
               onDel={i=>recDel(activeDev.id,i)}
             />
-          </div>
-
-          {/* ── Risk Ranking ── */}
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-            <div className="card">
-              <MatrixPicker sel={activeDev.initialRisk} onPick={pickInitial} label="Initial Risk — Before Safeguards"/>
-            </div>
-            <div className="card">
-              <MatrixPicker sel={activeDev.residualRisk} onPick={pickResidual} label="Residual Risk — After Safeguards"/>
-            </div>
           </div>
 
           {/* ── Action & Tracking ── */}
@@ -1040,32 +1168,38 @@ Generate 3-5 causes, 1-3 consequences per cause (each consequence paired with it
 const MatrixView=({deviations,nodes})=>{
   const rows=[6,5,4,3,2,1];
   const cols=['A','B','C','D','E','F'];
-  const getCellDevs=(s,l)=>deviations.filter(d=>d.initialRisk&&d.initialRisk.s===s&&d.initialRisk.l===l);
-  const totalHigh=deviations.filter(d=>d.initialRisk&&[1,2].includes(d.initialRisk.cat)).length;
-  const totalMed=deviations.filter(d=>d.initialRisk&&d.initialRisk.cat===3).length;
-  const totalLow=deviations.filter(d=>d.initialRisk&&d.initialRisk.cat===4).length;
-  const unranked=deviations.filter(d=>!d.initialRisk).length;
+  // Collect all per-cause initial risks
+  const allCauseRisks=deviations.flatMap(d=>{
+    const nd=normalizeDev(d);
+    return (nd.causes||[]).map(c=>({...c,devId:d.id,devLabel:d.deviation||d.guideWord+' '+d.parameter}));
+  });
+  const getCellDevs=(s,l)=>allCauseRisks.filter(c=>c.initialRisk&&c.initialRisk.s===s&&c.initialRisk.l===l);
+  const totalHigh=allCauseRisks.filter(c=>c.initialRisk&&[1,2].includes(c.initialRisk.cat)).length;
+  const totalMed=allCauseRisks.filter(c=>c.initialRisk&&c.initialRisk.cat===3).length;
+  const totalLow=allCauseRisks.filter(c=>c.initialRisk&&c.initialRisk.cat===4).length;
+  const unranked=allCauseRisks.filter(c=>!c.initialRisk).length;
+  const totalCauses=allCauseRisks.length;
   return(
     <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20,minHeight:0,overflowY:'auto'}}>
       {/* Summary cards */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
         {[
-          {label:'HIGH Risk',count:totalHigh,cls:'badge-hi',color:'#ef4444'},
-          {label:'MEDIUM Risk',count:totalMed,cls:'badge-med',color:'#d97706'},
-          {label:'LOW Risk',count:totalLow,cls:'badge-lo',color:'#22c55e'},
-          {label:'Not Ranked',count:unranked,cls:'badge-none',color:'var(--text3)'}
+          {label:'HIGH Risk (causes)',count:totalHigh,cls:'badge-hi',color:'#ef4444'},
+          {label:'MEDIUM Risk (causes)',count:totalMed,cls:'badge-med',color:'#d97706'},
+          {label:'LOW Risk (causes)',count:totalLow,cls:'badge-lo',color:'#22c55e'},
+          {label:'Unranked Causes',count:unranked,cls:'badge-none',color:'var(--text3)'}
         ].map(({label,count,color})=>(
           <div key={label} className="card" style={{textAlign:'center'}}>
             <div style={{fontSize:36,fontFamily:'var(--mono)',fontWeight:700,color}}>{count}</div>
             <div style={{fontSize:12,color:'var(--text2)',marginTop:4}}>{label}</div>
-            <div style={{fontSize:11,color:'var(--text3)'}}>{deviations.length>0?Math.round(count/deviations.length*100):0}% of total</div>
+            <div style={{fontSize:11,color:'var(--text3)'}}>{totalCauses>0?Math.round(count/totalCauses*100):0}% of causes</div>
           </div>
         ))}
       </div>
 
       {/* Full matrix with deviation counts */}
       <div className="card">
-        <div style={{fontFamily:'var(--disp)',fontSize:15,fontWeight:700,color:'var(--accent)',marginBottom:16,letterSpacing:'0.06em',textTransform:'uppercase'}}>ADNOC Corporate Risk Matrix — Initial Risk Distribution</div>
+        <div style={{fontFamily:'var(--disp)',fontSize:15,fontWeight:700,color:'var(--accent)',marginBottom:16,letterSpacing:'0.06em',textTransform:'uppercase'}}>ADNOC Corporate Risk Matrix — Per-Cause Initial Risk Distribution</div>
         <div className="matrix-grid" style={{gap:4}}>
           <div className="matrix-cell matrix-header" style={{fontSize:10}}>S / L →</div>
           {cols.map(c=>(
@@ -1084,7 +1218,7 @@ const MatrixView=({deviations,nodes})=>{
                 return(
                   <div key={l} className={`matrix-cell ${RDISP[cat].cls}`}
                     style={{flexDirection:'column',gap:2,padding:'6px 4px',minHeight:52}}
-                    title={cellDevs.length?cellDevs.map(d=>`• ${d.deviation||d.guideWord+' '+d.parameter}`).join('\n'):'No deviations'}>
+                    title={cellDevs.length?cellDevs.map(c=>`• ${c.text||c.devLabel}`).join('\n'):'No causes at this risk level'}>
                     <div style={{fontSize:11,fontWeight:700}}>{s}{l}</div>
                     {cellDevs.length>0&&<div style={{fontSize:16,fontWeight:700,lineHeight:1}}>{cellDevs.length}</div>}
                     <div style={{fontSize:9}}>{RDISP[cat].label}</div>
@@ -1259,7 +1393,7 @@ const ReportView=({study,nodes,deviations})=>{
               <div style={{fontSize:12,color:'var(--text2)',marginBottom:12}}>{node.description}</div>
               <div style={{overflowX:'auto'}}>
                 <table className="tbl" style={{fontSize:12,minWidth:900}}>
-                  <thead><tr><th>#</th><th>Deviation</th><th>C#</th><th>Cause</th><th>Consequence</th><th>Safeguard</th><th>Recommendations</th><th>Initial</th><th>Residual</th><th>Resp.</th><th>Status</th></tr></thead>
+                  <thead><tr><th>#</th><th>Deviation</th><th>C#</th><th>Cause</th><th>Consequence</th><th>Safeguard</th><th>Initial Risk</th><th>Residual Risk</th><th>Recommendations</th><th>Resp.</th><th>Status</th></tr></thead>
                   <tbody>{nodeDevs.map((d,di)=>{
                     const nd=normalizeDev(d);
                     const recs=(nd.recommendations||[]);
@@ -1275,9 +1409,14 @@ const ReportView=({study,nodes,deviations})=>{
                         <td style={{color:'var(--text2)',maxWidth:160,verticalAlign:'top'}}>{cause?.text||''}</td>
                         <td style={{color:'#fca5a5',maxWidth:160,verticalAlign:'top'}}>{con?.text||''}</td>
                         <td style={{color:'#86efac',maxWidth:160,verticalAlign:'top'}}>{con?.safeguard||<span style={{color:'var(--text3)',fontStyle:'italic'}}>None</span>}</td>
+                        {/* Per-cause initial and residual risk — spans all consequence rows for this cause */}
+                        {(cni===0||!cni)&&cause&&<td rowSpan={cause?cause.consequences.length||1:1} style={{textAlign:'center',verticalAlign:'top'}}>
+                          {cause.initialRisk?<><span style={{fontFamily:'var(--mono)',fontSize:10,color:'#f59e0b'}}>S{cause.initialRisk.s}/{cause.initialRisk.l}</span><br/><RiskBadge cat={cause.initialRisk.cat} small/></>:<span style={{color:'var(--text3)',fontSize:11}}>—</span>}
+                        </td>}
+                        {(cni===0||!cni)&&cause&&<td rowSpan={cause?cause.consequences.length||1:1} style={{textAlign:'center',verticalAlign:'top'}}>
+                          {cause.residualRisk?<><span style={{fontFamily:'var(--mono)',fontSize:10,color:'#22c55e'}}>S{cause.residualRisk.s}/{cause.residualRisk.l}</span><br/><RiskBadge cat={cause.residualRisk.cat} small/></>:<span style={{color:'var(--text3)',fontSize:11}}>—</span>}
+                        </td>}
                         {rowIdx===0&&<td rowSpan={causeRows.length} style={{color:'var(--blue)',maxWidth:160,verticalAlign:'top'}}>{recs.map((r,i)=><div key={i} style={{marginBottom:3}}>→ {r}</div>)}</td>}
-                        {rowIdx===0&&<td rowSpan={causeRows.length} style={{textAlign:'center',verticalAlign:'top'}}>{d.initialRisk?<><span style={{fontFamily:'var(--mono)',fontSize:11}}>S{d.initialRisk.s}/{d.initialRisk.l}</span><br/><RiskBadge cat={d.initialRisk.cat} small/></>:'—'}</td>}
-                        {rowIdx===0&&<td rowSpan={causeRows.length} style={{textAlign:'center',verticalAlign:'top'}}>{d.residualRisk?<><span style={{fontFamily:'var(--mono)',fontSize:11}}>S{d.residualRisk.s}/{d.residualRisk.l}</span><br/><RiskBadge cat={d.residualRisk.cat} small/></>:'—'}</td>}
                         {rowIdx===0&&<td rowSpan={causeRows.length} style={{color:'var(--text2)',verticalAlign:'top'}}>{d.responsible||'—'}</td>}
                         {rowIdx===0&&<td rowSpan={causeRows.length} style={{verticalAlign:'top'}}><span style={{fontSize:11,padding:'2px 6px',borderRadius:4,background:'var(--bg-card2)',color:'var(--text2)'}}>{d.status}</span></td>}
                       </tr>
