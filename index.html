@@ -8,6 +8,32 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script type="module">
+  import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.36.3';
+  window._Anthropic = Anthropic;
+  window._anthropicReady = true;
+  console.log('[Risk2Safe] Anthropic SDK ready');
+</script>
+<script>
+  window._anthropicReady = window._anthropicReady || false;
+  window.callAnthropicAPI = async function(apiKey, model, systemPrompt, userPrompt) {
+    let waited = 0;
+    while (!window._anthropicReady && waited < 8000) {
+      await new Promise(r => setTimeout(r, 200));
+      waited += 200;
+    }
+    if (!window._Anthropic) throw new Error('Anthropic SDK failed to load. Check internet connection and try refreshing.');
+    if (!apiKey || !apiKey.trim().startsWith('sk-ant')) throw new Error('Invalid or missing API key. Click "API" in the header and enter your key (starts with sk-ant-...).');
+    const client = new window._Anthropic({ apiKey: apiKey.trim(), dangerouslyAllowBrowser: true });
+    const message = await client.messages.create({
+      model: model,
+      max_tokens: 1800,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }]
+    });
+    return message.content[0].text;
+  };
+</script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -468,17 +494,33 @@ Generate a rigorous HAZOP analysis for this deviation. Respond ONLY with valid J
 
 Be specific, technical, and practical. For oil & gas contexts consider: H₂S toxicity, hydrocarbon fires/explosions, pressure excursions, BLEVE, toxic releases, vapor cloud, LOC. Include 3-5 items per category minimum.`;
 
+    const systemPrompt=`You are an expert HAZOP facilitator with 30+ years experience in oil & gas (upstream/downstream), petrochemicals, and process safety. You are deeply familiar with IChemE Guide to Best Practice, CCPS Guidelines for Hazard Evaluation Procedures, and IEC 61882. Respond ONLY with valid JSON — no markdown, no backticks, no preamble.`;
+    const userPrompt=`Study context:
+- Node: ${activeNode.name} (${activeNode.type})
+- Description: ${activeNode.description}
+- Design Intent: ${activeNode.designIntent}
+- Operating Conditions: ${activeNode.conditions||'Not specified'}
+- Fluid/Material: ${activeNode.fluid||'Not specified'}
+- Guide Word: ${activeDev.guideWord}
+- Parameter: ${activeDev.parameter}
+- Deviation: ${deviation}
+
+Generate a rigorous HAZOP analysis. Return ONLY this JSON structure (no markdown):
+{"deviationDescription":"Full deviation statement","causes":["cause 1 (equipment/human/process)","cause 2","cause 3","cause 4"],"consequences":["consequence 1 with severity note","consequence 2","consequence 3"],"safeguards":["[Engineering] safeguard 1","[Admin] safeguard 2","[Instrumentation] safeguard 3"],"recommendations":["Specific actionable recommendation 1","Recommendation 2","Recommendation 3"]}
+
+For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pressure excursions, BLEVE, toxic/flammable releases, vapor cloud, loss of containment, knock-on effects. Include 3-5 items per category.`;
+
     try{
-      const res=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content:prompt}]})
-      });
-      const data=await res.json();
-      if(data.error)throw new Error(data.error.message);
-      const txt=data.content[0].text.trim();
+      const txt = await window.callAnthropicAPI(apiKey,'claude-3-5-sonnet-20241022',systemPrompt,userPrompt);
       const clean=txt.replace(/```json|```/g,'').trim();
-      const parsed=JSON.parse(clean);
+      let parsed;
+      try { parsed=JSON.parse(clean); }
+      catch(parseErr){
+        // Try to extract JSON from text if wrapped in other content
+        const match=clean.match(/\{[\s\S]*\}/);
+        if(match) parsed=JSON.parse(match[0]);
+        else throw new Error('AI returned unexpected format. Please try again.');
+      }
       setState(s=>({
         ...s,isGenerating:false,
         deviations:s.deviations.map(d=>d.id===activeDevId?{
@@ -492,7 +534,14 @@ Be specific, technical, and practical. For oil & gas contexts consider: H₂S to
       }));
     }catch(e){
       setState(s=>({...s,isGenerating:false}));
-      alert('AI generation failed: '+e.message);
+      const msg=e.message||'Unknown error';
+      if(msg.includes('Invalid or missing API key')||msg.includes('sk-ant')){
+        alert('API Key issue: '+msg);
+      } else if(msg.includes('SDK failed to load')||msg.includes('fetch')){
+        alert('Connection error: '+msg+'\n\nMake sure:\n1. Your API key is entered (click ⚙ API in header)\n2. You have internet access\n3. Refresh the page and try again');
+      } else {
+        alert('AI generation failed: '+msg);
+      }
     }
   };
 
@@ -931,9 +980,14 @@ const App=()=>{
       {/* API KEY BAR */}
       {showApi&&(
         <div className="api-bar">
-          <span style={{fontSize:12,color:'var(--accent)',fontWeight:600,whiteSpace:'nowrap'}}>🔑 Anthropic API Key:</span>
-          <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-api03-…" style={{width:360}}/>
-          <span style={{fontSize:11,color:'#92400e'}}>Stored locally in browser. Required for AI analysis generation.</span>
+          <span style={{fontSize:12,color:'var(--accent)',fontWeight:600,whiteSpace:'nowrap'}}>🔑 API Key:</span>
+          <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-api03-…" style={{width:340,fontFamily:'var(--mono)',fontSize:12}}/>
+          <span style={{fontSize:11,color:'#92400e',maxWidth:360}}>
+            Enter your Anthropic API key (starts with <strong style={{color:'var(--accent)'}}>sk-ant-</strong>). Get one at <strong>console.anthropic.com</strong>. Stored only in your browser.
+          </span>
+          {!apiKey&&<span style={{fontSize:11,color:'var(--red)',fontWeight:600}}>⚠ Key required for AI analysis</span>}
+          {apiKey&&!apiKey.startsWith('sk-ant')&&<span style={{fontSize:11,color:'var(--red)',fontWeight:600}}>⚠ Key should start with sk-ant-…</span>}
+          {apiKey&&apiKey.startsWith('sk-ant')&&<span style={{fontSize:11,color:'var(--green)',fontWeight:600}}>✓ Key looks valid</span>}
           <button style={{marginLeft:'auto',fontSize:12,color:'var(--accent)',cursor:'pointer',background:'none',border:'none'}} onClick={()=>setShowApi(false)}>✕ Close</button>
         </div>
       )}
