@@ -1,3 +1,150 @@
+// ── Collapsible risk picker section ──────────────────────────────────
+const RiskSection=({risk,label,color,borderColor,bgHint,type,onSetRisk,devId,cid})=>{
+  const [open,setOpen]=useState(false);
+  const pick=(r)=>{onSetRisk(devId,cid,type,r);setOpen(false);};
+  return(
+    <div style={{padding:'10px 12px',background:bgHint,borderTop:'1px solid var(--border)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:open&&!risk?8:risk?4:0}}>
+        <div style={{fontSize:11,color,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>{label}</div>
+        <div style={{display:'flex',gap:6,alignItems:'center'}}>
+          {risk&&(
+            <>
+              <span style={{fontFamily:'var(--mono)',fontSize:12,color,fontWeight:700}}>S{risk.s}/{risk.l}</span>
+              <RiskBadge cat={risk.cat}/>
+            </>
+          )}
+          <button onClick={()=>setOpen(!open)}
+            style={{fontSize:11,padding:'3px 10px',borderRadius:4,cursor:'pointer',
+              background:'transparent',color,border:`1px solid ${borderColor}`,fontWeight:600}}>
+            {open?'▲ Close':risk?'✎ Change':'+ Set Risk Level'}
+          </button>
+        </div>
+      </div>
+      {!risk&&!open&&(
+        <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic'}}>Not assessed — click "+ Set Risk Level" above</div>
+      )}
+      {open&&<div style={{marginTop:8}}><MiniMatrixPicker sel={risk} onPick={pick}/></div>}
+    </div>
+  );
+};
+
+// ── Per-cause recommendation list ─────────────────────────────────────
+const CauseRecList=({recs,devId,cid,onAdd,onDel})=>{
+  const [draft,setDraft]=useState('');
+  const [adding,setAdding]=useState(false);
+  const ref=useRef(null);
+  useEffect(()=>{if(adding&&ref.current)ref.current.focus();},[adding]);
+  const add=()=>{const t=draft.trim();if(t){onAdd(devId,cid,t);setDraft('');setAdding(false);}};
+  return(
+    <div style={{padding:'10px 12px',background:'#05102a',borderTop:'1px solid var(--border)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+        <div style={{fontSize:11,color:'#3b82f6',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+          ✅ Recommendations for this Cause
+          <span style={{marginLeft:6,fontFamily:'var(--mono)',fontSize:10,color:'var(--text3)',fontWeight:400}}>({recs.length})</span>
+        </div>
+        <button onClick={()=>setAdding(true)}
+          style={{fontSize:11,padding:'3px 10px',borderRadius:4,cursor:'pointer',
+            background:'transparent',color:'#3b82f6',border:'1px solid #3b82f644',fontWeight:600}}>
+          + Add
+        </button>
+      </div>
+      {recs.length===0&&!adding&&(
+        <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',cursor:'pointer'}}
+          onClick={()=>setAdding(true)}>
+          No recommendations yet — click <strong style={{color:'#3b82f6'}}>+ Add</strong>
+        </div>
+      )}
+      {adding&&(
+        <div style={{marginBottom:8,display:'flex',flexDirection:'column',gap:4}}>
+          <textarea ref={ref} value={draft} onChange={e=>setDraft(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();add();}if(e.key==='Escape'){setAdding(false);setDraft('');}}}
+            placeholder="Specific actionable recommendation — what, who (discipline/owner), why…"
+            style={{fontSize:12,minHeight:52,resize:'vertical',lineHeight:1.5}}/>
+          <div style={{display:'flex',gap:4}}>
+            <button className="btn btn-primary btn-sm" onClick={add}>✓ Add</button>
+            <button className="btn btn-ghost btn-sm" onClick={()=>{setAdding(false);setDraft('');}}>✕ Cancel</button>
+            <span style={{fontSize:11,color:'var(--text3)'}}>Enter to add · Esc to cancel</span>
+          </div>
+        </div>
+      )}
+      <ul style={{listStyle:'none',display:'flex',flexDirection:'column',gap:4}}>
+        {recs.map((r,i)=>(
+          <li key={i} style={{display:'flex',alignItems:'flex-start',gap:6,padding:'6px 8px',
+            background:'var(--bg-card)',borderRadius:5,border:'1px solid var(--border)',fontSize:12}}>
+            <span style={{color:'#3b82f6',flexShrink:0,marginTop:1}}>→</span>
+            <span style={{flex:1,lineHeight:1.5,color:'var(--text1)'}}>{r}</span>
+            <button onClick={()=>onDel(devId,cid,i)}
+              style={{fontSize:10,color:'#ef4444',flexShrink:0,cursor:'pointer',background:'none',border:'none',padding:'0 2px'}}>✕</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+// ── Cause card ────────────────────────────────────────────────────────
+const CauseCard=({cause,causeIdx,devId,onCauseUpdate,onCauseDelete,onConAdd,onConUpdate,onConDelete,onSgUpdate,onSgDelete,onSetRisk,onRecAdd,onRecDel})=>(
+  <div className="cause-card">
+    {/* ── Header: number + text + risk summary badges ── */}
+    <div className="cause-hdr">
+      <span style={{fontFamily:'var(--mono)',fontWeight:700,fontSize:11,color:'#f59e0b',
+        background:'#451a03',padding:'3px 7px',borderRadius:4,marginTop:2,flexShrink:0}}>
+        C{causeIdx+1}
+      </span>
+      <InlineEdit value={cause.text} onChange={t=>onCauseUpdate(devId,cause.id,t)} multiline
+        placeholder="Describe cause — equipment failure, human error, external event, process upset…"
+        style={{minHeight:60,fontWeight:500}} textStyle={{fontSize:13,fontWeight:500,color:'var(--text1)',flex:1}}/>
+      <div style={{display:'flex',gap:5,flexShrink:0,alignItems:'flex-start',marginTop:2,flexWrap:'wrap',justifyContent:'flex-end'}}>
+        {cause.initialRisk&&<RiskBadge cat={cause.initialRisk.cat} small/>}
+        {cause.initialRisk&&cause.residualRisk&&<span style={{color:'var(--text3)',fontSize:12,lineHeight:'20px'}}>→</span>}
+        {cause.residualRisk&&<RiskBadge cat={cause.residualRisk.cat} small/>}
+        <button title="Delete this cause" onClick={()=>onCauseDelete(devId,cause.id)}
+          style={{width:22,height:22,borderRadius:4,cursor:'pointer',fontSize:11,display:'flex',
+            alignItems:'center',justifyContent:'center',background:'transparent',
+            color:'#ef4444',border:'1px solid #ef444455'}}>✕</button>
+      </div>
+    </div>
+
+    {/* ── Section 1: Consequences & Safeguards ── */}
+    <div className="cause-body" style={{paddingBottom:0}}>
+      <div style={{fontSize:10,color:'var(--text3)',fontWeight:600,letterSpacing:'0.06em',
+        textTransform:'uppercase',marginBottom:6}}>
+        💥 Consequences &amp; 🛡 Safeguards (with existing controls)
+      </div>
+      {cause.consequences.length===0&&(
+        <div style={{fontSize:12,color:'var(--text3)',fontStyle:'italic',padding:'4px 0'}}>
+          No consequences yet — add below or run ✦ AI Generate.
+        </div>
+      )}
+      {cause.consequences.map((con,ci)=>(
+        <ConBlock key={con.id} con={con} conIdx={ci} devId={devId} cid={cause.id}
+          onUpdate={onConUpdate} onDelete={onConDelete}
+          onSgUpdate={onSgUpdate} onSgDelete={onSgDelete}/>
+      ))}
+      <button className="add-row-btn" onClick={()=>onConAdd(devId,cause.id)}
+        style={{color:'#ef4444',borderColor:'#ef444455',alignSelf:'flex-start',marginTop:6,marginBottom:4}}>
+        + Add Consequence
+      </button>
+    </div>
+
+    {/* ── Section 2: Initial Risk (with existing safeguards) ── */}
+    <RiskSection risk={cause.initialRisk} devId={devId} cid={cause.id}
+      type="initialRisk" onSetRisk={onSetRisk}
+      label="⚠ Initial Risk — with existing safeguards"
+      color="#f59e0b" borderColor="#f59e0b66" bgHint="#1a0e00"/>
+
+    {/* ── Section 3: Recommendations for this cause ── */}
+    <CauseRecList recs={cause.recommendations||[]} devId={devId} cid={cause.id}
+      onAdd={onRecAdd} onDel={onRecDel}/>
+
+    {/* ── Section 4: Residual Risk (after above recommendations) ── */}
+    <RiskSection risk={cause.residualRisk} devId={devId} cid={cause.id}
+      type="residualRisk" onSetRisk={onSetRisk}
+      label="✅ Residual Risk — after above recommendations"
+      color="#22c55e" borderColor="#22c55e66" bgHint="#001a0a"/>
+  </div>
+);
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -195,9 +342,29 @@ const {useState,useCallback,useRef,useEffect,useMemo}=React;
 const GUIDE_WORDS=['NO / NONE','MORE','LESS','AS WELL AS','PART OF','REVERSE','OTHER THAN','EARLY','LATE'];
 const PARAMETERS=['FLOW','PRESSURE','TEMPERATURE','LEVEL','COMPOSITION','CONCENTRATION','PHASE','VISCOSITY','REACTION RATE','AGITATION / MIXING','SEQUENCE','SIGNAL / CONTROL','UTILITY / SERVICE','TIME'];
 const SNAMES={1:'Notable',2:'Minor',3:'Serious',4:'Major',5:'Catastrophic',6:'Disastrous'};
-const SDESC={1:'Slight injuries, short-term effects, near miss',2:'Minor injuries, reversible effects, first aid',3:'Serious injuries, RIDDOR reportable, LTI',4:'Single fatality or permanent total disability',5:'Multiple fatalities (2–10), major asset damage',6:'Multiple fatalities (>10), catastrophic damage, business continuity impact'};
+const SDESC={1:'Slight injuries, short-term effects, near miss',2:'Minor injuries, reversible effects, first aid',3:'Serious injuries, RIDDOR reportable, LTI',4:'Single fatality or permanent total disability',5:'Multiple fatalities (2-10), major asset damage',6:'Multiple fatalities (>10), catastrophic damage, business continuity impact'};
 const LNAMES={A:'Term',B:'Rare',C:'Unlikely',D:'Possible',E:'Likely',F:'Almost Certain'};
-const LDESC={A:"Hasn't happened in industry in last 50 years (10⁻⁶ ≤ f < 10⁻⁵)",B:'Could happen in industry next 20–30 years (10⁻⁵ ≤ f < 10⁻⁴)',C:'Could be incurred within a 5–10 year time frame (10⁻⁴ ≤ f < 10⁻³)',D:'Could be incurred within 5 year Strategic Planning period (10⁻³ ≤ f < 10⁻²)',E:'Could be incurred more than once per year budget period (10⁻² ≤ f < 10⁻¹)',F:'Could be incurred more than once on site (10⁻¹ ≤ f < 1)'};
+const LDESC={A:"Hasn't happened in industry in last 50 years (10⁻⁶ - 10⁻⁵ /yr)",B:'Could happen in industry next 20-30 years (10⁻⁵ - 10⁻⁴ /yr)',C:'Could be incurred within a 5-10 year time frame (10⁻⁴ - 10⁻³ /yr)',D:'Could be incurred within 5 year Strategic Planning period (10⁻³ - 10⁻² /yr)',E:'Could be incurred more than once per year budget period (10⁻² - 10⁻¹ /yr)',F:'Could be incurred more than once on site (10⁻¹ - 1 /yr)'};
+
+/* Full ADNOC severity impact table */
+const SDETAIL={
+  6:{people:'Multiple fatalities (>10) / Widespread permanent disabilities',asset:'>= $1 Billion / Catastrophic asset loss',env:'Catastrophic irreversible environmental damage, exceeding all limits, persistent contamination',rep:'Prolonged international impact on company and industry; potential licence revocation'},
+  5:{people:'Multiple fatalities (2-10) / Multiple permanent total disabilities',asset:'$100M to <$1B / Major asset destruction, extended production loss',env:'Disastrous environmental impact beyond site, serious long-term damage',rep:'Serious adverse international media coverage; prolonged reputational impact on Group'},
+  4:{people:'Single worker fatality OR permanent total disability / Serious injury to public',asset:'$10M to <$100M / Significant plant damage, long shutdown',env:'Major impact on surrounding environment; repeated non-compliance with regulations',rep:'Significant national media attention; potential prosecution, regulatory sanctions'},
+  3:{people:'Serious injuries requiring hospitalisation / Reversible partial disability / RIDDOR reportable',asset:'$1M to <$10M / Equipment damage requiring major repair, production loss',env:'Local environmental effect; non-repeated breach of regulatory limits',rep:'Considerable local media/government attention; moderate fines or regulatory action'},
+  2:{people:'Minor injuries (first aid / RIDDOR near miss) / Temporary health effects',asset:'$100K to <$1M / Minor asset damage, short-term production impact',env:'Minor, recoverable environmental effects within site boundary',rep:'Limited local media impact; minor regulatory notification or warning'},
+  1:{people:'Slight injuries / Near miss / Short-term health effects / No lost time',asset:'< $100K / Negligible damage, minimal operational impact',env:'Slight, contained environmental effects within fence area; no off-site impact',rep:'No public concern; slight internal or regulatory notice only'}
+};
+
+/* Full ADNOC likelihood table */
+const LDETAIL={
+  F:{qualitative:'Frequent / Almost Certain',frequency:'10⁻¹ to 1 per year',hseLikelihood:'Has occurred more than once on the site',ermCriteria:'Could be incurred more than once on the site next year'},
+  E:{qualitative:'Probable / Likely',frequency:'10⁻² to 10⁻¹ per year',hseLikelihood:'Has occurred more than once per year budget period (at Company or on site)',ermCriteria:'Could be incurred more than once within year budget period'},
+  D:{qualitative:'Occasional / Possible',frequency:'10⁻³ to 10⁻² per year',hseLikelihood:'Has occurred more than once in Group Company, but not on the site',ermCriteria:'Could be incurred within the 5-year Strategic Planning period'},
+  C:{qualitative:'Remote / Unlikely',frequency:'10⁻⁴ to 10⁻³ per year',hseLikelihood:'Has occurred at least once in the Group Company but not on the site',ermCriteria:'Could be incurred within a 5-10 year time frame'},
+  B:{qualitative:'Improbable / Rare',frequency:'10⁻⁵ to 10⁻⁴ per year',hseLikelihood:'Has occurred in world-wide industry but not in the Group',ermCriteria:'Could happen somewhere in industry in the next 20-30 years'},
+  A:{qualitative:'Incredible / Term',frequency:'10⁻⁶ to 10⁻⁵ per year',hseLikelihood:'Has not occurred in world-wide industry in the last 50 years',ermCriteria:"Hasn't happened in industry in last 50 years"}
+};
 
 // ADNOC 6×6 Risk Matrix — Category 1=HIGH-RED, 2=HIGH-ORG, 3=MEDIUM, 4=LOW
 const RMATRIX={
@@ -604,7 +771,7 @@ const normalizeDev=(d)=>{
   // Already new nested format — but ensure risk fields exist on every cause
   if(d.causes&&d.causes.length>0&&typeof d.causes[0]==='object'&&Array.isArray(d.causes[0].consequences)){
     return {...d,
-      causes:d.causes.map(c=>({initialRisk:null,residualRisk:null,...c})),
+      causes:d.causes.map(c=>({initialRisk:null,residualRisk:null,recommendations:[],...c})),
       recommendations:Array.isArray(d.recommendations)?d.recommendations:[]
     };
   }
@@ -613,7 +780,7 @@ const normalizeDev=(d)=>{
   const ocon=Array.isArray(d.consequences)?d.consequences:[];
   const osg=Array.isArray(d.safeguards)?d.safeguards:[];
   const newCauses=oc.map((txt,ci)=>({
-    id:uid(),text:txt,initialRisk:null,residualRisk:null,
+    id:uid(),text:txt,initialRisk:null,residualRisk:null,recommendations:[],
     consequences:ci<ocon.length?[{id:uid(),text:ocon[ci],safeguard:ci<osg.length?osg[ci]:''}]:[]
   }));
   for(let i=oc.length;i<ocon.length;i++){
@@ -656,51 +823,146 @@ const InlineEdit=({value,onChange,placeholder,multiline,style,textStyle})=>{
 };
 
 
-// ── Mini matrix picker (compact, for per-cause risk) ─────────────────
+// ── Enhanced mini matrix picker with detail legend ──────────────────
 const MiniMatrixPicker=({sel,onPick})=>{
   const rows=[6,5,4,3,2,1];
   const cols=['A','B','C','D','E','F'];
+  const [showLegend,setShowLegend]=useState(false);
+  const [hoverS,setHoverS]=useState(null);
+  const [hoverL,setHoverL]=useState(null);
   return(
-    <div style={{overflowX:'auto'}}>
-      <div className="matrix-grid" style={{gap:2,gridTemplateColumns:'52px repeat(6,1fr)',minWidth:310}}>
-        <div className="matrix-cell matrix-header" style={{fontSize:9,padding:'3px'}}>S \ L</div>
-        {cols.map(c=>(
-          <div key={c} className="matrix-cell matrix-header"
-            style={{fontSize:9,padding:'3px 2px',flexDirection:'column',gap:0}} title={LNAMES[c]}>
-            <strong>{c}</strong>
-            <span style={{fontSize:8,color:'var(--text3)',fontWeight:400}}>{LNAMES[c].substring(0,5)}</span>
+    <div>
+      {/* Matrix grid */}
+      <div style={{overflowX:'auto'}}>
+        <div className="matrix-grid" style={{gap:2,gridTemplateColumns:'56px repeat(6,1fr)',minWidth:320}}>
+          <div className="matrix-cell matrix-header" style={{fontSize:9,padding:'3px',flexDirection:'column',gap:0}}>
+            <span style={{fontWeight:700}}>S</span>
+            <span style={{fontSize:8,color:'var(--text3)'}}>▼ \ L ▶</span>
           </div>
-        ))}
-        {rows.map(s=>(
-          <React.Fragment key={s}>
-            <div className="matrix-cell matrix-header"
-              style={{flexDirection:'column',gap:0,fontSize:9,padding:'3px 2px'}} title={SNAMES[s]}>
-              <strong>S{s}</strong>
-              <span style={{fontSize:8,color:'var(--text3)',fontWeight:400}}>{SNAMES[s].substring(0,6)}</span>
+          {cols.map(c=>(
+            <div key={c} className="matrix-cell matrix-header"
+              style={{fontSize:9,padding:'3px 2px',flexDirection:'column',gap:0,
+                cursor:'pointer',background:hoverL===c?'var(--bg-hover)':undefined}}
+              onMouseEnter={()=>setHoverL(c)} onMouseLeave={()=>setHoverL(null)}
+              onClick={()=>setShowLegend(!showLegend)}
+              title={`${c} — ${LNAMES[c]}
+${LDETAIL[c].qualitative}
+${LDETAIL[c].frequency}`}>
+              <strong style={{color:hoverL===c?'var(--accent)':'inherit'}}>{c}</strong>
+              <span style={{fontSize:8,color:'var(--text3)',fontWeight:400}}>{LNAMES[c].substring(0,5)}</span>
             </div>
-            {cols.map(l=>{
-              const cat=RMATRIX[s][l];
-              const isSel=sel&&sel.s===s&&sel.l===l;
-              return(
-                <div key={l} className={`matrix-cell clickable ${RDISP[cat].cls} ${isSel?'selected':''}`}
-                  style={{fontSize:9,padding:'3px 2px',minHeight:28,flexDirection:'column',gap:0}}
-                  onClick={()=>onPick({s,l,cat})}
-                  title={`S${s}/${l} — ${RDISP[cat].label} (${RDISP[cat].cat})\n${SNAMES[s]} / ${LNAMES[l]}`}>
-                  <strong>{s}{l}</strong>
-                </div>
-              );
-            })}
-          </React.Fragment>
-        ))}
+          ))}
+          {rows.map(s=>(
+            <React.Fragment key={s}>
+              <div className="matrix-cell matrix-header"
+                style={{flexDirection:'column',gap:0,fontSize:9,padding:'3px 2px',
+                  cursor:'pointer',background:hoverS===s?'var(--bg-hover)':undefined}}
+                onMouseEnter={()=>setHoverS(s)} onMouseLeave={()=>setHoverS(null)}
+                onClick={()=>setShowLegend(!showLegend)}
+                title={`S${s} — ${SNAMES[s]}
+People: ${SDETAIL[s].people}
+Asset: ${SDETAIL[s].asset}`}>
+                <strong style={{color:hoverS===s?'var(--accent)':'inherit'}}>S{s}</strong>
+                <span style={{fontSize:8,color:'var(--text3)',fontWeight:400}}>{SNAMES[s].substring(0,6)}</span>
+              </div>
+              {cols.map(l=>{
+                const cat=RMATRIX[s][l];
+                const isSel=sel&&sel.s===s&&sel.l===l;
+                return(
+                  <div key={l} className={`matrix-cell clickable ${RDISP[cat].cls} ${isSel?'selected':''}`}
+                    style={{fontSize:9,padding:'3px 2px',minHeight:28,flexDirection:'column',gap:0}}
+                    onClick={()=>onPick({s,l,cat})}
+                    title={`S${s}/${l} — ${RDISP[cat].label} (${RDISP[cat].cat})
+Severity: ${SNAMES[s]}
+Likelihood: ${LNAMES[l]}
+${LDETAIL[l].frequency}`}>
+                    <strong>{s}{l}</strong>
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
       </div>
+      {/* Selected summary */}
       {sel&&(
         <div style={{marginTop:5,padding:'5px 8px',background:'var(--bg-card2)',borderRadius:4,
           border:'1px solid var(--border)',fontSize:11,display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           <span style={{color:'var(--text2)'}}>Selected:</span>
           <strong style={{fontFamily:'var(--mono)',color:'var(--accent)'}}>S{sel.s}/{sel.l}</strong>
-          <span style={{color:'var(--text3)'}}>|</span>
+          <span style={{color:'var(--text3)'}}>—</span>
           <RiskBadge cat={sel.cat} small/>
-          <span style={{color:'var(--text2)',fontSize:10,flex:1}}>{RDISP[sel.cat].sign}</span>
+          <span style={{color:'var(--text2)',fontSize:10}}>{RDISP[sel.cat].sign}</span>
+        </div>
+      )}
+      {/* Legend toggle */}
+      <button onClick={()=>setShowLegend(!showLegend)}
+        style={{marginTop:6,fontSize:11,padding:'3px 10px',borderRadius:4,cursor:'pointer',
+          background:'transparent',color:'var(--text2)',border:'1px solid var(--border)',width:'100%'}}>
+        {showLegend?'▲ Hide Details':'▼ Show Severity & Likelihood Details'}
+      </button>
+      {/* Detail legend */}
+      {showLegend&&(
+        <div style={{marginTop:6,display:'flex',flexDirection:'column',gap:8}}>
+          {/* Severity table */}
+          <div style={{background:'var(--bg-surface)',borderRadius:6,border:'1px solid var(--border)',overflow:'hidden'}}>
+            <div style={{padding:'6px 10px',background:'var(--bg-card2)',fontFamily:'var(--disp)',fontSize:12,fontWeight:700,color:'#f59e0b',letterSpacing:'0.06em',textTransform:'uppercase'}}>
+              Severity Guide (S1–S6)
+            </div>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+              <thead>
+                <tr style={{background:'var(--bg-card)'}}>
+                  {['Level','People / Safety','Asset & Finance','Environment','Reputation'].map(h=>(
+                    <th key={h} style={{padding:'5px 8px',textAlign:'left',color:'var(--text2)',fontWeight:600,fontSize:10,letterSpacing:'0.05em',borderBottom:'1px solid var(--border)',whiteSpace:'nowrap'}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[6,5,4,3,2,1].map(s=>(
+                  <tr key={s} style={{borderBottom:'1px solid var(--border)'}}>
+                    <td style={{padding:'5px 8px',whiteSpace:'nowrap'}}>
+                      <span className={`badge ${RDISP[RMATRIX[s]['D']].cls.replace('risk-','badge-').replace('1','hi').replace('2','hi2').replace('3','med').replace('4','lo')}`} style={{fontSize:10}}>
+                        S{s} {SNAMES[s]}
+                      </span>
+                    </td>
+                    <td style={{padding:'5px 8px',color:'var(--text1)',lineHeight:1.4}}>{SDETAIL[s].people}</td>
+                    <td style={{padding:'5px 8px',color:'#fde68a',lineHeight:1.4,whiteSpace:'nowrap'}}>{SDETAIL[s].asset}</td>
+                    <td style={{padding:'5px 8px',color:'#86efac',lineHeight:1.4}}>{SDETAIL[s].env}</td>
+                    <td style={{padding:'5px 8px',color:'#93c5fd',lineHeight:1.4}}>{SDETAIL[s].rep}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {/* Likelihood table */}
+          <div style={{background:'var(--bg-surface)',borderRadius:6,border:'1px solid var(--border)',overflow:'hidden'}}>
+            <div style={{padding:'6px 10px',background:'var(--bg-card2)',fontFamily:'var(--disp)',fontSize:12,fontWeight:700,color:'#3b82f6',letterSpacing:'0.06em',textTransform:'uppercase'}}>
+              Likelihood Guide (A–F)
+            </div>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+              <thead>
+                <tr style={{background:'var(--bg-card)'}}>
+                  {['Level','Qualitative','Frequency (per year)','HSE Likelihood','ERM Criteria'].map(h=>(
+                    <th key={h} style={{padding:'5px 8px',textAlign:'left',color:'var(--text2)',fontWeight:600,fontSize:10,letterSpacing:'0.05em',borderBottom:'1px solid var(--border)',whiteSpace:'nowrap'}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {['F','E','D','C','B','A'].map(l=>(
+                  <tr key={l} style={{borderBottom:'1px solid var(--border)'}}>
+                    <td style={{padding:'5px 8px',whiteSpace:'nowrap'}}>
+                      <span style={{fontFamily:'var(--mono)',fontWeight:700,color:'var(--accent)',fontSize:12}}>{l}</span>
+                      <span style={{marginLeft:6,color:'var(--text2)',fontSize:11}}>{LNAMES[l]}</span>
+                    </td>
+                    <td style={{padding:'5px 8px',color:'var(--text1)',fontWeight:500}}>{LDETAIL[l].qualitative}</td>
+                    <td style={{padding:'5px 8px',color:'#fde68a',fontFamily:'var(--mono)',fontSize:10}}>{LDETAIL[l].frequency}</td>
+                    <td style={{padding:'5px 8px',color:'var(--text2)',lineHeight:1.4}}>{LDETAIL[l].hseLikelihood}</td>
+                    <td style={{padding:'5px 8px',color:'var(--text3)',lineHeight:1.4}}>{LDETAIL[l].ermCriteria}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -889,7 +1151,7 @@ const WorksheetView=({state,setState,apiKey,aiModel})=>{
   const delDev=id=>setState(s=>({...s,deviations:s.deviations.filter(d=>d.id!==id),activeDevId:s.activeDevId===id?null:s.activeDevId}));
 
   // ── Cause CRUD ─────────────────────────────────────────────────────
-  const causeAdd=(devId)=>updDev(devId,d=>({...d,causes:[...d.causes,{id:uid(),text:'',consequences:[],initialRisk:null,residualRisk:null}]}));
+  const causeAdd=(devId)=>updDev(devId,d=>({...d,causes:[...d.causes,{id:uid(),text:'',consequences:[],initialRisk:null,residualRisk:null,recommendations:[]}]}));
   const causeUpdate=(devId,cid,text)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,text}:c)}));
   const causeDelete=(devId,cid)=>updDev(devId,d=>({...d,causes:d.causes.filter(c=>c.id!==cid)}));
 
@@ -905,6 +1167,8 @@ const WorksheetView=({state,setState,apiKey,aiModel})=>{
   const causeRiskUpdate=(devId,cid,type,risk)=>updDev(devId,d=>({
     ...d,causes:d.causes.map(c=>c.id===cid?{...c,[type]:risk}:c)
   }));
+  const causeRecAdd=(devId,cid,txt)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,recommendations:[...(c.recommendations||[]),txt]}:c)}));
+  const causeRecDel=(devId,cid,i)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,recommendations:(c.recommendations||[]).filter((_,j)=>j!==i)}:c)}));
 
   // ── Recommendation CRUD ────────────────────────────────────────────
   const recAdd=(devId,txt)=>updDev(devId,d=>({...d,recommendations:[...(d.recommendations||[]),txt]}));
@@ -970,6 +1234,7 @@ Generate 3-5 causes, 1-3 consequences per cause (each consequence paired with it
           text:typeof c==='string'?c:(c.text||''),
           initialRisk:is&&il&&iCat?{s:is,l:il,cat:iCat}:null,
           residualRisk:rs&&rl&&rCat?{s:rs,l:rl,cat:rCat}:null,
+          recommendations:Array.isArray(c.recommendations)?c.recommendations.filter(Boolean):[],
           consequences:Array.isArray(c.consequences)?c.consequences.map(cn=>({
             id:uid(),
             text:typeof cn==='string'?cn:(cn.text||''),
@@ -982,7 +1247,7 @@ Generate 3-5 causes, 1-3 consequences per cause (each consequence paired with it
           ...normalizeDev(d),
           deviation:parsed.deviationDescription||deviation,
           causes:[...normalizeDev(d).causes,...newCauses],
-          recommendations:[...(normalizeDev(d).recommendations||[]),...(parsed.recommendations||[])],
+          recommendations:[...(normalizeDev(d).recommendations||[]),...(parsed.generalRecommendations||[])],
         }:d)
       }));
     }catch(e){
@@ -1107,7 +1372,8 @@ Generate 3-5 causes, 1-3 consequences per cause (each consequence paired with it
                 onCauseUpdate={causeUpdate} onCauseDelete={causeDelete}
                 onConAdd={conAdd} onConUpdate={conUpdate} onConDelete={conDelete}
                 onSgUpdate={sgUpdate} onSgDelete={sgDelete}
-                onSetRisk={causeRiskUpdate}/>
+                onSetRisk={causeRiskUpdate}
+                onRecAdd={causeRecAdd} onRecDel={causeRecDel}/>
             ))}
 
             {activeDev.causes.length>0&&(
@@ -1118,16 +1384,19 @@ Generate 3-5 causes, 1-3 consequences per cause (each consequence paired with it
             )}
           </div>
 
-          {/* ── RECOMMENDATIONS ── */}
+          {/* ── GENERAL RECOMMENDATIONS (deviation-level cross-cutting actions) ── */}
           <div className="card">
             <AnalysisList
               items={activeDev.recommendations||[]}
               dotClass="recommendation"
-              title="Recommendations" titleColor="#3b82f6" icon="✅"
-              placeholder="Specific actionable recommendation — state what, who (discipline/owner), and why…"
+              title="General Recommendations" titleColor="#3b82f6" icon="✅"
+              placeholder="Cross-cutting recommendations applicable to multiple causes or the deviation overall…"
               onAdd={t=>recAdd(activeDev.id,t)}
               onDel={i=>recDel(activeDev.id,i)}
             />
+            <div style={{marginTop:8,padding:'6px 10px',background:'var(--bg-card2)',borderRadius:4,fontSize:11,color:'var(--text3)',borderLeft:'2px solid #3b82f666'}}>
+              💡 Cause-specific recommendations are entered inside each Cause card below.
+            </div>
           </div>
 
           {/* ── Action & Tracking ── */}
@@ -1393,7 +1662,7 @@ const ReportView=({study,nodes,deviations})=>{
               <div style={{fontSize:12,color:'var(--text2)',marginBottom:12}}>{node.description}</div>
               <div style={{overflowX:'auto'}}>
                 <table className="tbl" style={{fontSize:12,minWidth:900}}>
-                  <thead><tr><th>#</th><th>Deviation</th><th>C#</th><th>Cause</th><th>Consequence</th><th>Safeguard</th><th>Initial Risk</th><th>Residual Risk</th><th>Recommendations</th><th>Resp.</th><th>Status</th></tr></thead>
+                  <thead><tr><th>#</th><th>Deviation</th><th>C#</th><th>Cause</th><th>Consequence</th><th>Safeguard</th><th>Initial Risk</th><th>Residual Risk</th><th>Cause Recommendations</th><th>Resp.</th><th>Status</th></tr></thead>
                   <tbody>{nodeDevs.map((d,di)=>{
                     const nd=normalizeDev(d);
                     const recs=(nd.recommendations||[]);
@@ -1416,7 +1685,9 @@ const ReportView=({study,nodes,deviations})=>{
                         {(cni===0||!cni)&&cause&&<td rowSpan={cause?cause.consequences.length||1:1} style={{textAlign:'center',verticalAlign:'top'}}>
                           {cause.residualRisk?<><span style={{fontFamily:'var(--mono)',fontSize:10,color:'#22c55e'}}>S{cause.residualRisk.s}/{cause.residualRisk.l}</span><br/><RiskBadge cat={cause.residualRisk.cat} small/></>:<span style={{color:'var(--text3)',fontSize:11}}>—</span>}
                         </td>}
-                        {rowIdx===0&&<td rowSpan={causeRows.length} style={{color:'var(--blue)',maxWidth:160,verticalAlign:'top'}}>{recs.map((r,i)=><div key={i} style={{marginBottom:3}}>→ {r}</div>)}</td>}
+                        {(cni===0||!cni)&&cause&&<td rowSpan={cause?cause.consequences.length||1:1} style={{color:'#93c5fd',maxWidth:160,verticalAlign:'top',fontSize:11}}>
+                          {(cause.recommendations||[]).map((r,i)=><div key={i} style={{marginBottom:3}}>→ {r}</div>)}
+                        </td>}
                         {rowIdx===0&&<td rowSpan={causeRows.length} style={{color:'var(--text2)',verticalAlign:'top'}}>{d.responsible||'—'}</td>}
                         {rowIdx===0&&<td rowSpan={causeRows.length} style={{verticalAlign:'top'}}><span style={{fontSize:11,padding:'2px 6px',borderRadius:4,background:'var(--bg-card2)',color:'var(--text2)'}}>{d.status}</span></td>}
                       </tr>
