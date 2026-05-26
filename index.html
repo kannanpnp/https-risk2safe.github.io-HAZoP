@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script type="module">
   import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.36.3';
   window._Anthropic = Anthropic;
@@ -619,21 +620,29 @@ const NodesView=({nodes,setNodes})=>{
 // WORKSHEET VIEW (main)
 
 /* ── HELPERS ─────────────────────────────────────────────────────── */
+
+/* ── Normalize a recommendation: string → {text,actionOwner,targetDate} ── */
+const normalizeRec=(r)=>{
+  if(!r)return null;
+  if(typeof r==='string') return {id:uid(),text:r,actionOwner:'',targetDate:''};
+  return {id:uid(),actionOwner:'',targetDate:'',...r};
+};
+
 const normalizeDev=(d)=>{
   if(!d)return d;
-  // Already new nested format — but ensure risk fields exist on every cause
+  const normRecs=(arr)=>(Array.isArray(arr)?arr:[]).map(normalizeRec).filter(Boolean);
   if(d.causes&&d.causes.length>0&&typeof d.causes[0]==='object'&&Array.isArray(d.causes[0].consequences)){
     return {...d,
+      recommendations:normRecs(d.recommendations),
       causes:d.causes.map(c=>({initialRisk:null,residualRisk:null,recommendations:[],...c,
-        consequences:(c.consequences||[]).map(cn=>({
-          recommendations:[], ...cn,
-          safeguards: Array.isArray(cn.safeguards)?cn.safeguards:(cn.safeguard?[cn.safeguard]:[])
+        recommendations:normRecs(c.recommendations),
+        consequences:(c.consequences||[]).map(cn=>({safeguards:[],recommendations:[],...cn,
+          safeguards:Array.isArray(cn.safeguards)?cn.safeguards:(cn.safeguard?[cn.safeguard]:[]),
+          recommendations:normRecs(cn.recommendations)
         }))
-      })),
-      recommendations:Array.isArray(d.recommendations)?d.recommendations:[]
+      }))
     };
   }
-  // Convert old flat format
   const oc=Array.isArray(d.causes)?d.causes:[];
   const ocon=Array.isArray(d.consequences)?d.consequences:[];
   const osg=Array.isArray(d.safeguards)?d.safeguards:[];
@@ -642,10 +651,10 @@ const normalizeDev=(d)=>{
     consequences:ci<ocon.length?[{id:uid(),text:ocon[ci],safeguards:ci<osg.length&&osg[ci]?[osg[ci]]:[],recommendations:[]}]:[]
   }));
   for(let i=oc.length;i<ocon.length;i++){
-    if(!newCauses.length)newCauses.push({id:uid(),text:'',initialRisk:null,residualRisk:null,consequences:[]});
+    if(!newCauses.length)newCauses.push({id:uid(),text:'',initialRisk:null,residualRisk:null,recommendations:[],consequences:[]});
     newCauses[newCauses.length-1].consequences.push({id:uid(),text:ocon[i],safeguards:i<osg.length&&osg[i]?[osg[i]]:[],recommendations:[]});
   }
-  return {...d,causes:newCauses,recommendations:Array.isArray(d.recommendations)?d.recommendations:[]};
+  return {...d,causes:newCauses,recommendations:normRecs(d.recommendations)};
 };
 
 // ── Inline editable text (click to edit) ─────────────────────────────
@@ -828,6 +837,101 @@ ${LDETAIL[l].frequency}`}>
 };
 
 // ── Safeguard sub-row ─────────────────────────────────────────────────
+// ── Recommendation entry (with action owner + target date) ──────────
+const RecEntry=({rec,color,onEdit,onDelete})=>{
+  const [editing,setEditing]=useState(false);
+  const [v,setV]=useState(rec);
+  useEffect(()=>{setV(rec);},[rec]);
+  const save=()=>{onEdit({...v});setEditing(false);};
+  const recText=typeof rec==='string'?rec:(rec.text||'');
+  const owner=typeof rec==='string'?'':(rec.actionOwner||'');
+  const due=typeof rec==='string'?'':(rec.targetDate||'');
+  return editing?(
+    <div style={{display:'flex',flexDirection:'column',gap:4,padding:'7px 8px',background:'var(--bg-card)',borderRadius:5,border:'1px solid '+color+'66',marginBottom:4}}>
+      <textarea value={v.text||''} onChange={e=>setV({...v,text:e.target.value})} rows={2}
+        style={{fontSize:12,resize:'vertical',lineHeight:1.5}} placeholder="Recommendation text…"/>
+      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        <input value={v.actionOwner||''} onChange={e=>setV({...v,actionOwner:e.target.value})}
+          placeholder="Action Owner / Discipline"
+          style={{flex:1,minWidth:140,fontSize:12,padding:'4px 8px'}}/>
+        <input type="date" value={v.targetDate||''} onChange={e=>setV({...v,targetDate:e.target.value})}
+          style={{fontSize:12,padding:'4px 8px'}}/>
+      </div>
+      <div style={{display:'flex',gap:4}}>
+        <button onClick={save} style={{fontSize:11,padding:'3px 10px',borderRadius:3,cursor:'pointer',background:color+'22',color,border:'1px solid '+color+'55',fontWeight:600}}>✓ Save</button>
+        <button onClick={()=>setEditing(false)} style={{fontSize:11,padding:'3px 8px',borderRadius:3,cursor:'pointer',background:'transparent',color:'var(--text3)',border:'1px solid var(--border)'}}>✕</button>
+      </div>
+    </div>
+  ):(
+    <div style={{marginBottom:4,padding:'6px 8px',background:'var(--bg-card)',borderRadius:5,border:'1px solid var(--border)'}}>
+      <div style={{display:'flex',alignItems:'flex-start',gap:6}}>
+        <span style={{color,flexShrink:0,marginTop:1}}>→</span>
+        <span style={{flex:1,fontSize:12,lineHeight:1.55,color:'var(--text1)',wordBreak:'break-word'}}>{recText}</span>
+        <div style={{display:'flex',gap:3,flexShrink:0}}>
+          <button title="Edit" onClick={()=>{setV(rec);setEditing(true);}}
+            style={{width:18,height:18,borderRadius:3,cursor:'pointer',fontSize:10,display:'flex',alignItems:'center',justifyContent:'center',background:'transparent',color,border:'1px solid '+color+'55'}}>✎</button>
+          <button title="Delete" onClick={onDelete}
+            style={{width:18,height:18,borderRadius:3,cursor:'pointer',fontSize:10,display:'flex',alignItems:'center',justifyContent:'center',background:'transparent',color:'#ef4444',border:'1px solid #ef444455'}}>✕</button>
+        </div>
+      </div>
+      {(owner||due)&&(
+        <div style={{display:'flex',gap:12,marginTop:4,paddingTop:4,borderTop:'1px solid var(--border)',flexWrap:'wrap'}}>
+          {owner&&<span style={{fontSize:10,color:'var(--text3)'}}>👤 <span style={{color:'var(--text2)'}}>{owner}</span></span>}
+          {due&&<span style={{fontSize:10,color:'var(--text3)'}}>📅 <span style={{color:'var(--text2)'}}>{due}</span></span>}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const RecList=({recs,color,label,emptyMsg,onAdd,onEdit,onDel})=>{
+  const [adding,setAdding]=useState(false);
+  const [draft,setDraft]=useState({text:'',actionOwner:'',targetDate:''});
+  const ref=useRef(null);
+  useEffect(()=>{if(adding&&ref.current)ref.current.focus();},[adding]);
+  const commit=()=>{const t=draft.text.trim();if(t){onAdd({...draft,text:t,id:uid()});setDraft({text:'',actionOwner:'',targetDate:''});setAdding(false);}};
+  const normList=(Array.isArray(recs)?recs:[]).map(r=>typeof r==='string'?{id:uid(),text:r,actionOwner:'',targetDate:''}:r);
+  return(
+    <div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+        <span style={{color,fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+          {label}<span style={{marginLeft:5,fontFamily:'var(--mono)',fontWeight:400,color:'var(--text3)',fontSize:9}}>({normList.length})</span>
+        </span>
+        <button onClick={()=>setAdding(true)} style={{fontSize:10,padding:'2px 8px',borderRadius:3,cursor:'pointer',background:'transparent',color,border:'1px solid '+color+'44'}}>+ Add</button>
+      </div>
+      {normList.map((r,i)=>(
+        <RecEntry key={r.id||i} rec={r} color={color}
+          onEdit={(updated)=>onEdit(i,updated)} onDelete={()=>onDel(i)}/>
+      ))}
+      {normList.length===0&&!adding&&(
+        <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',cursor:'pointer'}} onClick={()=>setAdding(true)}>
+          {emptyMsg} — click <strong style={{color,fontStyle:'normal'}}>+ Add</strong>
+        </div>
+      )}
+      {adding&&(
+        <div style={{display:'flex',flexDirection:'column',gap:4,padding:'7px 8px',background:'var(--bg-card)',borderRadius:5,border:'1px solid '+color+'66',marginBottom:4}}>
+          <textarea ref={ref} value={draft.text} onChange={e=>setDraft({...draft,text:e.target.value})} rows={2}
+            onKeyDown={e=>{if(e.key==='Escape'){setAdding(false);setDraft({text:'',actionOwner:'',targetDate:''});}}}
+            placeholder="Recommendation — describe the specific action required…"
+            style={{fontSize:12,resize:'vertical',lineHeight:1.5}}/>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+            <input value={draft.actionOwner} onChange={e=>setDraft({...draft,actionOwner:e.target.value})}
+              placeholder="Action Owner / Discipline"
+              style={{flex:1,minWidth:140,fontSize:12,padding:'4px 8px'}}/>
+            <input type="date" value={draft.targetDate} onChange={e=>setDraft({...draft,targetDate:e.target.value})}
+              style={{fontSize:12,padding:'4px 8px'}}/>
+          </div>
+          <div style={{display:'flex',gap:4}}>
+            <button onClick={commit} style={{fontSize:11,padding:'3px 10px',borderRadius:3,cursor:'pointer',background:color+'22',color,border:'1px solid '+color+'55',fontWeight:600}}>✓ Add</button>
+            <button onClick={()=>{setAdding(false);setDraft({text:'',actionOwner:'',targetDate:''});}} style={{fontSize:11,padding:'3px 8px',borderRadius:3,cursor:'pointer',background:'transparent',color:'var(--text3)',border:'1px solid var(--border)'}}>✕ Cancel</button>
+            <span style={{fontSize:10,color:'var(--text3)'}}>Esc to cancel</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Consequence block — n safeguards + n recommendations ────────────
 const ItemList=({items,color,icon,addPlaceholder,onAdd,onDel,onEdit,emptyMsg,textareaRows=2})=>{
   const [draft,setDraft]=useState('');
@@ -914,17 +1018,19 @@ const ItemList=({items,color,icon,addPlaceholder,onAdd,onDel,onEdit,emptyMsg,tex
   );
 };
 
-const ConBlock=({con,conIdx,devId,cid,onUpdate,onDelete,onSgAdd,onSgDel,onRecAdd,onRecDel})=>{
+const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,onSgDel,onRecAdd,onRecEdit,onRecDel})=>{
   const safeguards=Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[con.safeguard]:[]);
   const recs=Array.isArray(con.recommendations)?con.recommendations:[];
+  const ref=`C${causeIdx+1}.${conIdx+1}`;
   return(
     <div className="con-block" style={{marginBottom:8,borderRadius:6,overflow:'hidden',border:'1px solid var(--border)'}}>
-
-      {/* ── Consequence text row ── */}
+      {/* Consequence text */}
       <div className="con-hdr" style={{background:'var(--bg-card2)',borderBottom:'1px solid var(--border)'}}>
-        <span style={{fontFamily:'var(--mono)',fontWeight:700,fontSize:10,color:'#ef4444',
-          background:'#450a0a',padding:'2px 6px',borderRadius:3,flexShrink:0,alignSelf:'flex-start',marginTop:4}}>
-          {String.fromCharCode(65+conIdx)}
+        <span title={`Consequence ref: ${ref}`}
+          style={{fontFamily:'var(--mono)',fontWeight:700,fontSize:10,color:'#ef4444',
+          background:'#450a0a',padding:'2px 6px',borderRadius:3,flexShrink:0,alignSelf:'flex-start',marginTop:4,
+          cursor:'default',userSelect:'none',letterSpacing:'0.03em'}}>
+          {ref}
         </span>
         <InlineEdit value={con.text} onChange={t=>onUpdate(devId,cid,con.id,t)} multiline
           placeholder="Describe consequence — hazard type, severity, affected system…"
@@ -934,19 +1040,14 @@ const ConBlock=({con,conIdx,devId,cid,onUpdate,onDelete,onSgAdd,onSgDel,onRecAdd
             marginTop:4,display:'flex',alignItems:'center',justifyContent:'center',
             background:'transparent',color:'#ef4444',border:'1px solid #ef444455',flexShrink:0}}>✕</button>
       </div>
-
-      {/* ── Safeguards (n items) ── */}
+      {/* Safeguards */}
       <div style={{padding:'8px 12px',background:'#071408',borderBottom:'1px solid #1a3324'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
           <span style={{color:'#22c55e',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
-            🛡 Safeguards
-            <span style={{marginLeft:5,fontFamily:'var(--mono)',fontWeight:400,color:'var(--text3)',fontSize:9}}>
-              ({safeguards.length})
-            </span>
+            🛡 Safeguards<span style={{marginLeft:5,fontFamily:'var(--mono)',fontWeight:400,color:'var(--text3)',fontSize:9}}>({safeguards.length})</span>
           </span>
         </div>
-        <ItemList
-          items={safeguards} color="#22c55e" icon="🛡"
+        <ItemList items={safeguards} color="#22c55e" icon="🛡"
           addPlaceholder="[Engineering / Admin / Instrumentation / PPE] describe existing safeguard…"
           emptyMsg="No safeguards identified"
           onAdd={(t)=>onSgAdd(devId,cid,con.id,t)}
@@ -954,25 +1055,13 @@ const ConBlock=({con,conIdx,devId,cid,onUpdate,onDelete,onSgAdd,onSgDel,onRecAdd
           onEdit={(i,t)=>{onSgDel(devId,cid,con.id,i);setTimeout(()=>onSgAdd(devId,cid,con.id,t),0);}}
           textareaRows={2}/>
       </div>
-
-      {/* ── Recommendations (n items) ── */}
+      {/* Recommendations with owner + date */}
       <div style={{padding:'8px 12px',background:'#030b1a'}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-          <span style={{color:'#3b82f6',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
-            ✅ Recommendations
-            <span style={{marginLeft:5,fontFamily:'var(--mono)',fontWeight:400,color:'var(--text3)',fontSize:9}}>
-              ({recs.length})
-            </span>
-          </span>
-        </div>
-        <ItemList
-          items={recs} color="#3b82f6" icon="→"
-          addPlaceholder="Recommendation for this consequence — what, who (discipline/owner), why…"
-          emptyMsg="No recommendations yet"
-          onAdd={(t)=>onRecAdd(devId,cid,con.id,t)}
-          onDel={(i)=>onRecDel(devId,cid,con.id,i)}
-          onEdit={(i,t)=>{onRecDel(devId,cid,con.id,i);setTimeout(()=>onRecAdd(devId,cid,con.id,t),0);}}
-          textareaRows={2}/>
+        <RecList recs={recs} color="#3b82f6"
+          label={`✅ Recommendations (${ref})`} emptyMsg="No recommendations yet"
+          onAdd={(rec)=>onRecAdd(devId,cid,con.id,rec)}
+          onEdit={(i,updated)=>onRecEdit(devId,cid,con.id,i,updated)}
+          onDel={(i)=>onRecDel(devId,cid,con.id,i)}/>
       </div>
     </div>
   );
@@ -1000,113 +1089,75 @@ const RiskSection=({risk,label,color,borderColor,bgHint,type,onSetRisk,devId,cid
   );
 };
 
-// ── Per-cause recommendations list ────────────────────────────────────
-const CauseRecList=({recs,devId,cid,onAdd,onDel})=>{
-  const [draft,setDraft]=useState('');
-  const [adding,setAdding]=useState(false);
-  const ref=useRef(null);
-  useEffect(()=>{if(adding&&ref.current)ref.current.focus();},[adding]);
-  const add=()=>{const t=draft.trim();if(t){onAdd(devId,cid,t);setDraft('');setAdding(false);}};
+// ── Cause card — 4-section layout ────────────────────────────────────
+const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConAdd,onConUpdate,onConDelete,onSgAdd,onSgDel,onConRecAdd,onConRecEdit,onConRecDel,onSetRisk,onRecAdd,onRecEdit,onRecDel})=>{
+  const causeRef=`C${causeIdx+1}`;
+  const causeRecs=Array.isArray(cause.recommendations)?cause.recommendations:[];
   return(
-    <div style={{padding:'10px 12px',background:'#030c1f',borderTop:'1px solid var(--border)'}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-        <div style={{fontSize:11,color:'#3b82f6',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
-          ✅ Cause Recommendations
-          <span style={{marginLeft:5,fontFamily:'var(--mono)',fontWeight:400,color:'var(--text3)',fontSize:9}}>({recs.length})</span>
+    <div className="cause-card">
+      {/* Header */}
+      <div className="cause-hdr">
+        <span title={`Cause ref: ${causeRef}`}
+          style={{fontFamily:'var(--mono)',fontWeight:700,fontSize:11,color:'#f59e0b',
+          background:'#451a03',padding:'3px 7px',borderRadius:4,marginTop:2,flexShrink:0,userSelect:'none'}}>
+          {causeRef}
+        </span>
+        <InlineEdit value={cause.text} onChange={t=>onCauseUpdate(devId,cause.id,t)} multiline
+          placeholder="Describe cause — equipment failure, human error, external event, process upset…"
+          style={{minHeight:60,fontWeight:500}} textStyle={{fontSize:13,fontWeight:500,color:'var(--text1)',flex:1}}/>
+        <div style={{display:'flex',gap:5,flexShrink:0,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>
+          {cause.initialRisk&&<RiskBadge cat={cause.initialRisk.cat} small/>}
+          {cause.initialRisk&&cause.residualRisk&&<span style={{color:'var(--text3)',fontSize:12}}>→</span>}
+          {cause.residualRisk&&<RiskBadge cat={cause.residualRisk.cat} small/>}
+          <button title="Delete this cause" onClick={()=>onCauseDelete(devId,cause.id)}
+            style={{width:22,height:22,borderRadius:4,cursor:'pointer',fontSize:11,
+              display:'flex',alignItems:'center',justifyContent:'center',
+              background:'transparent',color:'#ef4444',border:'1px solid #ef444455'}}>✕</button>
         </div>
-        <button onClick={()=>setAdding(true)}
-          style={{fontSize:10,padding:'2px 8px',borderRadius:3,cursor:'pointer',
-            background:'transparent',color:'#3b82f6',border:'1px solid #3b82f655',fontWeight:600}}>+ Add</button>
       </div>
-      {recs.length===0&&!adding&&(
-        <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',cursor:'pointer'}} onClick={()=>setAdding(true)}>
-          None yet — click <strong style={{color:'#3b82f6',fontStyle:'normal'}}>+ Add</strong>
+      {/* Section 1: Consequences + Safeguards + Con-level Recommendations */}
+      <div className="cause-body" style={{paddingBottom:4}}>
+        <div style={{fontSize:10,color:'var(--text3)',fontWeight:600,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>
+          💥 Consequences &amp; 🛡 Safeguards &amp; ✅ Recommendations
         </div>
-      )}
-      {adding&&(
-        <div style={{marginBottom:6,display:'flex',flexDirection:'column',gap:4}}>
-          <textarea ref={ref} value={draft} onChange={e=>setDraft(e.target.value)}
-            onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();add();}if(e.key==='Escape'){setAdding(false);setDraft('');}}}
-            placeholder="Recommendation for this cause — what, who (discipline/owner), why…"
-            style={{fontSize:12,minHeight:48,resize:'vertical',lineHeight:1.5}}/>
-          <div style={{display:'flex',gap:4}}>
-            <button className="btn btn-primary btn-sm" onClick={add}>✓ Add</button>
-            <button className="btn btn-ghost btn-sm" onClick={()=>{setAdding(false);setDraft('');}}>✕</button>
-            <span style={{fontSize:11,color:'var(--text3)'}}>Enter · Esc to cancel</span>
+        {cause.consequences.length===0&&(
+          <div style={{fontSize:12,color:'var(--text3)',fontStyle:'italic',padding:'4px 0'}}>
+            No consequences yet — add below or use ✦ AI Generate.
           </div>
-        </div>
-      )}
-      <ul style={{listStyle:'none',display:'flex',flexDirection:'column',gap:4}}>
-        {recs.map((r,i)=>(
-          <li key={i} style={{display:'flex',alignItems:'flex-start',gap:6,padding:'5px 8px',
-            background:'var(--bg-card)',borderRadius:5,border:'1px solid var(--border)',fontSize:12}}>
-            <span style={{color:'#3b82f6',flexShrink:0,marginTop:1}}>→</span>
-            <span style={{flex:1,lineHeight:1.5,color:'var(--text1)'}}>{r}</span>
-            <button onClick={()=>onDel(devId,cid,i)}
-              style={{fontSize:10,color:'#ef4444',flexShrink:0,cursor:'pointer',background:'none',border:'none'}}>✕</button>
-          </li>
+        )}
+        {cause.consequences.map((con,ci)=>(
+          <ConBlock key={con.id} con={con} conIdx={ci} causeIdx={causeIdx} devIdx={devIdx}
+            devId={devId} cid={cause.id}
+            onUpdate={onConUpdate} onDelete={onConDelete}
+            onSgAdd={onSgAdd} onSgDel={onSgDel}
+            onRecAdd={onConRecAdd} onRecEdit={onConRecEdit} onRecDel={onConRecDel}/>
         ))}
-      </ul>
+        <button className="add-row-btn" onClick={()=>onConAdd(devId,cause.id)}
+          style={{color:'#ef4444',borderColor:'#ef444455',alignSelf:'flex-start',marginTop:6}}>
+          + Add Consequence
+        </button>
+      </div>
+      {/* Section 2: Initial Risk */}
+      <RiskSection risk={cause.initialRisk} devId={devId} cid={cause.id}
+        type="initialRisk" onSetRisk={onSetRisk}
+        label={`⚠ Initial Risk — ${causeRef} with existing safeguards`}
+        color="#f59e0b" borderColor="#f59e0b66" bgHint="#160900"/>
+      {/* Section 3: Cause-level Recommendations with owner + date */}
+      <div style={{padding:'10px 12px',background:'#030c1f',borderTop:'1px solid var(--border)'}}>
+        <RecList recs={causeRecs} color="#3b82f6"
+          label={`✅ ${causeRef} Recommendations`} emptyMsg="No cause-level recommendations yet"
+          onAdd={(rec)=>onRecAdd(devId,cause.id,rec)}
+          onEdit={(i,updated)=>onRecEdit(devId,cause.id,i,updated)}
+          onDel={(i)=>onRecDel(devId,cause.id,i)}/>
+      </div>
+      {/* Section 4: Residual Risk */}
+      <RiskSection risk={cause.residualRisk} devId={devId} cid={cause.id}
+        type="residualRisk" onSetRisk={onSetRisk}
+        label={`✅ Residual Risk — ${causeRef} after recommendations`}
+        color="#22c55e" borderColor="#22c55e66" bgHint="#001209"/>
     </div>
   );
 };
-
-// ── Cause card — 4-section layout ────────────────────────────────────
-const CauseCard=({cause,causeIdx,devId,onCauseUpdate,onCauseDelete,onConAdd,onConUpdate,onConDelete,onSgAdd,onSgDel,onConRecAdd,onConRecDel,onSetRisk,onRecAdd,onRecDel})=>(
-  <div className="cause-card">
-    <div className="cause-hdr">
-      <span style={{fontFamily:'var(--mono)',fontWeight:700,fontSize:11,color:'#f59e0b',
-        background:'#451a03',padding:'3px 7px',borderRadius:4,marginTop:2,flexShrink:0}}>
-        C{causeIdx+1}
-      </span>
-      <InlineEdit value={cause.text} onChange={t=>onCauseUpdate(devId,cause.id,t)} multiline
-        placeholder="Describe cause — equipment failure, human error, external event, process upset…"
-        style={{minHeight:60,fontWeight:500}} textStyle={{fontSize:13,fontWeight:500,color:'var(--text1)',flex:1}}/>
-      <div style={{display:'flex',gap:5,flexShrink:0,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>
-        {cause.initialRisk&&<RiskBadge cat={cause.initialRisk.cat} small/>}
-        {cause.initialRisk&&cause.residualRisk&&<span style={{color:'var(--text3)',fontSize:12}}>→</span>}
-        {cause.residualRisk&&<RiskBadge cat={cause.residualRisk.cat} small/>}
-        <button title="Delete this cause" onClick={()=>onCauseDelete(devId,cause.id)}
-          style={{width:22,height:22,borderRadius:4,cursor:'pointer',fontSize:11,
-            display:'flex',alignItems:'center',justifyContent:'center',
-            background:'transparent',color:'#ef4444',border:'1px solid #ef444455'}}>✕</button>
-      </div>
-    </div>
-
-    <div className="cause-body" style={{paddingBottom:4}}>
-      <div style={{fontSize:10,color:'var(--text3)',fontWeight:600,letterSpacing:'0.06em',
-        textTransform:'uppercase',marginBottom:6}}>💥 Consequences &amp; 🛡 Safeguards &amp; ✅ Recommendations</div>
-      {cause.consequences.length===0&&(
-        <div style={{fontSize:12,color:'var(--text3)',fontStyle:'italic',padding:'4px 0'}}>
-          No consequences yet — add below or use ✦ AI Generate.
-        </div>
-      )}
-      {cause.consequences.map((con,ci)=>(
-        <ConBlock key={con.id} con={con} conIdx={ci} devId={devId} cid={cause.id}
-          onUpdate={onConUpdate} onDelete={onConDelete}
-          onSgAdd={onSgAdd} onSgDel={onSgDel}
-          onRecAdd={onConRecAdd} onRecDel={onConRecDel}/>
-      ))}
-      <button className="add-row-btn" onClick={()=>onConAdd(devId,cause.id)}
-        style={{color:'#ef4444',borderColor:'#ef444455',alignSelf:'flex-start',marginTop:6}}>
-        + Add Consequence
-      </button>
-    </div>
-
-    <RiskSection risk={cause.initialRisk} devId={devId} cid={cause.id}
-      type="initialRisk" onSetRisk={onSetRisk}
-      label="⚠ Initial Risk — with existing safeguards"
-      color="#f59e0b" borderColor="#f59e0b66" bgHint="#160900"/>
-
-    <CauseRecList recs={cause.recommendations||[]} devId={devId} cid={cause.id}
-      onAdd={onRecAdd} onDel={onRecDel}/>
-
-    <RiskSection risk={cause.residualRisk} devId={devId} cid={cause.id}
-      type="residualRisk" onSetRisk={onSetRisk}
-      label="✅ Residual Risk — after recommendations above"
-      color="#22c55e" borderColor="#22c55e66" bgHint="#001209"/>
-  </div>
-);
 
 // WORKSHEET VIEW ─────────────────────────────────────────────────────
 const WorksheetView=({state,setState,apiKey,aiModel})=>{
@@ -1140,12 +1191,14 @@ const WorksheetView=({state,setState,apiKey,aiModel})=>{
 
   const conSgAdd=(devId,cid,conId,text)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,safeguards:[...(cn.safeguards||[]),text]}:cn)}:c)}));
   const conSgDel=(devId,cid,conId,i)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,safeguards:(cn.safeguards||[]).filter((_,j)=>j!==i)}:cn)}:c)}));
-  const conRecAdd=(devId,cid,conId,text)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,recommendations:[...(cn.recommendations||[]),text]}:cn)}:c)}));
+  const conRecAdd=(devId,cid,conId,rec)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,recommendations:[...(cn.recommendations||[]),typeof rec==='string'?{id:uid(),text:rec,actionOwner:'',targetDate:''}:rec]}:cn)}:c)}));
   const conRecDel=(devId,cid,conId,i)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,recommendations:(cn.recommendations||[]).filter((_,j)=>j!==i)}:cn)}:c)}));
+  const conRecEdit=(devId,cid,conId,i,updated)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,recommendations:(cn.recommendations||[]).map((r,j)=>j===i?{...r,...updated}:r)}:cn)}:c)}));
 
   const causeRiskUpdate=(devId,cid,type,risk)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,[type]:risk}:c)}));
-  const causeRecAdd=(devId,cid,txt)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,recommendations:[...(c.recommendations||[]),txt]}:c)}));
+  const causeRecAdd=(devId,cid,rec)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,recommendations:[...(c.recommendations||[]),typeof rec==='string'?{id:uid(),text:rec,actionOwner:'',targetDate:''}:rec]}:c)}));
   const causeRecDel=(devId,cid,i)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,recommendations:(c.recommendations||[]).filter((_,j)=>j!==i)}:c)}));
+  const causeRecEdit=(devId,cid,i,updated)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,recommendations:(c.recommendations||[]).map((r,j)=>j===i?{...r,...updated}:r)}:c)}));
   const recAdd=(devId,txt)=>updDev(devId,d=>({...d,recommendations:[...(d.recommendations||[]),txt]}));
   const recDel=(devId,i)=>updDev(devId,d=>({...d,recommendations:(d.recommendations||[]).filter((_,j)=>j!==i)}));
 
@@ -1209,7 +1262,7 @@ Generate 3-4 causes, 2 consequences each with 1-2 safeguards and 1 recommendatio
           ...normalizeDev(d),
           deviation:parsed.deviationDescription||deviation,
           causes:[...normalizeDev(d).causes,...newCauses],
-          recommendations:[...(normalizeDev(d).recommendations||[]),...(parsed.generalRecommendations||[])],
+          recommendations:[...(normalizeDev(d).recommendations||[]),...(parsed.generalRecommendations||[]).map(r=>typeof r==='string'?{id:uid(),text:r,actionOwner:'',targetDate:''}:{id:uid(),actionOwner:'',targetDate:'',...r})],
         }:d)
       }));
     }catch(e){
@@ -1323,13 +1376,14 @@ Generate 3-4 causes, 2 consequences each with 1-2 safeguards and 1 recommendatio
               </div>
             )}
             {activeDev.causes.map((cause,ci)=>(
-              <CauseCard key={cause.id} cause={cause} causeIdx={ci} devId={activeDev.id}
+              <CauseCard key={cause.id} cause={cause} causeIdx={ci}
+                devId={activeDev.id} devIdx={nodeDevs.findIndex(d=>d.id===activeDev.id)}
                 onCauseUpdate={causeUpdate} onCauseDelete={causeDelete}
                 onConAdd={conAdd} onConUpdate={conUpdate} onConDelete={conDelete}
                 onSgAdd={conSgAdd} onSgDel={conSgDel}
-                onConRecAdd={conRecAdd} onConRecDel={conRecDel}
+                onConRecAdd={conRecAdd} onConRecEdit={conRecEdit} onConRecDel={conRecDel}
                 onSetRisk={causeRiskUpdate}
-                onRecAdd={causeRecAdd} onRecDel={causeRecDel}/>
+                onRecAdd={causeRecAdd} onRecEdit={causeRecEdit} onRecDel={causeRecDel}/>
             ))}
             {activeDev.causes.length>0&&(
               <button className="add-row-btn" onClick={()=>causeAdd(activeDev.id)}
@@ -1505,95 +1559,309 @@ const ActionsView=({deviations,nodes,setState})=>{
 
 // REPORT VIEW ─────────────────────────────────────────────────────────
 const ReportView=({study,nodes,deviations})=>{
+  const [tab,setTab]=useState('worksheet'); // 'worksheet' | 'recs'
   const handlePrint=()=>window.print();
-  const handleExport=()=>{
+
+  /* ── Build flat rows for all nodes/deviations ── */
+  const buildRows=()=>{
+    const rows=[];
+    nodes.forEach((node,ni)=>{
+      const nodeDevs=deviations.filter(d=>d.nodeId===node.id);
+      nodeDevs.forEach((d,di)=>{
+        const nd=normalizeDev(d);
+        const devLabel=nd.deviation||`${nd.guideWord} ${nd.parameter}`;
+        nd.causes.forEach((cause,ci)=>{
+          const causeRef=`C${ci+1}`;
+          const cons=cause.consequences.length>0?cause.consequences:[{id:'none',text:'',safeguards:[],recommendations:[]}];
+          cons.forEach((con,qi)=>{
+            const conRef=`${causeRef}.${qi+1}`;
+            const sgs=(Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[con.safeguard]:[]));
+            const conRecs=(Array.isArray(con.recommendations)?con.recommendations:[]).map(r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r);
+            const causeRecs=(Array.isArray(cause.recommendations)?cause.recommendations:[]).map(r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r);
+            const allRecs=[...conRecs.map(r=>({...r,fromRef:conRef})),...causeRecs.map(r=>({...r,fromRef:causeRef}))];
+            rows.push({
+              nodeNum:ni+1,nodeName:node.name,nodeDesc:node.description||'',
+              devNum:di+1,devLabel,guideWord:nd.guideWord,parameter:nd.parameter,
+              devRef:`D${di+1}`,causeRef,conRef,
+              causeText:cause.text,conText:con.text,
+              safeguards:sgs,allRecs,
+              initialRisk:cause.initialRisk,residualRisk:cause.residualRisk,
+              responsible:nd.responsible||'',status:nd.status||'Open'
+            });
+          });
+        });
+        if(nd.causes.length===0){
+          rows.push({
+            nodeNum:ni+1,nodeName:node.name,nodeDesc:node.description||'',
+            devNum:di+1,devLabel,guideWord:nd.guideWord,parameter:nd.parameter,
+            devRef:`D${di+1}`,causeRef:'—',conRef:'—',
+            causeText:'',conText:'',safeguards:[],allRecs:[],
+            initialRisk:null,residualRisk:null,
+            responsible:nd.responsible||'',status:nd.status||'Open'
+          });
+        }
+      });
+    });
+    return rows;
+  };
+
+  /* ── Excel export using SheetJS ── */
+  const exportExcel=()=>{
+    if(typeof XLSX==='undefined'){alert('SheetJS not loaded. Check internet connection.');return;}
+    const wb=XLSX.utils.book_new();
+
+    /* Sheet 1: HAZOP Worksheet */
+    const wsData=[];
+    wsData.push([`HAZOP WORKSHEET — ${study.projectName||'Project'}`,'','','','','','Initial Risk','','','','Residual Risk','','','','','','']);
+    wsData.push([`Facility: ${study.facility||''}   |   Date: ${study.date||''}   |   Rev: ${study.revision||'0'}   |   Ref: ${study.docRef||''}`,'','','','','','Severity','Likelihood','Category','','Severity','Likelihood','Category','','','','']);
+    wsData.push(['Ref','Node','Deviation','Cause Ref','Cause','Consequence Ref','Consequence','Safeguards','Init. Severity','Init. Likelihood','Init. Category','Recommendation','Action Owner','Target Date','Resid. Severity','Resid. Likelihood','Resid. Category']);
+
+    const rows=buildRows();
+    rows.forEach(r=>{
+      const sText=r.initialRisk?`S${r.initialRisk.s}`:'';
+      const sL=r.initialRisk?r.initialRisk.l:'';
+      const sC=r.initialRisk?RDISP[r.initialRisk.cat].label:'';
+      const rText=r.residualRisk?`S${r.residualRisk.s}`:'';
+      const rL=r.residualRisk?r.residualRisk.l:'';
+      const rC=r.residualRisk?RDISP[r.residualRisk.cat].label:'';
+      if(r.allRecs.length===0){
+        wsData.push([`${r.devRef}-${r.conRef}`,r.nodeName,r.devLabel,r.causeRef,r.causeText,r.conRef,r.conText,r.safeguards.join('\n'),sText,sL,sC,'','','',rText,rL,rC]);
+      } else {
+        r.allRecs.forEach((rec,ri)=>{
+          wsData.push([
+            ri===0?`${r.devRef}-${r.conRef}`:'',ri===0?r.nodeName:'',ri===0?r.devLabel:'',
+            ri===0?r.causeRef:'',ri===0?r.causeText:'',ri===0?r.conRef:'',ri===0?r.conText:'',
+            ri===0?r.safeguards.join('\n'):'',
+            ri===0?sText:'',ri===0?sL:'',ri===0?sC:'',
+            rec.text,rec.actionOwner||'',rec.targetDate||'',
+            ri===0?rText:'',ri===0?rL:'',ri===0?rC:''
+          ]);
+        });
+      }
+    });
+    const ws=XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols']=[{wch:14},{wch:20},{wch:22},{wch:8},{wch:28},{wch:8},{wch:28},{wch:30},{wch:8},{wch:8},{wch:10},{wch:35},{wch:18},{wch:12},{wch:8},{wch:8},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,ws,'HAZOP Worksheet');
+
+    /* Sheet 2: Consolidated Recommendations */
+    const recData=[['#','Node','Dev Ref','Cause Ref','Con Ref','Deviation','Cause','Recommendation','Action Owner','Target Date','Status']];
+    let recNo=1;
+    rows.forEach(r=>{
+      r.allRecs.forEach(rec=>{
+        recData.push([recNo++,r.nodeName,r.devRef,r.causeRef,r.conRef,r.devLabel,r.causeText,rec.text,rec.actionOwner||'',rec.targetDate||'','Open']);
+      });
+    });
+    const ws2=XLSX.utils.aoa_to_sheet(recData);
+    ws2['!cols']=[{wch:5},{wch:20},{wch:8},{wch:8},{wch:8},{wch:22},{wch:25},{wch:40},{wch:18},{wch:12},{wch:8}];
+    XLSX.utils.book_append_sheet(wb,ws2,'Recommendations');
+
+    XLSX.writeFile(wb,`HAZOP_${(study.projectName||'study').replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const handleExportJSON=()=>{
     const data={study,nodes,deviations,exported:new Date().toISOString()};
     const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download=`HAZOP_${study.projectName||'study'}_${new Date().toISOString().split('T')[0]}.json`;a.click();
   };
+
+  const rows=buildRows();
+  const allConsolidatedRecs=rows.flatMap((r,ri)=>r.allRecs.map((rec,i)=>({...rec,row:r,recNo:ri*100+i})));
+  let globalRecNo=1;
+  const numberedRecs=rows.flatMap(r=>r.allRecs.map(rec=>({rec,row:r,n:globalRecNo++})));
+
   return(
     <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
-      <div style={{padding:'12px 20px',background:'var(--bg-surface)',borderBottom:'1px solid var(--border)',display:'flex',gap:8,flexShrink:0}}>
-        <button className="btn btn-primary" onClick={handlePrint}>🖨 Print / Save PDF</button>
-        <button className="btn btn-secondary" onClick={handleExport}>⬇ Export JSON</button>
+      {/* Toolbar */}
+      <div style={{padding:'10px 20px',background:'var(--bg-surface)',borderBottom:'1px solid var(--border)',display:'flex',gap:8,flexShrink:0,flexWrap:'wrap',alignItems:'center'}}>
+        <button className="btn btn-primary" onClick={handlePrint}>🖨 Print / PDF</button>
+        <button className="btn btn-secondary" style={{background:'#166534',color:'#86efac',border:'1px solid #22c55e55'}} onClick={exportExcel}>⬇ Export Excel (.xlsx)</button>
+        <button className="btn btn-secondary" onClick={handleExportJSON}>⬇ Export JSON</button>
+        <div style={{marginLeft:'auto',display:'flex',gap:4}}>
+          {['worksheet','recs'].map(t=>(
+            <button key={t} onClick={()=>setTab(t)}
+              style={{fontSize:12,padding:'5px 14px',borderRadius:4,cursor:'pointer',fontWeight:600,
+                background:tab===t?'var(--accent)':'transparent',
+                color:tab===t?'#000':'var(--text2)',border:'1px solid var(--border)'}}>
+              {t==='worksheet'?'📋 HAZOP Worksheet':'📌 Recommendations'}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className="scrollable report-page" style={{flex:1,padding:32,maxWidth:1100,margin:'0 auto',width:'100%',minHeight:0,overflowY:'auto'}}>
-        <div style={{textAlign:'center',marginBottom:32,borderBottom:'2px solid var(--accent)',paddingBottom:20}}>
-          <div style={{fontFamily:'var(--disp)',fontSize:28,fontWeight:700,color:'var(--accent)',letterSpacing:'0.08em'}}>HAZARD AND OPERABILITY STUDY</div>
-          <div style={{fontFamily:'var(--disp)',fontSize:18,color:'var(--text1)',marginTop:4}}>{study.projectName||'[Project Name]'}</div>
-          <div style={{fontSize:13,color:'var(--text2)',marginTop:8}}>{study.facility} · {study.company} · {study.location}</div>
+
+      <div className="scrollable report-page" style={{flex:1,padding:24,maxWidth:1300,margin:'0 auto',width:'100%',minHeight:0,overflowY:'auto'}}>
+
+        {/* ── Study Header ── */}
+        <div style={{textAlign:'center',marginBottom:24,borderBottom:'2px solid var(--accent)',paddingBottom:16}}>
+          <div style={{fontFamily:'var(--disp)',fontSize:24,fontWeight:700,color:'var(--accent)',letterSpacing:'0.08em'}}>HAZARD AND OPERABILITY STUDY</div>
+          <div style={{fontFamily:'var(--disp)',fontSize:16,color:'var(--text1)',marginTop:4}}>{study.projectName||'[Project Name]'}</div>
+          <div style={{fontSize:12,color:'var(--text2)',marginTop:6}}>{study.facility} · {study.company} · {study.location} · Rev {study.revision||'0'} · {study.date}</div>
         </div>
-        <div className="card" style={{marginBottom:20}}>
-          <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:14,color:'var(--accent)',marginBottom:12,textTransform:'uppercase',letterSpacing:'0.06em'}}>Study Information</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-            {[['Document Ref.',study.docRef],['Date',study.date],['Revision',study.revision],['Methodology',study.methodology],['Prepared By',study.preparedBy],['Approved By',study.approvedBy],['Total Nodes',nodes.length],['Total Deviations',deviations.length]].map(([k,v])=>(
-              <div key={k} style={{display:'flex',gap:8,fontSize:13}}><span style={{color:'var(--text2)',minWidth:130}}>{k}:</span><span style={{fontWeight:500}}>{v||'—'}</span></div>
-            ))}
-          </div>
-          {study.scope&&<div style={{marginTop:12,paddingTop:12,borderTop:'1px solid var(--border)'}}><span style={{color:'var(--text2)',fontSize:13}}>Scope: </span><span style={{fontSize:13}}>{study.scope}</span></div>}
-        </div>
-        {nodes.map((node,ni)=>{
-          const nodeDevs=deviations.filter(d=>d.nodeId===node.id);
-          if(nodeDevs.length===0)return null;
-          return(
-            <div key={node.id} className="card" style={{marginBottom:20}}>
-              <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:15,color:'var(--accent)',marginBottom:4,letterSpacing:'0.06em',textTransform:'uppercase'}}>
-                Node {ni+1}: {node.name}
+
+        {tab==='worksheet'&&(
+          <div>
+            {/* Study Info */}
+            <div className="card" style={{marginBottom:20}}>
+              <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'var(--accent)',marginBottom:10,textTransform:'uppercase',letterSpacing:'0.06em'}}>Study Information</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
+                {[['Document Ref',study.docRef],['Date',study.date],['Revision',study.revision],['Methodology',study.methodology],['Prepared By',study.preparedBy],['Approved By',study.approvedBy],['Total Nodes',nodes.length],['Total Deviations',deviations.length]].map(([k,v])=>(
+                  <div key={k} style={{fontSize:12}}><span style={{color:'var(--text3)'}}>{k}: </span><strong>{v||'—'}</strong></div>
+                ))}
               </div>
-              <div style={{fontSize:12,color:'var(--text2)',marginBottom:12}}>{node.description}</div>
+            </div>
+
+            {/* HAZOP Worksheet table — one per node */}
+            {nodes.map((node,ni)=>{
+              const nodeRows=rows.filter(r=>r.nodeNum===ni+1);
+              if(nodeRows.length===0)return null;
+              let prevDevRef='';
+              return(
+                <div key={node.id} style={{marginBottom:28}}>
+                  <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:14,color:'var(--accent)',marginBottom:2,textTransform:'uppercase',letterSpacing:'0.06em'}}>
+                    Node {ni+1}: {node.name}
+                  </div>
+                  <div style={{fontSize:11,color:'var(--text2)',marginBottom:10}}>
+                    <strong>Design Intent:</strong> {node.designIntent||node.description||'—'}
+                    {node.fluid&&<span style={{marginLeft:12}}><strong>Fluid:</strong> {node.fluid}</span>}
+                    {node.conditions&&<span style={{marginLeft:12}}><strong>Conditions:</strong> {node.conditions}</span>}
+                  </div>
+                  <div style={{overflowX:'auto'}}>
+                    <table className="tbl" style={{fontSize:10.5,minWidth:1100,width:'100%'}}>
+                      <thead>
+                        <tr style={{background:'#0f1f3d'}}>
+                          <th rowSpan={2} style={{width:90,textAlign:'center'}}>Ref</th>
+                          <th rowSpan={2} style={{minWidth:100}}>Deviation</th>
+                          <th rowSpan={2} style={{width:55,textAlign:'center'}}>Cause</th>
+                          <th rowSpan={2} style={{minWidth:120}}>Cause Description</th>
+                          <th rowSpan={2} style={{width:55,textAlign:'center'}}>Con.</th>
+                          <th rowSpan={2} style={{minWidth:110}}>Consequence</th>
+                          <th rowSpan={2} style={{minWidth:100}}>Safeguards</th>
+                          <th colSpan={3} style={{textAlign:'center',color:'#fde68a',borderBottom:'1px solid var(--border)'}}>Initial Risk</th>
+                          <th rowSpan={2} style={{minWidth:140}}>Recommendations</th>
+                          <th rowSpan={2} style={{width:100}}>Action Owner</th>
+                          <th rowSpan={2} style={{width:85}}>Target Date</th>
+                          <th colSpan={3} style={{textAlign:'center',color:'#86efac',borderBottom:'1px solid var(--border)'}}>Residual Risk</th>
+                        </tr>
+                        <tr style={{background:'#0c1a2e'}}>
+                          <th style={{textAlign:'center',color:'#fde68a'}}>S</th>
+                          <th style={{textAlign:'center',color:'#fde68a'}}>L</th>
+                          <th style={{textAlign:'center',color:'#fde68a',width:80}}>Category</th>
+                          <th style={{textAlign:'center',color:'#86efac'}}>S</th>
+                          <th style={{textAlign:'center',color:'#86efac'}}>L</th>
+                          <th style={{textAlign:'center',color:'#86efac',width:80}}>Category</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {nodeRows.map((r,idx)=>{
+                          const isDev=r.devRef!==prevDevRef;
+                          if(isDev)prevDevRef=r.devRef;
+                          const sameDevRows=nodeRows.filter(x=>x.devRef===r.devRef);
+                          const devRowSpan=sameDevRows.length;
+                          const isFirstOfDev=sameDevRows[0]===r;
+                          return(
+                            <tr key={idx} style={{borderTop:isDev&&idx>0?'2px solid var(--border2)':''}}>
+                              <td style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--accent)',textAlign:'center',verticalAlign:'top',paddingTop:6}}>{r.devRef}-{r.conRef}</td>
+                              {isFirstOfDev&&<td rowSpan={devRowSpan} style={{fontWeight:600,verticalAlign:'top',color:'var(--text1)',paddingTop:6}}>{r.devLabel}</td>}
+                              <td style={{fontFamily:'var(--mono)',color:'#f59e0b',fontWeight:700,textAlign:'center',verticalAlign:'top',paddingTop:6}}>{r.causeRef}</td>
+                              <td style={{color:'var(--text2)',verticalAlign:'top',lineHeight:1.4}}>{r.causeText}</td>
+                              <td style={{fontFamily:'var(--mono)',color:'#ef4444',fontWeight:700,textAlign:'center',verticalAlign:'top',paddingTop:6}}>{r.conRef}</td>
+                              <td style={{color:'#fca5a5',verticalAlign:'top',lineHeight:1.4}}>{r.conText}</td>
+                              <td style={{verticalAlign:'top'}}>
+                                {r.safeguards.map((s,i)=><div key={i} style={{color:'#86efac',marginBottom:2,lineHeight:1.35,fontSize:10}}>🛡 {s}</div>)}
+                              </td>
+                              <td style={{textAlign:'center',verticalAlign:'top'}}>{r.initialRisk?<strong style={{color:'#fde68a',fontFamily:'var(--mono)'}}>S{r.initialRisk.s}</strong>:'—'}</td>
+                              <td style={{textAlign:'center',verticalAlign:'top'}}>{r.initialRisk?<strong style={{color:'#fde68a',fontFamily:'var(--mono)'}}>{r.initialRisk.l}</strong>:'—'}</td>
+                              <td style={{textAlign:'center',verticalAlign:'top'}}>{r.initialRisk?<RiskBadge cat={r.initialRisk.cat} small/>:'—'}</td>
+                              <td style={{verticalAlign:'top'}}>
+                                {r.allRecs.map((rec,i)=>(
+                                  <div key={i} style={{marginBottom:4,paddingBottom:4,borderBottom:i<r.allRecs.length-1?'1px solid var(--border)':''}}>
+                                    <div style={{color:'var(--text1)',lineHeight:1.4}}>→ {rec.text}</div>
+                                    {(rec.fromRef&&rec.fromRef!==r.conRef)&&<div style={{fontSize:9,color:'var(--text3)'}}>From {rec.fromRef}</div>}
+                                  </div>
+                                ))}
+                                {r.allRecs.length===0&&<span style={{color:'var(--text3)',fontStyle:'italic'}}>—</span>}
+                              </td>
+                              <td style={{verticalAlign:'top'}}>
+                                {r.allRecs.map((rec,i)=>(
+                                  <div key={i} style={{marginBottom:4,paddingBottom:4,color:'var(--text2)',fontSize:10,borderBottom:i<r.allRecs.length-1?'1px solid var(--border)':''}}>
+                                    {rec.actionOwner||<span style={{color:'var(--text3)',fontStyle:'italic'}}>Not assigned</span>}
+                                  </div>
+                                ))}
+                              </td>
+                              <td style={{verticalAlign:'top'}}>
+                                {r.allRecs.map((rec,i)=>(
+                                  <div key={i} style={{marginBottom:4,paddingBottom:4,color:'var(--text2)',fontSize:10,borderBottom:i<r.allRecs.length-1?'1px solid var(--border)':''}}>
+                                    {rec.targetDate||<span style={{color:'var(--text3)',fontStyle:'italic'}}>—</span>}
+                                  </div>
+                                ))}
+                              </td>
+                              <td style={{textAlign:'center',verticalAlign:'top'}}>{r.residualRisk?<strong style={{color:'#86efac',fontFamily:'var(--mono)'}}>S{r.residualRisk.s}</strong>:'—'}</td>
+                              <td style={{textAlign:'center',verticalAlign:'top'}}>{r.residualRisk?<strong style={{color:'#86efac',fontFamily:'var(--mono)'}}>{r.residualRisk.l}</strong>:'—'}</td>
+                              <td style={{textAlign:'center',verticalAlign:'top'}}>{r.residualRisk?<RiskBadge cat={r.residualRisk.cat} small/>:'—'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {tab==='recs'&&(
+          <div>
+            <div className="card" style={{marginBottom:20}}>
+              <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:14,color:'#3b82f6',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.06em'}}>
+                Consolidated Recommendations Register
+              </div>
+              <div style={{fontSize:12,color:'var(--text2)',marginBottom:14}}>{numberedRecs.length} recommendations across {nodes.length} node(s) · {deviations.length} deviation(s)</div>
               <div style={{overflowX:'auto'}}>
-                <table className="tbl" style={{fontSize:11,minWidth:1000}}>
+                <table className="tbl" style={{fontSize:11,minWidth:900}}>
                   <thead><tr>
-                    <th>#</th><th>Deviation</th><th>C#</th><th>Cause</th>
-                    <th>Con</th><th>Safeguards</th><th>Con Recommendations</th>
-                    <th>Initial Risk</th><th>Cause Recommendations</th><th>Residual Risk</th>
-                    <th>Resp.</th><th>Status</th>
+                    <th style={{width:35,textAlign:'center'}}>#</th>
+                    <th style={{width:90}}>Ref</th>
+                    <th style={{width:80}}>Node</th>
+                    <th style={{minWidth:110}}>Deviation</th>
+                    <th style={{minWidth:110}}>Cause</th>
+                    <th style={{minWidth:200}}>Recommendation</th>
+                    <th style={{width:120}}>Action Owner</th>
+                    <th style={{width:90}}>Target Date</th>
+                    <th style={{width:70}}>Status</th>
                   </tr></thead>
-                  <tbody>{nodeDevs.map((d,di)=>{
-                    const nd=normalizeDev(d);
-                    const causeRows=nd.causes.length===0?[[null,null,0]]:nd.causes.flatMap((c,ci)=>
-                      c.consequences.length===0?[[c,null,ci,0]]:c.consequences.map((cn,cni)=>[c,cn,ci,cni])
-                    );
-                    return causeRows.map(([cause,con,ci,cni=0],rowIdx)=>(
-                      <tr key={d.id+'-'+rowIdx} style={{borderTop:rowIdx===0&&di>0?'2px solid var(--border2)':''}}>
-                        {rowIdx===0&&<td rowSpan={causeRows.length} style={{fontFamily:'var(--mono)',color:'var(--text3)',verticalAlign:'top'}}>{ni+1}.{di+1}</td>}
-                        {rowIdx===0&&<td rowSpan={causeRows.length} style={{fontWeight:500,maxWidth:100,verticalAlign:'top'}}>{d.deviation||`${d.guideWord} ${d.parameter}`}</td>}
-                        <td style={{fontFamily:'var(--mono)',color:'#f59e0b',fontWeight:700,textAlign:'center',verticalAlign:'top'}}>{cause?`C${ci+1}`:''}</td>
-                        <td style={{color:'var(--text2)',maxWidth:130,verticalAlign:'top'}}>{cause?.text||''}</td>
-                        <td style={{color:'#fca5a5',maxWidth:120,verticalAlign:'top'}}>{con?.text||''}</td>
-                        <td style={{maxWidth:130,verticalAlign:'top'}}>
-                          {(con?.safeguards||(con?.safeguard?[con.safeguard]:[])).map((s,i)=><div key={i} style={{color:'#86efac',marginBottom:2,lineHeight:1.4}}>🛡 {s}</div>)}
-                        </td>
-                        <td style={{color:'#93c5fd',maxWidth:130,verticalAlign:'top'}}>
-                          {(con?.recommendations||[]).map((r,i)=><div key={i} style={{marginBottom:2}}>→ {r}</div>)}
-                        </td>
-                        {(cni===0||!cni)&&cause&&<td rowSpan={cause.consequences.length||1} style={{textAlign:'center',verticalAlign:'top'}}>
-                          {cause.initialRisk?<><span style={{fontFamily:'var(--mono)',fontSize:10,color:'#f59e0b'}}>S{cause.initialRisk.s}/{cause.initialRisk.l}</span><br/><RiskBadge cat={cause.initialRisk.cat} small/></>:<span style={{color:'var(--text3)'}}>—</span>}
-                        </td>}
-                        {(cni===0||!cni)&&cause&&<td rowSpan={cause.consequences.length||1} style={{color:'#93c5fd',maxWidth:120,verticalAlign:'top'}}>
-                          {(cause.recommendations||[]).map((r,i)=><div key={i} style={{marginBottom:2}}>→ {r}</div>)}
-                        </td>}
-                        {(cni===0||!cni)&&cause&&<td rowSpan={cause.consequences.length||1} style={{textAlign:'center',verticalAlign:'top'}}>
-                          {cause.residualRisk?<><span style={{fontFamily:'var(--mono)',fontSize:10,color:'#22c55e'}}>S{cause.residualRisk.s}/{cause.residualRisk.l}</span><br/><RiskBadge cat={cause.residualRisk.cat} small/></>:<span style={{color:'var(--text3)'}}>—</span>}
-                        </td>}
-                        {rowIdx===0&&<td rowSpan={causeRows.length} style={{color:'var(--text2)',verticalAlign:'top'}}>{d.responsible||'—'}</td>}
-                        {rowIdx===0&&<td rowSpan={causeRows.length} style={{verticalAlign:'top'}}><span style={{fontSize:10,padding:'2px 6px',borderRadius:4,background:'var(--bg-card2)',color:'var(--text2)'}}>{d.status}</span></td>}
+                  <tbody>
+                    {numberedRecs.length===0&&(
+                      <tr><td colSpan={9} style={{textAlign:'center',color:'var(--text3)',fontStyle:'italic',padding:20}}>No recommendations entered yet. Add them in the Worksheet tab.</td></tr>
+                    )}
+                    {numberedRecs.map(({rec,row,n})=>(
+                      <tr key={n}>
+                        <td style={{textAlign:'center',fontFamily:'var(--mono)',color:'var(--text3)',fontSize:10}}>{n}</td>
+                        <td style={{fontFamily:'var(--mono)',color:'var(--accent)',fontSize:10,fontWeight:700}}>{row.devRef}-{rec.fromRef||row.conRef}</td>
+                        <td style={{color:'var(--text2)',fontSize:10}}>{row.nodeName}</td>
+                        <td style={{color:'var(--text2)'}}>{row.devLabel}</td>
+                        <td style={{color:'#fca5a5',fontSize:10,lineHeight:1.3}}>{row.causeText?.substring(0,50)}{row.causeText?.length>50?'…':''}</td>
+                        <td style={{color:'var(--text1)',lineHeight:1.4}}>→ {rec.text}</td>
+                        <td style={{color:'var(--text2)'}}>{rec.actionOwner||<span style={{color:'var(--text3)',fontStyle:'italic'}}>Not assigned</span>}</td>
+                        <td style={{color:rec.targetDate&&new Date(rec.targetDate)<new Date()?'#ef4444':'var(--text2)'}}>{rec.targetDate||<span style={{color:'var(--text3)'}}>—</span>}</td>
+                        <td><span style={{fontSize:10,padding:'2px 5px',borderRadius:3,background:'#1e3a5f',color:'#93c5fd'}}>Open</span></td>
                       </tr>
-                    ));
-                  })}</tbody>
+                    ))}
+                  </tbody>
                 </table>
               </div>
             </div>
-          );
-        })}
-        <div style={{textAlign:'center',color:'var(--text3)',fontSize:12,marginTop:24,paddingTop:16,borderTop:'1px solid var(--border)'}}>
-          Generated by Risk2Safe HAZoP — AI-Powered HAZOP Study System · {new Date().toLocaleDateString()}
+          </div>
+        )}
+
+        <div style={{textAlign:'center',color:'var(--text3)',fontSize:11,marginTop:20,paddingTop:14,borderTop:'1px solid var(--border)'}}>
+          Generated by Risk2Safe HAZoP · AI-Powered HAZOP Study System · {new Date().toLocaleDateString()}
         </div>
       </div>
     </div>
   );
 };
+
 
 /* ─── MAIN APP ───────────────────────────────────────── */
 const INIT_STUDY={projectName:'',company:'',facility:'',unit:'',location:'',docRef:'',date:new Date().toISOString().split('T')[0],revision:'0',methodology:'Guide Word HAZOP',preparedBy:'',approvedBy:'',scope:'',teamMembers:[]};
@@ -1691,4 +1959,66 @@ const App=()=>{
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
-</html>
+</html>          {/* ── Consolidated Recommendations for this Node ── */}
+          {activeNode&&(()=>{
+            const allRecs=[];
+            nodeDevs.forEach((d,di)=>{
+              const nd=normalizeDev(d);
+              const devLabel=nd.deviation||`${nd.guideWord} ${nd.parameter}`;
+              const devNum=di+1;
+              nd.causes.forEach((c,ci)=>{
+                c.consequences.forEach((cn,qi)=>{
+                  const ref=`D${devNum}-C${ci+1}.${qi+1}`;
+                  (Array.isArray(cn.recommendations)?cn.recommendations:[]).forEach((r,ri)=>{
+                    const rec=typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r;
+                    if(rec.text)allRecs.push({ref,level:'Consequence',devLabel,cause:c.text,con:cn.text,rec});
+                  });
+                });
+                (Array.isArray(c.recommendations)?c.recommendations:[]).forEach((r,ri)=>{
+                  const rec=typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r;
+                  if(rec.text)allRecs.push({ref:`D${devNum}-C${ci+1}`,level:'Cause',devLabel,cause:c.text,con:'—',rec});
+                });
+              });
+              (Array.isArray(nd.recommendations)?nd.recommendations:[]).forEach((r,ri)=>{
+                const rec=typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r;
+                if(rec.text)allRecs.push({ref:`D${devNum}`,level:'Deviation',devLabel,cause:'—',con:'—',rec});
+              });
+            });
+            if(allRecs.length===0)return null;
+            return(
+              <div className="card">
+                <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:'#3b82f6',marginBottom:12,letterSpacing:'0.06em',textTransform:'uppercase'}}>
+                  📋 Node Recommendations Register — {activeNode.name}
+                  <span style={{marginLeft:8,fontFamily:'var(--mono)',fontSize:11,color:'var(--text3)',fontWeight:400}}>({allRecs.length} items)</span>
+                </div>
+                <div style={{overflowX:'auto'}}>
+                  <table className="tbl" style={{fontSize:11,minWidth:900}}>
+                    <thead><tr>
+                      <th style={{width:90}}>Ref</th>
+                      <th style={{width:80}}>Level</th>
+                      <th style={{minWidth:120}}>Deviation</th>
+                      <th style={{minWidth:120}}>Cause</th>
+                      <th style={{minWidth:200}}>Recommendation</th>
+                      <th style={{width:120}}>Action Owner</th>
+                      <th style={{width:90}}>Target Date</th>
+                      <th style={{width:70}}>Status</th>
+                    </tr></thead>
+                    <tbody>
+                      {allRecs.map((item,idx)=>(
+                        <tr key={idx}>
+                          <td style={{fontFamily:'var(--mono)',color:'var(--accent)',fontSize:10,fontWeight:700}}>{item.ref}</td>
+                          <td><span style={{fontSize:10,padding:'2px 5px',borderRadius:3,background:item.level==='Consequence'?'#1e3a5f':item.level==='Cause'?'#451a03':'#1a1a2e',color:item.level==='Consequence'?'#93c5fd':item.level==='Cause'?'#f59e0b':'var(--text2)'}}>{item.level}</span></td>
+                          <td style={{color:'var(--text2)',maxWidth:120}}>{item.devLabel}</td>
+                          <td style={{color:'#fca5a5',maxWidth:120,fontSize:11}}>{item.cause?.substring(0,60)}{item.cause?.length>60?'…':''}</td>
+                          <td style={{color:'var(--text1)',lineHeight:1.4}}>→ {item.rec.text}</td>
+                          <td style={{color:'var(--text2)'}}>{item.rec.actionOwner||<span style={{color:'var(--text3)',fontStyle:'italic'}}>Not assigned</span>}</td>
+                          <td style={{color:'var(--text2)'}}>{item.rec.targetDate||<span style={{color:'var(--text3)',fontStyle:'italic'}}>Not set</span>}</td>
+                          <td><span style={{fontSize:10,padding:'2px 5px',borderRadius:3,background:'var(--bg-card2)',color:'var(--text3)'}}>Open</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
