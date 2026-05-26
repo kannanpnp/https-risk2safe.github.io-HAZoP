@@ -348,11 +348,11 @@ const NodesView=({nodes,setNodes})=>{
   const [active,setActive]=useState(null);
   const addNode=()=>{
     const n={id:uid(),name:'',description:'',designIntent:'',type:'Process Line',drawings:''};
-    setNodes(ns=>[...ns,n]);
+    setNodes([...nodes,n]);
     setActive(n.id);
   };
-  const upd=(id,k,v)=>setNodes(ns=>ns.map(n=>n.id===id?{...n,[k]:v}:n));
-  const del=(id)=>{setNodes(ns=>ns.filter(n=>n.id!==id));if(active===id)setActive(null);};
+  const upd=(id,k,v)=>setNodes(nodes.map(n=>n.id===id?{...n,[k]:v}:n));
+  const del=(id)=>{setNodes(nodes.filter(n=>n.id!==id));if(active===id)setActive(null);};
   const node=nodes.find(n=>n.id===active);
   return(
     <div className="main" style={{flex:1}}>
