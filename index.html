@@ -265,93 +265,163 @@ const MatrixPicker=({sel,onPick,label})=>{
   );
 };
 
-const AnalysisList=({items,dotClass,onAdd,onDel,placeholder,title,titleColor,icon,onQuickLink})=>{
+const AnalysisList=({items,dotClass,onAdd,onDel,placeholder,title,titleColor,icon,linkedFields,onLinkedAdd})=>{
   const [draft,setDraft]=useState('');
   const [adding,setAdding]=useState(false);
+  const [expandedIdx,setExpandedIdx]=useState(null);
+  const [linkedVals,setLinkedVals]=useState({});
   const [editIdx,setEditIdx]=useState(null);
   const [editVal,setEditVal]=useState('');
   const inputRef=useRef(null);
   const editRef=useRef(null);
 
-  const openAdd=()=>{setAdding(true);setTimeout(()=>inputRef.current&&inputRef.current.focus(),40);};
+  const openAdd=()=>{setAdding(true);setExpandedIdx(null);setTimeout(()=>inputRef.current&&inputRef.current.focus(),40);};
   const closeAdd=()=>{setAdding(false);setDraft('');};
   const handleAdd=()=>{const t=draft.trim();if(t){onAdd(t);setDraft('');setAdding(false);}};
 
-  const openEdit=(i,val)=>{setEditIdx(i);setEditVal(val);setTimeout(()=>editRef.current&&editRef.current.focus(),40);};
+  const toggleExpand=(i)=>{
+    if(expandedIdx===i){setExpandedIdx(null);setLinkedVals({});}
+    else{setExpandedIdx(i);setLinkedVals({});setAdding(false);}
+  };
+  const handleLinkedAdd=()=>{
+    if(onLinkedAdd)onLinkedAdd(linkedVals);
+    setExpandedIdx(null);setLinkedVals({});
+  };
+
+  const openEdit=(i,val)=>{setEditIdx(i);setEditVal(val);setExpandedIdx(null);setTimeout(()=>editRef.current&&editRef.current.focus(),40);};
   const saveEdit=(i)=>{
     const t=editVal.trim();
-    if(t){
-      const newItems=[...items];newItems[i]=t;
-      // call onDel then onAdd to update — simpler: use a replace helper
-      onDel(i);
-      setTimeout(()=>onAdd(t),0);
-    }
+    if(t){onDel(i);setTimeout(()=>onAdd(t),0);}
     setEditIdx(null);setEditVal('');
   };
 
+  const hasLinked=linkedFields&&linkedFields.length>0;
+
   return(
     <div style={{display:'flex',flexDirection:'column',gap:8}}>
-      {/* Panel header */}
+      {/* Panel header: title on left, + Add button on right */}
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-        <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:titleColor,letterSpacing:'0.06em',textTransform:'uppercase'}}>{icon} {title}
+        <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:titleColor,letterSpacing:'0.06em',textTransform:'uppercase'}}>
+          {icon} {title}
           <span style={{marginLeft:8,fontFamily:'var(--mono)',fontSize:10,color:'var(--text3)',fontWeight:400}}>({items.length})</span>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={openAdd}
-          style={{gap:4,padding:'3px 10px',fontSize:12,borderColor:titleColor+'66',color:titleColor}}>
+          style={{padding:'3px 12px',fontSize:12,borderColor:titleColor+'66',color:titleColor}}>
           + Add
         </button>
       </div>
 
-      {/* Inline add form — appears at top when + Add clicked */}
+      {/* Top-level add form (for standalone additions) */}
       {adding&&(
-        <div style={{background:'var(--bg-card2)',border:'1px solid '+titleColor,borderRadius:6,padding:10,display:'flex',flexDirection:'column',gap:8,animation:'fadeIn 0.15s ease'}}>
+        <div style={{background:'var(--bg-card2)',border:'1px solid '+titleColor,borderRadius:6,padding:10,display:'flex',flexDirection:'column',gap:8}}>
           <textarea ref={inputRef} value={draft} onChange={e=>setDraft(e.target.value)}
             onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleAdd();}if(e.key==='Escape'){closeAdd();}}}
             placeholder={placeholder} style={{minHeight:64,fontSize:13,resize:'vertical',lineHeight:1.5}}/>
           <div style={{display:'flex',gap:6,alignItems:'center'}}>
-            <button className="btn btn-primary btn-sm" onClick={handleAdd} style={{padding:'5px 14px'}}>✓ Add</button>
+            <button className="btn btn-primary btn-sm" onClick={handleAdd}>✓ Add</button>
             <button className="btn btn-ghost btn-sm" onClick={closeAdd}>✕ Cancel</button>
-            <span style={{fontSize:11,color:'var(--text3)',marginLeft:4}}>Enter to add · Esc to cancel</span>
+            <span style={{fontSize:11,color:'var(--text3)'}}>Enter to add · Shift+Enter for new line · Esc to cancel</span>
           </div>
         </div>
       )}
 
-      {/* Items list */}
+      {/* Empty state */}
       {items.length===0&&!adding&&(
-        <div style={{fontSize:12,color:'var(--text3)',textAlign:'center',padding:'14px 0',borderRadius:6,border:'1px dashed var(--border)',cursor:'pointer'}}
-          onClick={openAdd}>
-          Click <strong>+ Add</strong> or run <strong>✦ AI Generate</strong> to populate
+        <div style={{fontSize:12,color:'var(--text3)',textAlign:'center',padding:'14px 0',borderRadius:6,
+          border:'1px dashed var(--border)',cursor:'pointer'}} onClick={openAdd}>
+          Click <strong style={{color:titleColor}}>+ Add</strong> above or run <strong>✦ AI Generate</strong>
         </div>
       )}
-      <ul className="analysis-list" style={{gap:5}}>
+
+      {/* Items */}
+      <ul style={{listStyle:'none',display:'flex',flexDirection:'column',gap:4}}>
         {items.map((it,i)=>(
-          <li key={i} className="analysis-item" style={{flexDirection:'column',gap:6,alignItems:'stretch'}}>
+          <li key={i}>
             {editIdx===i?(
-              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              /* Edit mode */
+              <div style={{padding:'8px 10px',background:'var(--bg-card2)',borderRadius:6,
+                border:'1px solid '+titleColor,display:'flex',flexDirection:'column',gap:6}}>
                 <textarea ref={editRef} value={editVal} onChange={e=>setEditVal(e.target.value)}
                   onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveEdit(i);}if(e.key==='Escape'){setEditIdx(null);}}}
-                  style={{fontSize:13,minHeight:54,resize:'vertical'}}/>
+                  style={{fontSize:13,minHeight:56,resize:'vertical'}}/>
                 <div style={{display:'flex',gap:5}}>
                   <button className="btn btn-primary btn-sm" onClick={()=>saveEdit(i)}>✓ Save</button>
-                  <button className="btn btn-ghost btn-sm" onClick={()=>setEditIdx(null)}>✕</button>
+                  <button className="btn btn-ghost btn-sm" onClick={()=>setEditIdx(null)}>✕ Cancel</button>
                 </div>
               </div>
             ):(
-              <div style={{display:'flex',alignItems:'flex-start',gap:8}}>
-                <div className={`analysis-item-dot ${dotClass}`} style={{marginTop:5,flexShrink:0}}/>
-                <span className="analysis-item-text" style={{flex:1,lineHeight:1.5}}>{it}</span>
-                <div style={{display:'flex',gap:3,flexShrink:0,opacity:0,transition:'opacity 0.15s'}} className="item-actions">
-                  {onQuickLink&&(
-                    <button title="Add linked consequence" onClick={()=>onQuickLink(it)}
-                      style={{fontSize:10,padding:'2px 6px',borderRadius:4,background:'var(--blue-dim)',color:'#93c5fd',border:'none',cursor:'pointer',whiteSpace:'nowrap'}}>
-                      → link
-                    </button>
-                  )}
-                  <button title="Edit" onClick={()=>openEdit(i,it)}
-                    style={{fontSize:10,padding:'2px 6px',borderRadius:4,background:'var(--bg-hover)',color:'var(--text2)',border:'none',cursor:'pointer'}}>✎</button>
-                  <button title="Delete" onClick={()=>onDel(i)}
-                    style={{fontSize:10,padding:'2px 6px',borderRadius:4,background:'#7f1d1d',color:'#fca5a5',border:'none',cursor:'pointer'}}>✕</button>
+              /* Normal display mode */
+              <div style={{borderRadius:expandedIdx===i?'6px 6px 0 0':'6px',
+                background:'var(--bg-card2)',border:'1px solid var(--border)',
+                borderBottom:expandedIdx===i?'none':'1px solid var(--border)',
+                transition:'all 0.15s'}}>
+                {/* Item row */}
+                <div className="analysis-item" style={{background:'transparent',border:'none',
+                  borderRadius:0,padding:'8px 10px',gap:8,alignItems:'flex-start'}}>
+                  <div className={`analysis-item-dot ${dotClass}`} style={{marginTop:5,flexShrink:0}}/>
+                  <span style={{flex:1,fontSize:13,lineHeight:1.55,color:'var(--text1)'}}>{it}</span>
+                  {/* Action buttons — always visible, compact */}
+                  <div style={{display:'flex',gap:3,flexShrink:0,alignItems:'center'}}>
+                    {hasLinked&&(
+                      <button
+                        title="Add linked consequence / safeguard / recommendation for this item"
+                        onClick={()=>toggleExpand(i)}
+                        style={{width:24,height:24,borderRadius:4,cursor:'pointer',fontWeight:700,fontSize:14,
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          background:expandedIdx===i?titleColor:'transparent',
+                          color:expandedIdx===i?'#000':titleColor,
+                          border:'1px solid '+titleColor,
+                          transition:'all 0.15s'}}>
+                        {expandedIdx===i?'−':'+'}
+                      </button>
+                    )}
+                    <button title="Edit this item" onClick={()=>openEdit(i,it)}
+                      style={{width:24,height:24,borderRadius:4,cursor:'pointer',fontSize:12,
+                        display:'flex',alignItems:'center',justifyContent:'center',
+                        background:'transparent',color:'var(--text3)',border:'1px solid var(--border)',
+                        transition:'all 0.15s'}}>✎</button>
+                    <button title="Delete this item" onClick={()=>onDel(i)}
+                      style={{width:24,height:24,borderRadius:4,cursor:'pointer',fontSize:11,
+                        display:'flex',alignItems:'center',justifyContent:'center',
+                        background:'transparent',color:'#ef4444',border:'1px solid #7f1d1d',
+                        transition:'all 0.15s'}}>✕</button>
+                  </div>
                 </div>
+
+                {/* Linked entry form — slides below item when + clicked */}
+                {expandedIdx===i&&hasLinked&&(
+                  <div style={{borderTop:'1px solid '+titleColor+'44',padding:12,
+                    background:'var(--bg-card)',display:'flex',flexDirection:'column',gap:10,
+                    borderRadius:'0 0 6px 6px'}}>
+                    <div style={{fontSize:11,color:'var(--text2)',marginBottom:2}}>
+                      Add linked entries for:
+                      <em style={{color:titleColor,marginLeft:4}}>
+                        "{it.length>55?it.substring(0,55)+'…':it}"
+                      </em>
+                    </div>
+                    {linkedFields.map(({key,label,color,ph})=>(
+                      <div key={key} style={{display:'flex',flexDirection:'column',gap:4}}>
+                        <div style={{fontSize:11,color:color,fontWeight:700,
+                          textTransform:'uppercase',letterSpacing:'0.05em'}}>{label}</div>
+                        <textarea
+                          value={linkedVals[key]||''}
+                          onChange={e=>setLinkedVals(v=>({...v,[key]:e.target.value}))}
+                          placeholder={ph}
+                          style={{minHeight:50,fontSize:12,resize:'vertical',lineHeight:1.5}}/>
+                      </div>
+                    ))}
+                    <div style={{display:'flex',gap:6,alignItems:'center',marginTop:2}}>
+                      <button className="btn btn-primary btn-sm" onClick={handleLinkedAdd}>
+                        ✓ Add to Worksheet
+                      </button>
+                      <button className="btn btn-ghost btn-sm"
+                        onClick={()=>{setExpandedIdx(null);setLinkedVals({});}}>
+                        ✕ Cancel
+                      </button>
+                      <span style={{fontSize:11,color:'var(--text3)'}}>Empty fields are skipped</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </li>
@@ -360,6 +430,7 @@ const AnalysisList=({items,dotClass,onAdd,onDel,placeholder,title,titleColor,ico
     </div>
   );
 };
+
 
 /* ─── VIEWS ──────────────────────────────────────────── */
 
@@ -707,44 +778,81 @@ For oil & gas contexts address: H2S toxicity, hydrocarbon fires/explosions, pres
 
           {/* Analysis 2-col */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+
+            {/* CAUSES — + on each cause expands form for consequence + safeguard + recommendation */}
             <div className="card">
               <AnalysisList
                 items={activeDev.causes} dotClass="cause"
                 title="Causes" titleColor="#f59e0b" icon="⚠"
-                placeholder="Describe a cause (equipment failure, human error, external…)"
+                placeholder="Describe a cause — equipment failure, human error, external event, process upset…"
                 onAdd={t=>addItem(activeDev.id,'causes',t)}
                 onDel={i=>delItem(activeDev.id,'causes',i)}
-                onQuickLink={causeText=>addItem(activeDev.id,'consequences','[Re: '+causeText.substring(0,40)+'…] ')}
+                linkedFields={[
+                  {key:'consequence',label:'💥 Consequence',color:'#ef4444',
+                   ph:'Consequence of this cause — state hazard type and severity…'},
+                  {key:'safeguard',label:'🛡 Safeguard',color:'#22c55e',
+                   ph:'[Engineering/Admin/Instrumentation] existing safeguard for this cause…'},
+                  {key:'recommendation',label:'✅ Recommendation',color:'#3b82f6',
+                   ph:'Recommended action to address this cause — assign to discipline…'},
+                ]}
+                onLinkedAdd={vals=>{
+                  if((vals.consequence||'').trim())addItem(activeDev.id,'consequences',vals.consequence.trim());
+                  if((vals.safeguard||'').trim())addItem(activeDev.id,'safeguards',vals.safeguard.trim());
+                  if((vals.recommendation||'').trim())addItem(activeDev.id,'recommendations',vals.recommendation.trim());
+                }}
               />
             </div>
+
+            {/* CONSEQUENCES — + on each consequence expands form for safeguard + recommendation */}
             <div className="card">
               <AnalysisList
                 items={activeDev.consequences} dotClass="consequence"
                 title="Consequences" titleColor="#ef4444" icon="💥"
-                placeholder="Describe consequence — include severity (HIGH/MED/LOW) and hazard type…"
+                placeholder="Describe consequence — include hazard type (Fire/Toxic/Pressure) and severity…"
                 onAdd={t=>addItem(activeDev.id,'consequences',t)}
                 onDel={i=>delItem(activeDev.id,'consequences',i)}
+                linkedFields={[
+                  {key:'safeguard',label:'🛡 Safeguard',color:'#22c55e',
+                   ph:'Safeguard that prevents or mitigates this consequence…'},
+                  {key:'recommendation',label:'✅ Recommendation',color:'#3b82f6',
+                   ph:'Action required to address this consequence — assign to discipline…'},
+                ]}
+                onLinkedAdd={vals=>{
+                  if((vals.safeguard||'').trim())addItem(activeDev.id,'safeguards',vals.safeguard.trim());
+                  if((vals.recommendation||'').trim())addItem(activeDev.id,'recommendations',vals.recommendation.trim());
+                }}
               />
             </div>
+
+            {/* SAFEGUARDS — + on each safeguard expands form for recommendation */}
             <div className="card">
               <AnalysisList
                 items={activeDev.safeguards} dotClass="safeguard"
                 title="Safeguards" titleColor="#22c55e" icon="🛡"
-                placeholder="[Engineering / Admin / Instrumentation / PPE] existing safeguard…"
+                placeholder="[Engineering / Admin / Instrumentation / PPE] describe existing safeguard…"
                 onAdd={t=>addItem(activeDev.id,'safeguards',t)}
                 onDel={i=>delItem(activeDev.id,'safeguards',i)}
-                onQuickLink={sgText=>addItem(activeDev.id,'recommendations','Review & verify adequacy of: '+sgText.substring(0,60))}
+                linkedFields={[
+                  {key:'recommendation',label:'✅ Recommendation',color:'#3b82f6',
+                   ph:'Action to improve or verify this safeguard — assign to discipline / owner…'},
+                ]}
+                onLinkedAdd={vals=>{
+                  if((vals.recommendation||'').trim())addItem(activeDev.id,'recommendations',vals.recommendation.trim());
+                }}
               />
             </div>
+
+            {/* RECOMMENDATIONS — standalone add only, no + chaining */}
             <div className="card">
               <AnalysisList
                 items={activeDev.recommendations} dotClass="recommendation"
                 title="Recommendations" titleColor="#3b82f6" icon="✅"
-                placeholder="Specific actionable recommendation — assign to discipline (Process / Instrument / Safety…)"
+                placeholder="Specific actionable recommendation — who, what, why. Assign to discipline…"
                 onAdd={t=>addItem(activeDev.id,'recommendations',t)}
                 onDel={i=>delItem(activeDev.id,'recommendations',i)}
               />
             </div>
+
           </div>
 
           {/* Risk Ranking */}
