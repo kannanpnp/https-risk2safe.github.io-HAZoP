@@ -389,7 +389,7 @@ const AnalysisList=({items,dotClass,onAdd,onDel,placeholder,title,titleColor,ico
                 <div className="analysis-item" style={{background:'transparent',border:'none',
                   borderRadius:0,padding:'8px 10px',gap:8,alignItems:'flex-start'}}>
                   <div className={`analysis-item-dot ${dotClass}`} style={{marginTop:5,flexShrink:0}}/>
-                  <span style={{flex:1,fontSize:13,lineHeight:1.55,color:'var(--text1)'}}>{it}</span>
+                  <span style={{flex:1,fontSize:13,lineHeight:1.55,color:'var(--text1)'}}>{typeof it==='string'?it:(it&&it.text)||''}</span>
                   {/* Action buttons — always visible, compact */}
                   <div style={{display:'flex',gap:3,flexShrink:0,alignItems:'center'}}>
                     {hasLinked&&(
@@ -405,7 +405,7 @@ const AnalysisList=({items,dotClass,onAdd,onDel,placeholder,title,titleColor,ico
                         {expandedIdx===i?'−':'+'}
                       </button>
                     )}
-                    <button title="Edit this item" onClick={()=>openEdit(i,it)}
+                    <button title="Edit this item" onClick={()=>openEdit(i,typeof it==='string'?it:(it&&it.text)||'')}
                       style={{width:24,height:24,borderRadius:4,cursor:'pointer',fontSize:12,
                         display:'flex',alignItems:'center',justifyContent:'center',
                         background:'transparent',color:'var(--text3)',border:'1px solid var(--border)',
@@ -631,9 +631,11 @@ const normalizeRec=(r)=>{
 const normalizeDev=(d)=>{
   if(!d)return d;
   const normRecs=(arr)=>(Array.isArray(arr)?arr:[]).map(normalizeRec).filter(Boolean);
+  // deviation-level recs stay as strings (used by AnalysisList)
+  const normDevRecs=(arr)=>(Array.isArray(arr)?arr:[]).map(r=>typeof r==='string'?r:(r.text||'')).filter(Boolean);
   if(d.causes&&d.causes.length>0&&typeof d.causes[0]==='object'&&Array.isArray(d.causes[0].consequences)){
     return {...d,
-      recommendations:normRecs(d.recommendations),
+      recommendations:normDevRecs(d.recommendations),
       causes:d.causes.map(c=>({initialRisk:null,residualRisk:null,recommendations:[],...c,
         recommendations:normRecs(c.recommendations),
         consequences:(c.consequences||[]).map(cn=>({safeguards:[],recommendations:[],...cn,
@@ -1600,12 +1602,13 @@ const MatrixView=({deviations,nodes})=>{
 
 // ACTIONS VIEW ────────────────────────────────────────────────────────
 const ActionsView=({deviations,nodes,setState})=>{
+  const toRec=(r)=>typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:(r||{text:'',actionOwner:'',targetDate:''});
   const allActions=deviations.flatMap(d=>{
     const nd=normalizeDev(d);
     const node=nodes.find(n=>n.id===d.nodeId);
     return(nd.causes||[]).flatMap(c=>[
-      ...c.consequences.flatMap(cn=>(cn.recommendations||[]).map((r,i)=>({devId:d.id,causeId:c.id,conId:cn.id,recIdx:i,type:'consequence',text:r,causeText:c.text,conText:cn.text,deviation:d.deviation||d.guideWord+' '+d.parameter,nodeName:node?.name||'',status:d.status,responsible:d.responsible,priority:d.priority,initialRisk:c.initialRisk,residualRisk:c.residualRisk}))),
-      ...(c.recommendations||[]).map((r,i)=>({devId:d.id,causeId:c.id,recIdx:i,type:'cause',text:r,causeText:c.text,deviation:d.deviation||d.guideWord+' '+d.parameter,nodeName:node?.name||'',status:d.status,responsible:d.responsible,priority:d.priority,initialRisk:c.initialRisk,residualRisk:c.residualRisk}))
+      ...c.consequences.flatMap(cn=>(cn.recommendations||[]).map((r,i)=>{const rec=toRec(r);return{devId:d.id,causeId:c.id,conId:cn.id,recIdx:i,type:'consequence',text:rec.text,actionOwner:rec.actionOwner,targetDate:rec.targetDate,causeText:c.text,conText:cn.text,deviation:d.deviation||d.guideWord+' '+d.parameter,nodeName:node?.name||'',status:d.status,responsible:d.responsible,priority:d.priority,initialRisk:c.initialRisk,residualRisk:c.residualRisk};})),
+      ...(c.recommendations||[]).map((r,i)=>{const rec=toRec(r);return{devId:d.id,causeId:c.id,recIdx:i,type:'cause',text:rec.text,actionOwner:rec.actionOwner,targetDate:rec.targetDate,causeText:c.text,deviation:d.deviation||d.guideWord+' '+d.parameter,nodeName:node?.name||'',status:d.status,responsible:d.responsible,priority:d.priority,initialRisk:c.initialRisk,residualRisk:c.residualRisk};})
     ]);
   });
   const openCount=allActions.filter(a=>a.status==='Open'||!a.status).length;
@@ -1629,7 +1632,13 @@ const ActionsView=({deviations,nodes,setState})=>{
                   <div style={{fontSize:12,color:'var(--text3)',marginTop:2}}>
                     {a.type==='consequence'?`Consequence: ${a.conText?.substring(0,60)}…`:`Cause: ${a.causeText?.substring(0,60)}…`}
                   </div>
-                  <div style={{fontWeight:600,fontSize:14,color:'var(--text1)',marginTop:4}}>→ {a.text}</div>
+                  <div style={{fontWeight:600,fontSize:13,color:'var(--text1)',marginTop:4}}>→ {a.text}</div>
+                  {(a.actionOwner||a.targetDate)&&(
+                    <div style={{display:'flex',gap:12,marginTop:5,flexWrap:'wrap'}}>
+                      {a.actionOwner&&<span style={{fontSize:11,color:'var(--text3)'}}>👤 <span style={{color:'var(--text2)'}}>{a.actionOwner}</span></span>}
+                      {a.targetDate&&<span style={{fontSize:11,color:a.targetDate&&new Date(a.targetDate)<new Date()?'#ef4444':'var(--text3)'}}>📅 <span style={{color:'inherit'}}>{a.targetDate}</span></span>}
+                    </div>
+                  )}
                 </div>
                 <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
                   {a.initialRisk&&<><span style={{fontSize:11,color:'var(--text3)'}}>Initial:</span><RiskBadge cat={a.initialRisk.cat} small/></>}
