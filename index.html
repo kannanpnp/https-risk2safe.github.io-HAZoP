@@ -2602,51 +2602,54 @@ const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
               top:2,left:b.isSCE?14:2,transition:'all 0.2s'}}/>
           </div>
         </div>
-        {/* SCE fields — only shown when isSCE is true */}
+        {/* Performance Standard — only when SCE is ON */}
         {b.isSCE&&(
-          <>
-            {/* Performance Standard */}
-            <div style={{borderLeft:'3px solid #ef4444',paddingLeft:10}}>
-              <label style={{fontSize:11,color:'#ef4444',fontWeight:600,display:'block',marginBottom:4}}>
-                Performance Standard
-              </label>
-              <textarea value={b.performanceStandard||''} onChange={e=>setB({...b,performanceStandard:e.target.value})}
-                rows={2} placeholder="e.g., SIL 2 — PFD ≤ 0.01, proof test 6-monthly, demand rate < 0.1/yr"
-                style={{fontSize:11,resize:'vertical',width:'100%',border:'1px solid #ef444466',lineHeight:1.5}}/>
-            </div>
-            {/* Safety Critical Tasks */}
-            <div style={{borderLeft:'3px solid #22c55e',paddingLeft:10}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                <div>
-                  <div style={{fontSize:11,color:'#22c55e',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
-                    Safety Critical Tasks (SCTs)
-                  </div>
-                  <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>
-                    Tasks required to maintain this SCE's performance standard
-                  </div>
-                </div>
-                <span style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--text3)'}}>({scts.length})</span>
-              </div>
-              {scts.length===0&&(
-                <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',marginBottom:6,
-                  padding:'8px 10px',background:'var(--bg-card)',borderRadius:4,border:'1px solid var(--border)'}}>
-                  No SCTs defined — add manually or use ✦ Analyse SCE / SCT in the sidebar to auto-generate.
-                </div>
-              )}
-              {scts.map((sct,i)=>(
-                <SCTRow key={sct.id||i} sct={sct} idx={i}
-                  onChange={upd=>updSCT(i,upd)}
-                  onDelete={()=>delSCT(i)}/>
-              ))}
-              <button onClick={addSCT}
-                style={{fontSize:11,padding:'5px 12px',borderRadius:4,cursor:'pointer',fontWeight:700,
-                  background:'#052e16',color:'#22c55e',border:'1px solid #22c55e55',
-                  display:'flex',alignItems:'center',gap:5}}>
-                + Add Safety Critical Task
-              </button>
-            </div>
-          </>
+          <div style={{borderLeft:'3px solid #ef4444',paddingLeft:10}}>
+            <label style={{fontSize:11,color:'#ef4444',fontWeight:600,display:'block',marginBottom:4}}>
+              Performance Standard
+            </label>
+            <textarea value={b.performanceStandard||''} onChange={e=>setB({...b,performanceStandard:e.target.value})}
+              rows={2} placeholder="e.g., SIL 2 — PFD ≤ 0.01, proof test 6-monthly, demand rate < 0.1/yr"
+              style={{fontSize:11,resize:'vertical',width:'100%',border:'1px solid #ef444466',lineHeight:1.5}}/>
+          </div>
         )}
+        {/* Safety Critical Tasks — ALWAYS visible */}
+        <div style={{borderLeft:`3px solid ${b.isSCE?'#22c55e':'var(--border)'}`,paddingLeft:10}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+            <div>
+              <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',
+                color:b.isSCE?'#22c55e':'var(--text2)'}}>
+                Safety Critical Tasks (SCTs)
+                <span style={{marginLeft:6,fontFamily:'var(--mono)',fontSize:10,fontWeight:400,
+                  color:'var(--text3)'}}>({scts.length})</span>
+              </div>
+              <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>
+                {b.isSCE
+                  ?'Tasks required to maintain this SCE's performance standard'
+                  :'Toggle SCE ON to formally designate — SCTs can still be added now'}
+              </div>
+            </div>
+          </div>
+          {scts.length===0&&(
+            <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',marginBottom:6,
+              padding:'8px 10px',background:'var(--bg-card)',borderRadius:4,border:'1px solid var(--border)'}}>
+              No SCTs yet — click <strong style={{color:'#22c55e',fontStyle:'normal'}}>+ Add</strong> below, or use <strong style={{color:'#a78bfa',fontStyle:'normal'}}>✦ Analyse SCE / SCT</strong> to auto-generate.
+            </div>
+          )}
+          {scts.map((sct,i)=>(
+            <SCTRow key={sct.id||i} sct={sct} idx={i}
+              onChange={upd=>updSCT(i,upd)}
+              onDelete={()=>delSCT(i)}/>
+          ))}
+          <button onClick={addSCT}
+            style={{fontSize:11,padding:'5px 12px',borderRadius:4,cursor:'pointer',fontWeight:700,
+              background:b.isSCE?'#052e16':'var(--bg-card)',
+              color:b.isSCE?'#22c55e':'var(--text2)',
+              border:`1px solid ${b.isSCE?'#22c55e55':'var(--border)'}`,
+              display:'flex',alignItems:'center',gap:5}}>
+            + Add Safety Critical Task
+          </button>
+        </div>
         {/* Degradation factors */}
         <div>
           <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:6}}>
@@ -2729,33 +2732,50 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
   /* ── AI SCE/SCT Analysis ── */
   const analyzeForSCE=async()=>{
     if(!apiKey){setSceError('API key required.');return;}
-    if(!activeDev||barriers.length===0){setSceError('No barriers to analyse. Add barriers in the HAZOP worksheet first.');return;}
+    if(!activeDev||barriers.length===0){setSceError('No barriers to analyse. Add barriers in the HAZOP Worksheet first.');return;}
     setAnalyzing(true);setSceError('');setSceData(null);
     try{
-      const sys=`You are a senior Process Safety Engineer specialising in barrier-based risk management per DNV RP-A203, IEC 61511, and UKCS DCR 2015. Identify Safety Critical Elements (SCE) and derive Safety Critical Tasks (SCT). Return ONLY valid JSON.`;
       const devLabel=activeDev.deviation||activeDev.guideWord+' '+activeDev.parameter;
-      const barrierList=barriers.map(b=>({id:b.id,text:b.text,type:b.type,side:b.side,isSCE:b.isSCE,degradationFactors:(b.degradationFactors||[]).map(df=>({text:df.text,ccds:df.controls.map(c=>c.text)}))}));
-      const usr=`BOW TIE SCE/SCT ANALYSIS
+      // Compact barrier list — strip degradation details to keep prompt small
+      const barrierList=barriers.map((b,i)=>({
+        id:b.id,
+        n:i+1,
+        text:(b.text||'').substring(0,120),
+        type:b.type||'Engineering',
+        side:b.side,
+        dfCount:(b.degradationFactors||[]).length
+      }));
+      const sys=`You are a Process Safety Engineer. Identify Safety Critical Elements and Safety Critical Tasks from a bow tie barrier list. Return ONLY valid compact JSON, no explanation, no markdown.`;
+      const usr=`Node: ${activeNode?.name||''}
+Top Event: ${devLabel}
+Fluid: ${activeNode?.fluid||'unspecified'}, Conditions: ${activeNode?.conditions||'unspecified'}
 
-Node: ${activeNode?.name||'Unknown'}
-Top Event (Deviation): ${devLabel}
-Fluid: ${activeNode?.fluid||'Not specified'}
-Conditions: ${activeNode?.conditions||'Not specified'}
+Barriers (${barrierList.length}):
+${barrierList.map(b=>`[${b.n}] id="${b.id}" type=${b.type} side=${b.side}: ${b.text}`).join('
+')}
 
-Barriers identified (${barriers.length} total):
-${JSON.stringify(barrierList,null,2)}
+Return JSON only — no markdown:
+{"sces":[{"barrierId":"<id>","sceId":"SCE-001","designation":"<name>","function":"<safety function>","maeScenario":"<MAE prevented>","performanceStandard":"<PS e.g. SIL 2 PFD 0.01>","verificationScheme":"<how verified>","scts":[{"sctId":"SCT-001-01","task":"<task>","type":"Testing","frequency":"<freq>","responsible":"<role>","competency":"<cert>","procedure":"<ref>"}]}],"nonSCEBarriers":[{"barrierId":"<id>","reason":"<why not SCE>"}]}
 
-TASK:
-1. Identify which barriers qualify as Safety Critical Elements (SCE) — those whose failure could contribute substantially to a Major Accident Event
-2. For each SCE, derive Safety Critical Tasks (SCT) required to maintain its performance standard
-3. Assign realistic performance standards based on barrier type and function
+Rules: Only include barriers that are primary safeguards against Major Accident Events. Engineering and Instrumented barriers are most likely SCEs. Each SCE needs 2-3 SCTs.`;
 
-Return ONLY this JSON:
-{"sces":[{"barrierId":"id","sceId":"SCE-001","designation":"Short SCE name","function":"Safety function","maeScenario":"Major accident this prevents/mitigates","performanceStandard":"Quantified PS e.g. SIL 2, PFD≤0.01","verificationScheme":"How to verify","scts":[{"sctId":"SCT-001-01","task":"Task description","type":"Inspection/Testing/Maintenance/Calibration","frequency":"6-monthly","responsible":"Competent person role","competency":"Required qualification/certification","procedure":"Reference e.g. MNT-001"}]}],"nonSCEBarriers":[{"barrierId":"id","reason":"Why not SCE"}]}`;
-
-      const raw=await window.callAnthropicAPI(apiKey,aiModel||'claude-3-haiku-20240307',sys,usr);
-      const parsed=repairJSON(raw);
-      if(!parsed.sces)throw new Error('Invalid response structure');
+      const raw=await window.callAnthropicAPI(apiKey,aiModel||'claude-sonnet-4-6',sys,usr);
+      // Try parsing with progressive fallbacks
+      let parsed=null;
+      const attempts=[
+        ()=>JSON.parse(raw.trim()),
+        ()=>JSON.parse(raw.replace(/```json|```/g,'').trim()),
+        ()=>repairJSON(raw),
+      ];
+      for(const attempt of attempts){
+        try{parsed=attempt();break;}catch{}
+      }
+      if(!parsed||!parsed.sces){
+        // If still failing, try to extract just the sces array
+        const m=raw.match(/"sces"\s*:\s*(\[[\s\S]*?\])\s*[,}]/);
+        if(m){try{parsed={sces:JSON.parse(m[1]),nonSCEBarriers:[]};}catch{}}
+      }
+      if(!parsed||!Array.isArray(parsed.sces))throw new Error('AI returned an unparseable response. Try switching to a larger model (e.g. Sonnet) in API settings.');
       setSceData(parsed);
       // Auto-flag SCE barriers and merge AI SCTs with existing manual ones
       parsed.sces.forEach(sce=>{
