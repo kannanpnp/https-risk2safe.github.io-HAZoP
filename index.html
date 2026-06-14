@@ -941,7 +941,7 @@ const RecList=({recs,color,label,emptyMsg,onAdd,onEdit,onDel})=>{
 /* ── Module-level context globals (set by WorksheetView on render) ─── */
 window._R2S={key:'',model:'claude-sonnet-4-6',nodeName:'',deviation:'',fluid:''};
 
-/* ── AI suggest degradation factors + CCDs for a barrier ─────────────── */
+/* ── AI suggest degradation factors + controls for a barrier ─────────────── */
 const suggestDFsAI=async(barrierText,existingDFs)=>{
   const ctx=window._R2S||{};
   if(!ctx.key)return[];
@@ -950,8 +950,8 @@ const suggestDFsAI=async(barrierText,existingDFs)=>{
   const usr='Barrier: '+barrierText+
     '\nProcess context: Node='+ctx.nodeName+' | Deviation='+ctx.deviation+' | Fluid='+ctx.fluid+
     (existing?'\nAlready identified: '+existing:'')+
-    '\n\nIdentify 2-3 degradation factors for this barrier and 1-2 degradation controls (CCDs) per factor.'+
-    '\nJSON: {"degradationFactors":[{"text":"DF text","controls":[{"text":"CCD text"}]}]}';
+    '\n\nIdentify 2-3 degradation factors for this barrier and 1-2 degradation controls per factor.'+
+    '\nJSON: {"degradationFactors":[{"text":"DF text","controls":[{"text":"Degradation control text"}]}]}';
   try{
     const raw=await window.callAnthropicAPI(ctx.key,ctx.model,sys,usr);
     const parsed=repairJSON(raw);
@@ -972,7 +972,7 @@ const BARRIER_TYPES={
   PPE:          {label:'PPE',          color:'#22c55e', bg:'#064e3b', icon:'🦺'},
 };
 
-/* ── Degradation Factor + CCD editor (used in both HAZOP + BowTie) ─ */
+/* ── Degradation Factor + Control editor (used in both HAZOP + BowTie) ─ */
 const DegradationEditor=({factors,onChange})=>{
   const addFactor=()=>onChange([...factors,{id:uid(),text:'',controls:[]}]);
   const delFactor=(i)=>onChange(factors.filter((_,j)=>j!==i));
@@ -998,7 +998,7 @@ const DegradationEditor=({factors,onChange})=>{
               <div key={c.id} style={{display:'flex',gap:5,marginBottom:3}}>
                 <span style={{color:'#22c55e',fontSize:10,flexShrink:0,marginTop:5}}>→</span>
                 <input value={c.text} onChange={e=>updCCD(fi,ci,e.target.value)}
-                  placeholder="Degradation control / CCD"
+                  placeholder="Describe the degradation control..."
                   style={{flex:1,fontSize:11,padding:'3px 6px'}}/>
                 <button onClick={()=>delCCD(fi,ci)}
                   style={{fontSize:10,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'0 3px'}}>✕</button>
@@ -1006,7 +1006,7 @@ const DegradationEditor=({factors,onChange})=>{
             ))}
             <button onClick={()=>addCCD(fi)}
               style={{fontSize:10,padding:'2px 7px',borderRadius:3,cursor:'pointer',
-                background:'transparent',color:'#22c55e',border:'1px solid #22c55e44',marginTop:2}}>+ Add CCD</button>
+                background:'transparent',color:'#22c55e',border:'1px solid #22c55e44',marginTop:2}}>+ Add Control</button>
           </div>
         </div>
       ))}
@@ -1099,7 +1099,7 @@ const MitBarrierCard=({mb,onUpdate,onDelete})=>{
             background:'var(--bg-card)',border:`1px solid ${tc.color}44`,borderRadius:4,
             padding:'6px 8px',color:'var(--text1)'}}/>
       </div>
-      {/* ── Degradation Factors + CCDs ── */}
+      {/* ── Degradation Factors + Controls ── */}
       <div style={{padding:'8px 10px',background:'#0a0a18'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
           <span style={{fontSize:9,color:'var(--text3)',fontWeight:700,
@@ -1266,7 +1266,7 @@ const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,
             marginTop:4,display:'flex',alignItems:'center',justifyContent:'center',
             background:'transparent',color:'#ef4444',border:'1px solid #ef444455',flexShrink:0}}>✕</button>
       </div>
-      {/* Safeguards — prevention barriers with DFs + CCDs */}
+      {/* Safeguards — prevention barriers with DFs + Degradation Controls */}
       <div style={{padding:'8px 12px',background:'#071408',borderBottom:'1px solid #1a3324'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
           <span style={{color:'#22c55e',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
@@ -1297,7 +1297,7 @@ const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,
           onEdit={(i,updated)=>onRecEdit(devId,cid,con.id,i,updated)}
           onDel={(i)=>onRecDel(devId,cid,con.id,i)}/>
       </div>
-      {/* Mitigation Barriers with degradation factors + CCDs */}
+      {/* Mitigation Barriers with degradation factors + Controls */}
       <MitBarrierSection
         barriers={Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[]}
         onChange={mbs=>onMitUpdate&&onMitUpdate(devId,cid,con.id,mbs)}/>
@@ -2716,7 +2716,7 @@ const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
         </div>
         <div>
           <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:6}}>
-            Degradation Factors &amp; Controls (CCDs)
+            Degradation Factors &amp; Controls
           </label>
           <DegradationEditor
             factors={b.degradationFactors||[]}
@@ -2742,7 +2742,7 @@ const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
 /* ═══════════════════════════════════════════════════════════════════════
    BOW TIE SVG CANVAS — consequence-centric layout
    Top Event = Consequence | Left = Cause + Prevention Barriers
-   Right = Mitigation Barriers | Bottom = Degradation Factors + CCDs
+   Right = Mitigation Barriers | Bottom = Degradation Factors + Controls
    ═══════════════════════════════════════════════════════════════════════ */
 const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
   if(!activeCon)return null;
@@ -2924,7 +2924,7 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
             stroke="#334155" strokeWidth={1} strokeDasharray="8,5" opacity={0.45}/>
           <text x={VW/2} y={CORE_H+26} textAnchor="middle"
             fill="#64748b" fontSize={9} fontFamily="system-ui" fontWeight="600">
-            Degradation Factors &amp; Controls (CCDs)
+            Degradation Factors &amp; Controls
           </text>
           {allDFs.map(({b,df,dfi},idx)=>{
             // Find X of this barrier in the canvas
@@ -2953,7 +2953,7 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
                     {T((df.text||'').substring(18),18)}
                   </text>
                 )}
-                {/* CCD boxes */}
+                {/* Degradation Control boxes */}
                 {(df.controls||[]).map((dc,dci)=>{
                   const DCOY=DFY+(dci*42);
                   return(
@@ -3103,46 +3103,133 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
   };
 
   // ── Excel Export ────────────────────────────────────────────────────
+  /* ── Helper: collect barriers for one consequence ── */
+  const getConBarriersEnriched=(con,cause,stored)=>{
+    const bs=[];
+    (Array.isArray(con.safeguards)?con.safeguards:[]).forEach((sg,si)=>{
+      const o=typeof sg==='string'?{id:'sg'+si,text:sg,degradationFactors:[]}:sg;
+      if(!o.text)return;
+      const id='prev-'+(o.id||si);
+      const en=stored[id]||{};
+      bs.push({...o,id,side:'Prevention',type:en.type||'Engineering',
+        isSCE:en.isSCE||false,performanceStandard:en.performanceStandard||'',
+        scts:en.scts||[],
+        degradationFactors:en.degradationFactors||o.degradationFactors||[]});
+    });
+    (Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[]).forEach((mb,mi)=>{
+      if(!mb.text)return;
+      const id='mit-'+(mb.id||mi);
+      const en=stored[id]||{};
+      bs.push({...mb,id,side:'Mitigation',type:en.type||mb.type||'Engineering',
+        isSCE:en.isSCE||false,performanceStandard:en.performanceStandard||'',
+        scts:en.scts||[],
+        degradationFactors:en.degradationFactors||mb.degradationFactors||[]});
+    });
+    return bs;
+  };
+
+  /* ── Export ALL: every consequence, barrier, DF, control, SCE, SCT ── */
   const exportExcel=()=>{
     if(typeof XLSX==='undefined'){alert('SheetJS not loaded.');return;}
     const wb=XLSX.utils.book_new();
-    // Bow Tie Barriers sheet
-    const btRows=[['Node','Deviation','Consequence (Top Event)','Cause','Side','Barrier','Type','SCE?','Perf Standard','Degradation Factors','CCDs']];
-    barriers.forEach(b=>{
-      const dfs=(b.degradationFactors||[]).map(d=>d.text).join('; ');
-      const ccds=(b.degradationFactors||[]).flatMap(d=>(d.controls||[]).map(c=>c.text)).join('; ');
-      btRows.push([activeNode?.name||'',activeDev?.deviation||'',activeCon?.text||'',
-        activeCon?.cause?.text||'',b.side,b.text,b.type,b.isSCE?'YES':'',
-        b.performanceStandard||'',dfs,ccds]);
+    const btiStore=state.bowties||{};
+
+    // Collect everything across all deviations for this node
+    let bSeq=0,sceSeq=0;
+    const sheet1=[['#','Node','Dev#','Deviation','Cause Ref','Cause',
+      'Con Ref','Consequence (Top Event)','Side','Barrier','Type',
+      'SCE?','Performance Standard',
+      'Degradation Factors (all)','Degradation Controls (all)']];
+    const sheet2=[['Barrier#','Node','Deviation','Cause','Consequence','Side','Barrier',
+      'DF#','Degradation Factor','Control#','Degradation Control']];
+    const sheet3=[['SCE#','SCE ID','Node','Dev#','Deviation','Cause','Consequence','Side',
+      'Barrier','Type','Performance Standard']];
+    const sheet4=[['SCT ID','SCE#','SCE ID','Barrier','Task','Task Type',
+      'Frequency','Responsible','Competency','Procedure Ref','Source']];
+
+    nodeDevs.forEach((dev,di)=>{
+      const nd=normalizeDev(dev);
+      const devLabel=nd.deviation||(nd.guideWord+' '+nd.parameter);
+      const devNum=di+1;
+
+      nd.causes.forEach((cause,ci)=>{
+        const causeRef='C'+(ci+1);
+        (cause.consequences||[]).forEach((con,qi)=>{
+          const conRef='C'+(ci+1)+'.'+(qi+1);
+          const conKey=(cause.id||'')+'-'+(con.id||'');
+          const stored=btiStore[conKey]||{};
+          const conBs=getConBarriersEnriched(con,cause,stored);
+
+          conBs.forEach(b=>{
+            bSeq++;
+            const dfs=b.degradationFactors||[];
+            const dfTxt=dfs.map(d=>d.text||'').filter(Boolean).join(' | ');
+            const dcTxt=dfs.flatMap(d=>(d.controls||[]).map(c=>c.text||'').filter(Boolean)).join(' | ');
+
+            // Sheet 1: Barrier summary
+            sheet1.push([bSeq,activeNode?.name||'',devNum,devLabel,
+              causeRef,cause.text,conRef,con.text,b.side,b.text,b.type,
+              b.isSCE?'YES':'',b.performanceStandard||'',dfTxt,dcTxt]);
+
+            // Sheet 2: Degradation detail (one row per DF×Control)
+            dfs.forEach((df,dfi)=>{
+              const ctrls=df.controls||[];
+              if(ctrls.length===0){
+                sheet2.push([bSeq,activeNode?.name||'',devLabel,cause.text,con.text,
+                  b.side,b.text,dfi+1,df.text||'','-','(no control yet)']);
+              } else {
+                ctrls.forEach((dc,dci)=>{
+                  sheet2.push([bSeq,activeNode?.name||'',devLabel,cause.text,con.text,
+                    b.side,b.text,dfi+1,df.text||'',dci+1,dc.text||'']);
+                });
+              }
+            });
+
+            // Sheets 3 & 4: SCE + SCT
+            if(b.isSCE){
+              sceSeq++;
+              const sceId='SCE-'+String(sceSeq).padStart(3,'0');
+              sheet3.push([sceSeq,sceId,activeNode?.name||'',devNum,devLabel,
+                cause.text,con.text,b.side,b.text,b.type,b.performanceStandard||'']);
+              (b.scts||[]).forEach((t,ti)=>{
+                sheet4.push([
+                  sceId+'-SCT-'+String(ti+1).padStart(2,'0'),
+                  sceSeq,sceId,b.text,
+                  t.task||'',t.type||'',t.frequency||'',
+                  t.responsible||'',t.competency||'',t.procedure||'',
+                  t.source||'Manual'
+                ]);
+              });
+            }
+          });
+        });
+      });
     });
-    const ws1=XLSX.utils.aoa_to_sheet(btRows);
-    ws1['!cols']=[{wch:18},{wch:22},{wch:28},{wch:28},{wch:10},{wch:35},{wch:14},{wch:5},{wch:28},{wch:28},{wch:28}];
+
+    // Write Sheet 1
+    const ws1=XLSX.utils.aoa_to_sheet(sheet1);
+    ws1['!cols']=[{wch:5},{wch:18},{wch:5},{wch:22},{wch:8},{wch:28},
+      {wch:8},{wch:30},{wch:10},{wch:35},{wch:13},{wch:5},{wch:28},{wch:35},{wch:35}];
     XLSX.utils.book_append_sheet(wb,ws1,'Bow Tie Barriers');
-    // SCE sheet
-    const sceRows=[['SCE ID','Barrier','Function','MAE Scenario','Perf Standard','Verification']];
-    if(sceData?.sces)sceData.sces.forEach(s=>sceRows.push([s.sceId,s.designation,s.function,s.maeScenario,s.performanceStandard,s.verificationScheme]));
-    barriers.filter(b=>b.isSCE).forEach(b=>{
-      if(!(sceData?.sces||[]).find(s=>s.barrierId===b.id))
-        sceRows.push(['SCE-M',b.text,'','','',b.performanceStandard||'']);
-    });
-    const ws2=XLSX.utils.aoa_to_sheet(sceRows);
-    ws2['!cols']=[{wch:10},{wch:25},{wch:30},{wch:30},{wch:28},{wch:25}];
-    XLSX.utils.book_append_sheet(wb,ws2,'SCE Register');
-    // SCT sheet
-    const sctRows=[['SCT ID','SCE ID','Barrier','Task','Type','Frequency','Responsible','Competency','Procedure','Source']];
-    barriers.filter(b=>b.isSCE&&Array.isArray(b.scts)&&b.scts.length>0).forEach((b,bi)=>{
-      b.scts.forEach((t,ti)=>sctRows.push([
-        `SCT-${bi+1}-${String(ti+1).padStart(2,'0')}`,`SCE-${bi+1}`,b.text,
-        t.task,t.type,t.frequency,t.responsible,t.competency,t.procedure,t.source||'Manual'
-      ]));
-    });
-    if(sceData?.sces)sceData.sces.forEach(s=>(s.scts||[]).forEach(t=>sctRows.push([
-      t.sctId,s.sceId,s.designation,t.task,t.type,t.frequency,t.responsible,t.competency,t.procedure,'AI'
-    ])));
-    const ws3=XLSX.utils.aoa_to_sheet(sctRows);
-    ws3['!cols']=[{wch:12},{wch:10},{wch:20},{wch:35},{wch:14},{wch:12},{wch:20},{wch:22},{wch:18},{wch:8}];
-    XLSX.utils.book_append_sheet(wb,ws3,'SCT Register');
-    const fname='BowTie_'+((activeNode?.name||'').replace(/\s+/g,'_'))+'_'+((activeCon?.text||'con').substring(0,20).replace(/\s+/g,'_'))+'_'+new Date().toISOString().split('T')[0]+'.xlsx';
+
+    // Write Sheet 2
+    const ws2=XLSX.utils.aoa_to_sheet(sheet2);
+    ws2['!cols']=[{wch:7},{wch:18},{wch:22},{wch:25},{wch:25},{wch:10},{wch:30},{wch:5},{wch:35},{wch:7},{wch:35}];
+    XLSX.utils.book_append_sheet(wb,ws2,'Degradation Factors');
+
+    // Write Sheet 3
+    const ws3=XLSX.utils.aoa_to_sheet(sheet3);
+    ws3['!cols']=[{wch:6},{wch:10},{wch:18},{wch:5},{wch:22},{wch:25},{wch:25},{wch:10},{wch:32},{wch:13},{wch:30}];
+    XLSX.utils.book_append_sheet(wb,ws3,'SCE Register');
+
+    // Write Sheet 4
+    const ws4=XLSX.utils.aoa_to_sheet(sheet4);
+    ws4['!cols']=[{wch:16},{wch:6},{wch:10},{wch:28},{wch:35},{wch:14},{wch:12},{wch:20},{wch:22},{wch:18},{wch:8}];
+    XLSX.utils.book_append_sheet(wb,ws4,'SCT Register');
+
+    const total=bSeq>0?bSeq:'0';
+    const fname='BowTie_'+((activeNode?.name||'node').replace(/\s+/g,'_'))
+      +'_AllConsequences_'+new Date().toISOString().split('T')[0]+'.xlsx';
     XLSX.writeFile(wb,fname);
   };
 
@@ -3246,8 +3333,9 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
               <button onClick={exportExcel}
                 style={{padding:'7px 10px',borderRadius:5,cursor:'pointer',fontWeight:600,fontSize:11,
                   background:'#166534',color:'#86efac',border:'1px solid #22c55e55',
-                  display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-                ⬇ Export Excel
+                  display:'flex',alignItems:'center',justifyContent:'center',gap:6}}
+                title="Export all barriers, degradation factors, controls, SCEs and SCTs for this node">
+                ⬇ Export All (Node)
               </button>
             )}
             {sceError&&(
