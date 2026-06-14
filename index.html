@@ -735,7 +735,7 @@ const NodesView=({nodes,setNodes,deviations,setDeviations})=>{
 };
 
 // ── DATA NORMALIZATION ────────────────────────────────────────────────
-const normalizeRec=r=>typeof r==='string'?{id:uid(),text:r,actionOwner:'',targetDate:''}:{id:uid(),text:'',actionOwner:'',targetDate:'',...r};
+const normalizeRec=r=>typeof r==='string'?{id:uid(),text:r,actionOwner:'',targetDate:'',degradationFactors:[]}:{id:uid(),text:'',actionOwner:'',targetDate:'',degradationFactors:[],...r};
 const normalizeDev=dev=>{
   if(!dev)return dev;
   const normRecs=arr=>(Array.isArray(arr)?arr:[]).map(normalizeRec);
@@ -1040,6 +1040,76 @@ const RiskSection=({risk,label})=>{
 };
 
 /* ── RecEntry + RecList — recommendations with owner/date ── */
+/* ── RecCard — recommendation with DFs + AI suggest (consequence-level) ── */
+const RecCard=({rec,onUpdate,onDelete})=>{
+  const [editMode,setEditMode]=useState(false);
+  const [aiLoading,setAiLoading]=useState(false);
+  const dfs=Array.isArray(rec.degradationFactors)?rec.degradationFactors:[];
+  const suggestDFs=async()=>{
+    if(!window._R2S?.key)return;
+    setAiLoading(true);
+    const newDFs=await suggestDFsAI(rec.text,dfs);
+    onUpdate({...rec,degradationFactors:[...dfs,...newDFs]});
+    setAiLoading(false);
+  };
+  return(
+    <div style={{marginBottom:6,borderRadius:6,overflow:'hidden',border:'1px solid #3b82f644'}}>
+      {/* ── Text + meta row ── */}
+      <div style={{padding:'6px 10px',background:'#030b1f',borderBottom:'1px solid #1e3a5f22'}}>
+        <div style={{display:'flex',gap:6,alignItems:'flex-start'}}>
+          <span style={{color:'#3b82f6',fontSize:13,flexShrink:0,marginTop:1}}>→</span>
+          <div style={{flex:1}}>
+            {editMode?(
+              <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                <textarea value={rec.text||''} onChange={e=>onUpdate({...rec,text:e.target.value})}
+                  rows={2} style={{fontSize:12,resize:'vertical',width:'100%',lineHeight:1.4}}
+                  placeholder="Recommendation text…"/>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
+                  <input value={rec.actionOwner||''} onChange={e=>onUpdate({...rec,actionOwner:e.target.value})}
+                    placeholder="Action Owner" style={{fontSize:11,padding:'3px 6px'}}/>
+                  <input type="date" value={rec.targetDate||''} onChange={e=>onUpdate({...rec,targetDate:e.target.value})}
+                    style={{fontSize:11,padding:'3px 6px'}}/>
+                </div>
+              </div>
+            ):(
+              <div>
+                <div style={{fontSize:12,color:'var(--text1)',lineHeight:1.4}}>{rec.text||<span style={{color:'var(--text3)',fontStyle:'italic'}}>Click ✎ to enter recommendation…</span>}</div>
+                {(rec.actionOwner||rec.targetDate)&&(
+                  <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>
+                    {rec.actionOwner&&<span style={{marginRight:8}}>👤 {rec.actionOwner}</span>}
+                    {rec.targetDate&&<span>📅 {rec.targetDate}</span>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <button onClick={()=>setEditMode(v=>!v)}
+            style={{fontSize:11,color:editMode?'var(--accent)':'var(--text2)',background:'none',border:'none',cursor:'pointer',padding:'2px 4px',flexShrink:0,fontWeight:editMode?700:400}}>
+            {editMode?'✓ Done':'✎'}
+          </button>
+          <button onClick={onDelete}
+            style={{fontSize:11,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'2px 4px',flexShrink:0}}>✕</button>
+        </div>
+      </div>
+      {/* ── Degradation Factors & Controls ── */}
+      <div style={{padding:'6px 10px',background:'#05070d'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+          <span style={{fontSize:9,color:'var(--text3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+            ⚠ Degradation Factors &amp; Controls
+          </span>
+          <button onClick={suggestDFs} disabled={aiLoading}
+            style={{fontSize:10,padding:'2px 8px',borderRadius:3,cursor:'pointer',
+              background:'transparent',color:'#a78bfa',border:'1px solid #a78bfa44',
+              opacity:aiLoading?0.6:1}}>
+            {aiLoading?'⟳ Suggesting…':'✦ AI Suggest'}
+          </button>
+        </div>
+        <DegradationEditor factors={dfs} onChange={df=>onUpdate({...rec,degradationFactors:df})}/>
+      </div>
+    </div>
+  );
+};
+
 const RecEntry=({rec,onEdit,onDel})=>{
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState(rec);
@@ -1223,18 +1293,36 @@ const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,
             </select>
           </div>
         )}
-        <div style={{display:'flex',justifyContent:'flex-end',marginBottom:4}}>
-          <button onClick={suggestRecs} disabled={recsAiLoading}
-            style={{fontSize:10,padding:'2px 9px',borderRadius:3,cursor:'pointer',fontWeight:600,
-              background:'transparent',color:'#a78bfa',border:'1px solid #a78bfa44',
-              opacity:recsAiLoading?0.6:1,display:'flex',alignItems:'center',gap:4}}>
-            {recsAiLoading?<><span style={{animation:'spin 1s linear infinite',display:'inline-block'}}>⟳</span> Suggesting…</>:<>✦ AI Suggest</>}
-          </button>
+        {/* Recommendations header */}
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+          <span style={{fontSize:10,color:'#3b82f6',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+            ✅ Recommendations
+            <span style={{marginLeft:5,fontFamily:'var(--mono)',fontWeight:400,color:'var(--text3)',fontSize:9}}>({recs.length})</span>
+          </span>
+          <div style={{display:'flex',gap:5}}>
+            <button onClick={suggestRecs} disabled={recsAiLoading}
+              style={{fontSize:10,padding:'2px 8px',borderRadius:3,cursor:'pointer',
+                background:'transparent',color:'#a78bfa',border:'1px solid #a78bfa44',
+                opacity:recsAiLoading?0.6:1,fontWeight:600}}>
+              {recsAiLoading?'⟳ Suggesting…':'✦ AI Suggest'}
+            </button>
+            <button onClick={()=>onRecAdd(devId,cid,con.id,{id:uid(),text:'',actionOwner:'',targetDate:'',degradationFactors:[]})}
+              style={{fontSize:10,padding:'2px 8px',borderRadius:3,cursor:'pointer',
+                background:'transparent',color:'#3b82f6',border:'1px solid #3b82f644',fontWeight:600}}>
+              + Add
+            </button>
+          </div>
         </div>
-        <RecList recs={recs} color="#3b82f6" label={'✅ Recommendations ('+ref+')'} emptyMsg="No recommendations yet"
-          onAdd={rec=>onRecAdd(devId,cid,con.id,rec)}
-          onEdit={(i,updated)=>onRecEdit(devId,cid,con.id,i,updated)}
-          onDel={i=>onRecDel(devId,cid,con.id,i)}/>
+        {recs.length===0&&(
+          <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic'}}>
+            No recommendations yet — click <strong style={{color:'#3b82f6',fontStyle:'normal'}}>+ Add</strong> or <strong style={{color:'#a78bfa',fontStyle:'normal'}}>✦ AI Suggest</strong>
+          </div>
+        )}
+        {recs.map((rec,ri)=>(
+          <RecCard key={rec.id||ri} rec={rec}
+            onUpdate={updated=>onRecEdit(devId,cid,con.id,ri,updated)}
+            onDelete={()=>onRecDel(devId,cid,con.id,ri)}/>
+        ))}
       </div>
       <MitBarrierSection barriers={mitBs} onChange={mbs=>onMitUpdate&&onMitUpdate(devId,cid,con.id,mbs)}/>
     </div>
@@ -1806,6 +1894,7 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
   const cause=activeCon.cause;
   const prevBs=barriers.filter(b=>b.side==='prevention');
   const mitBs=barriers.filter(b=>b.side==='mitigation');
+  const recBs=barriers.filter(b=>b.side==='recommendation');
   const allDFs=barriers.flatMap(b=>(b.degradationFactors||[]).map((df,dfi)=>({b,df,dfi})));
 
   // ── Layout ──────────────────────────────────────────────────────────
@@ -1818,9 +1907,11 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
   const PREV_END=TE_CX-TE_RX-18;
   const MIT_START=TE_CX+TE_RX+18;
   const MIT_END=OUT_X-18;
-  const CORE_H=CY+BOX_H/2+50;
+  const REC_Y=CY+(recBs.length>0?160:0);   // recommendation row Y below main line
+  const CORE_H=Math.max(CY,REC_Y)+BOX_H/2+50;
   const DF_ZONE=allDFs.length>0?30+allDFs.length*78:0;
   const VH=CORE_H+DF_ZONE;
+  const RC='#f59e0b'; // amber for recommendations
 
   const pBX=(bi,total)=>{
     if(total===0)return(PREV_START+PREV_END)/2;
@@ -1974,6 +2065,62 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
       <text x={OUT_X+OUT_W/2} y={CY+15} textAnchor="middle"
         fill="#fca5a5" fontSize={8} fontFamily="system-ui">→ Major Accident Event</text>
 
+      {/* ══════════ Recommended Barriers Row ══════════ */}
+      {recBs.length>0&&(
+        <g>
+          {/* Separator + label */}
+          <line x1={CAUSE_X} y1={CY+BOX_H/2+30} x2={VW-CAUSE_X} y2={CY+BOX_H/2+30}
+            stroke="#334155" strokeWidth={1} strokeDasharray="8,5" opacity={0.4}/>
+          <text x={PREV_START} y={CY+BOX_H/2+50} fill={RC}
+            fontSize={9} fontFamily="system-ui" fontWeight="700" opacity={0.85}>
+            📋 Recommended / Proposed Barriers
+          </text>
+          {/* Dashed line from cause to TE at REC_Y */}
+          <line x1={CAUSE_X+CAUSE_W} y1={REC_Y} x2={TE_CX-TE_RX} y2={REC_Y}
+            stroke={RC} strokeWidth={2} strokeDasharray="7,4" opacity={0.55}/>
+          {/* Vertical connector from REC_Y to main TE */}
+          <line x1={TE_CX-TE_RX} y1={REC_Y} x2={TE_CX-TE_RX} y2={CY+TE_RY}
+            stroke={RC} strokeWidth={2} strokeDasharray="7,4" opacity={0.45}/>
+          {/* Cause connector at REC_Y */}
+          <line x1={CAUSE_X+CAUSE_W/2} y1={CY+BOX_H/2} x2={CAUSE_X+CAUSE_W/2} y2={REC_Y}
+            stroke={RC} strokeWidth={1.5} strokeDasharray="5,3" opacity={0.35}/>
+          {/* Recommendation barrier rectangles */}
+          {recBs.map((b,bi)=>{
+            const bx=Math.round(PREV_START+(PREV_END-PREV_START)/(recBs.length+1)*(bi+1));
+            const hasDFs=(b.degradationFactors||[]).length>0;
+            return(
+              <g key={b.id||bi} onClick={()=>onBarrierClick(b)} style={{cursor:'pointer'}}>
+                {/* Line between barriers */}
+                {bi<recBs.length-1&&(
+                  <line x1={bx+BW/2} y1={REC_Y}
+                    x2={Math.round(PREV_START+(PREV_END-PREV_START)/(recBs.length+1)*(bi+2))-BW/2} y2={REC_Y}
+                    stroke={RC} strokeWidth={2} strokeDasharray="7,4" opacity={0.55}/>
+                )}
+                {/* Amber dashed rectangle */}
+                <rect x={bx-BW/2} y={REC_Y-BH/2} width={BW} height={BH}
+                  rx={4} fill="#1a0b00" stroke={RC} strokeWidth={2}
+                  strokeDasharray="6,3" style={{cursor:'pointer'}}/>
+                {/* 📋 icon */}
+                <text x={bx} y={REC_Y+BH/2+11} textAnchor="middle"
+                  fontSize={8} fill={RC} fontFamily="system-ui" opacity={0.8}>📋</text>
+                {/* Action owner + date below */}
+                {b.actionOwner&&(
+                  <text x={bx} y={REC_Y+BH/2+23} textAnchor="middle"
+                    fontSize={7} fill={RC} fontFamily="system-ui" opacity={0.65}>
+                    {(b.actionOwner||'').substring(0,12)}
+                  </text>
+                )}
+                {/* DF drop line */}
+                {hasDFs&&(
+                  <line x1={bx} y1={REC_Y+BH/2} x2={bx} y2={CORE_H+8}
+                    stroke={RC} strokeWidth={1.5} strokeDasharray="4,3" opacity={0.4}/>
+                )}
+              </g>
+            );
+          })}
+        </g>
+      )}
+
       {/* ── Degradation Factors + Controls zone ── */}
       {allDFs.length>0&&(
         <g>
@@ -2096,6 +2243,16 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
       bs.push({id,text:mb.text,side:'mitigation',
         type:mb.type||'Engineering',isSCE:false,performanceStandard:'',scts:[],
         degradationFactors:mb.degradationFactors||[],...(stored[id]||{})});
+    });
+    // Recommendations as proposed barriers (shown in BowTie as amber/dashed)
+    (Array.isArray(con.recommendations)?con.recommendations:[]).forEach((r,ri)=>{
+      const rec=typeof r==='string'?{text:r,degradationFactors:[]}:r;
+      if(!rec.text)return;
+      const id='rec-'+(rec.id||ri);
+      bs.push({id,text:rec.text,side:'recommendation',type:'Recommendation',
+        isSCE:false,performanceStandard:'',scts:[],
+        degradationFactors:Array.isArray(rec.degradationFactors)?rec.degradationFactors:[],
+        actionOwner:rec.actionOwner||'',targetDate:rec.targetDate||'',...(stored[id]||{})});
     });
     return bs;
   };
@@ -2301,6 +2458,7 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
               Barriers: <strong style={{color:'var(--accent)'}}>{barriers.length}</strong><br/>
               Prevention: <strong style={{color:'#22c55e'}}>{barriers.filter(b=>b.side==='prevention').length}</strong><br/>
               Mitigation: <strong style={{color:'#ef4444'}}>{barriers.filter(b=>b.side==='mitigation').length}</strong><br/>
+              Recommendations: <strong style={{color:'#f59e0b'}}>{barriers.filter(b=>b.side==='recommendation').length}</strong><br/>
               SCEs: <strong style={{color:'#ef4444'}}>{sceBarriers.length}</strong>
             </div>
             <div style={{fontSize:10,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginTop:4}}>
