@@ -2625,7 +2625,7 @@ const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
               </div>
               <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>
                 {b.isSCE
-                  ?'Tasks required to maintain this SCE's performance standard'
+                  ?"Tasks required to maintain this SCE's performance standard"
                   :'Toggle SCE ON to formally designate — SCTs can still be added now'}
               </div>
             </div>
@@ -2736,60 +2736,50 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
     setAnalyzing(true);setSceError('');setSceData(null);
     try{
       const devLabel=activeDev.deviation||activeDev.guideWord+' '+activeDev.parameter;
-      // Compact barrier list — strip degradation details to keep prompt small
-      const barrierList=barriers.map((b,i)=>({
-        id:b.id,
-        n:i+1,
-        text:(b.text||'').substring(0,120),
-        type:b.type||'Engineering',
-        side:b.side,
-        dfCount:(b.degradationFactors||[]).length
-      }));
-      const sys=`You are a Process Safety Engineer. Identify Safety Critical Elements and Safety Critical Tasks from a bow tie barrier list. Return ONLY valid compact JSON, no explanation, no markdown.`;
-      const usr=`Node: ${activeNode?.name||''}
-Top Event: ${devLabel}
-Fluid: ${activeNode?.fluid||'unspecified'}, Conditions: ${activeNode?.conditions||'unspecified'}
-
-Barriers (${barrierList.length}):
-${barrierList.map(b=>`[${b.n}] id="${b.id}" type=${b.type} side=${b.side}: ${b.text}`).join('
-')}
-
-Return JSON only — no markdown:
-{"sces":[{"barrierId":"<id>","sceId":"SCE-001","designation":"<name>","function":"<safety function>","maeScenario":"<MAE prevented>","performanceStandard":"<PS e.g. SIL 2 PFD 0.01>","verificationScheme":"<how verified>","scts":[{"sctId":"SCT-001-01","task":"<task>","type":"Testing","frequency":"<freq>","responsible":"<role>","competency":"<cert>","procedure":"<ref>"}]}],"nonSCEBarriers":[{"barrierId":"<id>","reason":"<why not SCE>"}]}
-
-Rules: Only include barriers that are primary safeguards against Major Accident Events. Engineering and Instrumented barriers are most likely SCEs. Each SCE needs 2-3 SCTs.`;
+      // Compact barrier list to keep prompt small
+      const barrierList=barriers.map((b,i)=>(
+        '['+( i+1)+'] id='+b.id+' type='+b.type+' side='+b.side+': '+(b.text||'').substring(0,100)
+      )).join('\n');
+      const sys='You are a Process Safety Engineer. Identify Safety Critical Elements (SCE) and Safety Critical Tasks (SCT) from a bow tie barrier list. Return ONLY valid compact JSON, no explanation, no markdown.';
+      const schema='{"sces":[{"barrierId":"BARRIER_ID","sceId":"SCE-001","designation":"SCE name","function":"safety function description","maeScenario":"MAE scenario","performanceStandard":"e.g. SIL 2 PFD 0.01","verificationScheme":"verification method","scts":[{"sctId":"SCT-001-01","task":"task description","type":"Testing","frequency":"6-monthly","responsible":"role","competency":"cert","procedure":"MNT-001"}]}],"nonSCEBarriers":[{"barrierId":"BARRIER_ID","reason":"reason"}]}';
+      const usr='Node: '+(activeNode?.name||'')+' | Top Event: '+devLabel+
+        '\nFluid: '+(activeNode?.fluid||'unspecified')+
+        ' | Conditions: '+(activeNode?.conditions||'unspecified')+
+        '\n\nBarriers ('+barriers.length+'):\n'+barrierList+
+        '\n\nReturn JSON matching this schema exactly:\n'+schema+
+        '\n\nRules: Only Engineering and Instrumented barriers whose failure causes MAE qualify as SCEs. Each SCE needs 2-3 SCTs.';
 
       const raw=await window.callAnthropicAPI(apiKey,aiModel||'claude-sonnet-4-6',sys,usr);
-      // Try parsing with progressive fallbacks
+      // Progressive parse: direct, strip markdown, repair
       let parsed=null;
-      const attempts=[
-        ()=>JSON.parse(raw.trim()),
-        ()=>JSON.parse(raw.replace(/```json|```/g,'').trim()),
-        ()=>repairJSON(raw),
-      ];
-      for(const attempt of attempts){
-        try{parsed=attempt();break;}catch{}
+      const clean=raw.replace(/```json|```/g,'').trim();
+      for(const attempt of [
+        ()=>JSON.parse(clean),
+        ()=>repairJSON(clean),
+        ()=>{const m=clean.match(/"sces"\s*:\s*\[/);if(!m)throw new Error();const idx=clean.indexOf(m[0]);return repairJSON(clean.substring(idx-1));}
+      ]){
+        try{parsed=attempt();if(parsed)break;}catch{}
       }
-      if(!parsed||!parsed.sces){
-        // If still failing, try to extract just the sces array
-        const m=raw.match(/"sces"\s*:\s*(\[[\s\S]*?\])\s*[,}]/);
-        if(m){try{parsed={sces:JSON.parse(m[1]),nonSCEBarriers:[]};}catch{}}
-      }
-      if(!parsed||!Array.isArray(parsed.sces))throw new Error('AI returned an unparseable response. Try switching to a larger model (e.g. Sonnet) in API settings.');
+      if(!parsed||!Array.isArray(parsed.sces))
+        throw new Error('Could not parse AI response. Try switching to claude-sonnet-4-6 in API settings.');
       setSceData(parsed);
-      // Auto-flag SCE barriers and merge AI SCTs with existing manual ones
+      // Auto-flag SCE barriers and merge AI SCTs with existing manual SCTs
       parsed.sces.forEach(sce=>{
         const b=barriers.find(x=>x.id===sce.barrierId);
         if(b){
           const existingSCTs=Array.isArray(b.scts)?b.scts:[];
-          const aiSCTs=(sce.scts||[]).map(t=>({id:uid(),task:t.task||'',type:t.type||'Testing',
+          const aiSCTs=(sce.scts||[]).map(t=>({
+            id:uid(),task:t.task||'',type:t.type||'Testing',
             frequency:t.frequency||'',responsible:t.responsible||'',
-            competency:t.competency||'',procedure:t.procedure||'',source:'AI'}));
-          // Merge: keep existing manual SCTs, append AI ones not already present
+            competency:t.competency||'',procedure:t.procedure||'',source:'AI'
+          }));
           const merged=[...existingSCTs,...aiSCTs.filter(ai=>
-            !existingSCTs.some(m=>m.task&&ai.task&&m.task.trim().toLowerCase()===ai.task.trim().toLowerCase())
+            !existingSCTs.some(m=>m.task&&ai.task&&
+              m.task.trim().toLowerCase()===ai.task.trim().toLowerCase())
           )];
-          updateBarrier({...b,isSCE:true,performanceStandard:b.performanceStandard||sce.performanceStandard||'',scts:merged});
+          updateBarrier({...b,isSCE:true,
+            performanceStandard:b.performanceStandard||sce.performanceStandard||'',
+            scts:merged});
         }
       });
     }catch(e){setSceError(e.message);}
