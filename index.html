@@ -640,7 +640,10 @@ const normalizeDev=(d)=>{
         recommendations:normRecs(c.recommendations),
         consequences:(c.consequences||[]).map(cn=>({safeguards:[],recommendations:[],...cn,
           safeguards:Array.isArray(cn.safeguards)?cn.safeguards:(cn.safeguard?[cn.safeguard]:[]),
-          recommendations:normRecs(cn.recommendations)
+          recommendations:normRecs(cn.recommendations),
+          mitigationBarriers:Array.isArray(cn.mitigationBarriers)?cn.mitigationBarriers.map(m=>({
+            id:uid(),text:'',type:'Engineering',degradationFactors:[],...m
+          })):[]
         }))
       }))
     };
@@ -650,11 +653,11 @@ const normalizeDev=(d)=>{
   const osg=Array.isArray(d.safeguards)?d.safeguards:[];
   const newCauses=oc.map((txt,ci)=>({
     id:uid(),text:txt,initialRisk:null,residualRisk:null,recommendations:[],
-    consequences:ci<ocon.length?[{id:uid(),text:ocon[ci],safeguards:ci<osg.length&&osg[ci]?[osg[ci]]:[],recommendations:[]}]:[]
+    consequences:ci<ocon.length?[{id:uid(),text:ocon[ci],safeguards:ci<osg.length&&osg[ci]?[osg[ci]]:[],recommendations:[],mitigationBarriers:[]}]:[]
   }));
   for(let i=oc.length;i<ocon.length;i++){
     if(!newCauses.length)newCauses.push({id:uid(),text:'',initialRisk:null,residualRisk:null,recommendations:[],consequences:[]});
-    newCauses[newCauses.length-1].consequences.push({id:uid(),text:ocon[i],safeguards:i<osg.length&&osg[i]?[osg[i]]:[],recommendations:[]});
+    newCauses[newCauses.length-1].consequences.push({id:uid(),text:ocon[i],safeguards:i<osg.length&&osg[i]?[osg[i]]:[],recommendations:[],mitigationBarriers:[]});
   }
   return {...d,causes:newCauses,recommendations:normRecs(d.recommendations)};
 };
@@ -934,6 +937,141 @@ const RecList=({recs,color,label,emptyMsg,onAdd,onEdit,onDel})=>{
   );
 };
 
+/* ── Barrier types (shared by HAZOP ConBlock + BowTie) ───────────── */
+const BARRIER_TYPES={
+  Engineering:  {label:'Engineering',  color:'#3b82f6', bg:'#1e3a5f', icon:'⚙'},
+  Instrumented: {label:'Instrumented', color:'#8b5cf6', bg:'#2d1f5e', icon:'📡'},
+  Administrative:{label:'Administrative',color:'#f59e0b',bg:'#451a03',icon:'📋'},
+  PPE:          {label:'PPE',          color:'#22c55e', bg:'#064e3b', icon:'🦺'},
+};
+
+/* ── Degradation Factor + CCD editor (used in both HAZOP + BowTie) ─ */
+const DegradationEditor=({factors,onChange})=>{
+  const addFactor=()=>onChange([...factors,{id:uid(),text:'',controls:[]}]);
+  const delFactor=(i)=>onChange(factors.filter((_,j)=>j!==i));
+  const updFactor=(i,val)=>onChange(factors.map((f,j)=>j===i?{...f,...val}:f));
+  const addCCD=(fi)=>updFactor(fi,{controls:[...factors[fi].controls,{id:uid(),text:''}]});
+  const delCCD=(fi,ci)=>updFactor(fi,{controls:factors[fi].controls.filter((_,j)=>j!==ci)});
+  const updCCD=(fi,ci,txt)=>updFactor(fi,{controls:factors[fi].controls.map((c,j)=>j===ci?{...c,text:txt}:c)});
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+      {factors.map((f,fi)=>(
+        <div key={f.id} style={{background:'#150c00',borderRadius:6,border:'1px solid #f59e0b44',padding:'8px 10px'}}>
+          <div style={{display:'flex',gap:6,marginBottom:5}}>
+            <span style={{fontSize:10,color:'#f59e0b',fontWeight:700,flexShrink:0,marginTop:5,
+              background:'#451a03',padding:'1px 5px',borderRadius:3}}>DF{fi+1}</span>
+            <input value={f.text} onChange={e=>updFactor(fi,{text:e.target.value})}
+              placeholder="What degrades this barrier? (e.g., corrosion, proof test overdue…)"
+              style={{flex:1,fontSize:11,padding:'4px 7px'}}/>
+            <button onClick={()=>delFactor(fi)}
+              style={{fontSize:10,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'0 3px'}}>✕</button>
+          </div>
+          <div style={{paddingLeft:24}}>
+            {f.controls.map((c,ci)=>(
+              <div key={c.id} style={{display:'flex',gap:5,marginBottom:3}}>
+                <span style={{color:'#22c55e',fontSize:10,flexShrink:0,marginTop:5}}>→</span>
+                <input value={c.text} onChange={e=>updCCD(fi,ci,e.target.value)}
+                  placeholder="Degradation control / CCD"
+                  style={{flex:1,fontSize:11,padding:'3px 6px'}}/>
+                <button onClick={()=>delCCD(fi,ci)}
+                  style={{fontSize:10,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'0 3px'}}>✕</button>
+              </div>
+            ))}
+            <button onClick={()=>addCCD(fi)}
+              style={{fontSize:10,padding:'2px 7px',borderRadius:3,cursor:'pointer',
+                background:'transparent',color:'#22c55e',border:'1px solid #22c55e44',marginTop:2}}>+ Add CCD</button>
+          </div>
+        </div>
+      ))}
+      <button onClick={addFactor}
+        style={{fontSize:10,padding:'4px 10px',borderRadius:3,cursor:'pointer',
+          background:'transparent',color:'#f59e0b',border:'1px solid #f59e0b44',fontWeight:600}}>
+        ⚠ Add Degradation Factor
+      </button>
+    </div>
+  );
+};
+
+/* ── Mitigation Barrier card (inside HAZOP consequence) ──────────── */
+const MitBarrierCard=({mb,onUpdate,onDelete})=>{
+  const [editText,setEditText]=useState(false);
+  const [draft,setDraft]=useState(mb.text||'');
+  const tc=BARRIER_TYPES[mb.type]||BARRIER_TYPES.Engineering;
+  return(
+    <div style={{marginBottom:6,borderRadius:6,overflow:'hidden',border:`1px solid ${tc.color}55`}}>
+      {/* Header row: type selector + text + delete */}
+      <div style={{display:'flex',gap:6,padding:'6px 8px',background:tc.bg+'cc',alignItems:'flex-start'}}>
+        <select value={mb.type||'Engineering'} onChange={e=>onUpdate({type:e.target.value})}
+          title="Barrier type"
+          style={{fontSize:10,padding:'2px 4px',background:'transparent',color:tc.color,
+            border:`1px solid ${tc.color}66`,borderRadius:3,cursor:'pointer',flexShrink:0}}>
+          {Object.entries(BARRIER_TYPES).map(([k,v])=>(
+            <option key={k} value={k}>{v.icon} {k}</option>
+          ))}
+        </select>
+        <div style={{flex:1,cursor:'text'}} onClick={()=>{if(!editText){setDraft(mb.text||'');setEditText(true);}}}>
+          {editText?(
+            <input autoFocus value={draft} onChange={e=>setDraft(e.target.value)}
+              onBlur={()=>{onUpdate({text:draft});setEditText(false);}}
+              onKeyDown={e=>{if(e.key==='Enter'){onUpdate({text:draft});setEditText(false);}if(e.key==='Escape')setEditText(false);}}
+              style={{width:'100%',fontSize:12,padding:'2px 4px'}}/>
+          ):(
+            <span style={{fontSize:12,color:mb.text?'var(--text1)':'var(--text3)',fontStyle:mb.text?'normal':'italic',lineHeight:1.4}}>
+              {mb.text||'Click to describe this mitigation barrier…'}
+            </span>
+          )}
+        </div>
+        <button onClick={onDelete} title="Delete barrier"
+          style={{width:18,height:18,borderRadius:3,cursor:'pointer',fontSize:10,display:'flex',
+            alignItems:'center',justifyContent:'center',background:'transparent',
+            color:'#ef4444',border:'1px solid #ef444455',flexShrink:0,marginTop:1}}>✕</button>
+      </div>
+      {/* Degradation factors + CCDs */}
+      <div style={{padding:'7px 10px',background:'#0a0a16'}}>
+        <div style={{fontSize:9,color:'var(--text3)',fontWeight:700,textTransform:'uppercase',
+          letterSpacing:'0.05em',marginBottom:5}}>Degradation Factors &amp; Controls</div>
+        <DegradationEditor
+          factors={mb.degradationFactors||[]}
+          onChange={df=>onUpdate({degradationFactors:df})}/>
+      </div>
+    </div>
+  );
+};
+
+/* ── Mitigation Barrier section (added to consequence in HAZOP) ──── */
+const MitBarrierSection=({barriers,onChange})=>{
+  const add=()=>onChange([...barriers,{id:uid(),text:'',type:'Engineering',degradationFactors:[]}]);
+  const del=(id)=>onChange(barriers.filter(b=>b.id!==id));
+  const upd=(id,updates)=>onChange(barriers.map(b=>b.id===id?{...b,...updates}:b));
+  return(
+    <div style={{padding:'8px 12px',background:'#07091a',borderTop:'1px solid var(--border)'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+        <span style={{color:'#a78bfa',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+          🔰 Mitigation Barriers
+          <span style={{marginLeft:5,fontFamily:'var(--mono)',fontWeight:400,color:'var(--text3)',fontSize:9}}>
+            ({barriers.length})
+          </span>
+        </span>
+        <button onClick={add}
+          style={{fontSize:10,padding:'2px 8px',borderRadius:3,cursor:'pointer',
+            background:'transparent',color:'#a78bfa',border:'1px solid #a78bfa44',fontWeight:600}}>
+          + Add
+        </button>
+      </div>
+      {barriers.length===0&&(
+        <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',cursor:'pointer'}} onClick={add}>
+          No mitigation barriers — click <strong style={{color:'#a78bfa',fontStyle:'normal'}}>+ Add</strong>
+        </div>
+      )}
+      {barriers.map(mb=>(
+        <MitBarrierCard key={mb.id} mb={mb}
+          onUpdate={u=>upd(mb.id,u)}
+          onDelete={()=>del(mb.id)}/>
+      ))}
+    </div>
+  );
+};
+
 // ── Consequence block — n safeguards + n recommendations ────────────
 const ItemList=({items,color,icon,addPlaceholder,onAdd,onDel,onEdit,emptyMsg,textareaRows=2})=>{
   const [draft,setDraft]=useState('');
@@ -1020,7 +1158,7 @@ const ItemList=({items,color,icon,addPlaceholder,onAdd,onDel,onEdit,emptyMsg,tex
   );
 };
 
-const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,onSgDel,onRecAdd,onRecEdit,onRecDel})=>{
+const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,onSgDel,onRecAdd,onRecEdit,onRecDel,onMitUpdate})=>{
   const safeguards=Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[con.safeguard]:[]);
   const recs=Array.isArray(con.recommendations)?con.recommendations:[];
   const ref=`C${causeIdx+1}.${conIdx+1}`;
@@ -1065,6 +1203,10 @@ const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,
           onEdit={(i,updated)=>onRecEdit(devId,cid,con.id,i,updated)}
           onDel={(i)=>onRecDel(devId,cid,con.id,i)}/>
       </div>
+      {/* Mitigation Barriers with degradation factors + CCDs */}
+      <MitBarrierSection
+        barriers={Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[]}
+        onChange={mbs=>onMitUpdate&&onMitUpdate(devId,cid,con.id,mbs)}/>
     </div>
   );
 };
@@ -1092,7 +1234,7 @@ const RiskSection=({risk,label,color,borderColor,bgHint,type,onSetRisk,devId,cid
 };
 
 // ── Cause card — 4-section layout ────────────────────────────────────
-const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConAdd,onConUpdate,onConDelete,onSgAdd,onSgDel,onConRecAdd,onConRecEdit,onConRecDel,onSetRisk,onRecAdd,onRecEdit,onRecDel})=>{
+const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConAdd,onConUpdate,onConDelete,onSgAdd,onSgDel,onConRecAdd,onConRecEdit,onConRecDel,onSetRisk,onRecAdd,onRecEdit,onRecDel,onConMitUpdate})=>{
   const causeRef=`C${causeIdx+1}`;
   const causeRecs=Array.isArray(cause.recommendations)?cause.recommendations:[];
   return(
@@ -1132,7 +1274,8 @@ const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConA
             devId={devId} cid={cause.id}
             onUpdate={onConUpdate} onDelete={onConDelete}
             onSgAdd={onSgAdd} onSgDel={onSgDel}
-            onRecAdd={onConRecAdd} onRecEdit={onConRecEdit} onRecDel={onConRecDel}/>
+            onRecAdd={onConRecAdd} onRecEdit={onConRecEdit} onRecDel={onConRecDel}
+            onMitUpdate={onConMitUpdate}/>
         ))}
         <button className="add-row-btn" onClick={()=>onConAdd(devId,cause.id)}
           style={{color:'#ef4444',borderColor:'#ef444455',alignSelf:'flex-start',marginTop:6}}>
@@ -1582,6 +1725,12 @@ const WorksheetView=({state,setState,apiKey,aiModel})=>{
   const causeRecAdd=(devId,cid,rec)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,recommendations:[...(c.recommendations||[]),typeof rec==='string'?{id:uid(),text:rec,actionOwner:'',targetDate:''}:rec]}:c)}));
   const causeRecDel=(devId,cid,i)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,recommendations:(c.recommendations||[]).filter((_,j)=>j!==i)}:c)}));
   const causeRecEdit=(devId,cid,i,updated)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,recommendations:(c.recommendations||[]).map((r,j)=>j===i?{...r,...updated}:r)}:c)}));
+  // ── Mitigation barrier update (replaces whole array for the consequence) ──
+  const conMitUpdate=(devId,cid,conId,newMbs)=>updDev(devId,d=>({...d,
+    causes:d.causes.map(c=>c.id===cid?{...c,
+      consequences:c.consequences.map(cn=>cn.id===conId?{...cn,mitigationBarriers:newMbs}:cn)
+    }:c)
+  }));
   const recAdd=(devId,txt)=>updDev(devId,d=>({...d,recommendations:[...(d.recommendations||[]),txt]}));
   const recDel=(devId,i)=>updDev(devId,d=>({...d,recommendations:(d.recommendations||[]).filter((_,j)=>j!==i)}));
 
@@ -1764,6 +1913,7 @@ Generate 3-4 causes, 2 consequences each with 1-2 safeguards and 1 recommendatio
                 onConAdd={conAdd} onConUpdate={conUpdate} onConDelete={conDelete}
                 onSgAdd={conSgAdd} onSgDel={conSgDel}
                 onConRecAdd={conRecAdd} onConRecEdit={conRecEdit} onConRecDel={conRecDel}
+                onConMitUpdate={conMitUpdate}
                 onSetRisk={causeRiskUpdate}
                 onRecAdd={causeRecAdd} onRecEdit={causeRecEdit} onRecDel={causeRecDel}/>
             ))}
@@ -1978,7 +2128,7 @@ const ReportView=({study,nodes,deviations})=>{
           const cons=cause.consequences.length>0?cause.consequences:[{id:'none',text:'',safeguards:[],recommendations:[]}];
           cons.forEach((con,qi)=>{
             const conRef=`${causeRef}.${qi+1}`;
-            const sgs=(Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[con.safeguard]:[]));
+            const sgs=(Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[con.safeguard]:[])); const mbs=(Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[]).filter(m=>m&&m.text);
             const conRecs=(Array.isArray(con.recommendations)?con.recommendations:[]).map(r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r);
             const causeRecs=(Array.isArray(cause.recommendations)?cause.recommendations:[]).map(r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r);
             const allRecs=[...conRecs.map(r=>({...r,fromRef:conRef})),...causeRecs.map(r=>({...r,fromRef:causeRef}))];
@@ -2276,13 +2426,6 @@ const INIT_STUDY={projectName:'',company:'',facility:'',unit:'',location:'',docR
    AI-assisted SCE/SCT identification → Excel export
    ═══════════════════════════════════════════════════════════════════════ */
 
-const BARRIER_TYPES={
-  Engineering:  {label:'Engineering',  color:'#3b82f6', bg:'#1e3a5f', icon:'⚙'},
-  Instrumented: {label:'Instrumented', color:'#8b5cf6', bg:'#2d1f5e', icon:'📡'},
-  Administrative:{label:'Administrative',color:'#f59e0b',bg:'#451a03', icon:'📋'},
-  PPE:          {label:'PPE',          color:'#22c55e', bg:'#064e3b', icon:'🦺'},
-};
-
 /* ── Merge HAZOP data with stored bowtie enrichment ── */
 const buildBowTieBarriers=(dev,storedBT)=>{
   if(!dev)return[];
@@ -2300,16 +2443,16 @@ const buildBowTieBarriers=(dev,storedBT)=>{
           text:sg,type:'Engineering',isSCE:false,performanceStandard:'',
           degradationFactors:[],...(stored[id]||{})});
       });
-      // Consequence recommendations → mitigation barriers
-      const recs=Array.isArray(con.recommendations)?con.recommendations:[];
-      recs.forEach((r,ri)=>{
-        const txt=typeof r==='string'?r:(r.text||'');
-        if(!txt)return;
-        const id=`mit-${cause.id}-${con.id}-${ri}`;
+      // Mitigation barriers from HAZOP (with embedded DFs + CCDs)
+      const mits=Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[];
+      mits.forEach((m,mi)=>{
+        if(!m.text)return;
+        const id=`mit-${cause.id}-${con.id}-${m.id||mi}`;
         barriers.push({id,side:'mitigation',causeId:cause.id,conId:con.id,
           causeRef:`C${ci+1}`,conRef:`C${ci+1}.${qi+1}`,
-          text:txt,type:'Administrative',isSCE:false,performanceStandard:'',
-          degradationFactors:[],...(stored[id]||{})});
+          text:m.text,type:m.type||'Engineering',isSCE:false,performanceStandard:'',
+          degradationFactors:m.degradationFactors||[],
+          ...(stored[id]||{})});
       });
     });
     // Cause-level recommendations → prevention barriers
@@ -2325,55 +2468,6 @@ const buildBowTieBarriers=(dev,storedBT)=>{
     });
   });
   return barriers;
-};
-
-/* ── Degradation Factor + CCD editor ── */
-const DegradationEditor=({factors,onChange})=>{
-  const addFactor=()=>onChange([...factors,{id:uid(),text:'',controls:[]}]);
-  const delFactor=(i)=>onChange(factors.filter((_,j)=>j!==i));
-  const updFactor=(i,val)=>onChange(factors.map((f,j)=>j===i?{...f,...val}:f));
-  const addCCD=(fi)=>updFactor(fi,{controls:[...factors[fi].controls,{id:uid(),text:''}]});
-  const delCCD=(fi,ci)=>updFactor(fi,{controls:factors[fi].controls.filter((_,j)=>j!==ci)});
-  const updCCD=(fi,ci,txt)=>updFactor(fi,{controls:factors[fi].controls.map((c,j)=>j===ci?{...c,text:txt}:c)});
-  return(
-    <div style={{display:'flex',flexDirection:'column',gap:8}}>
-      {factors.map((f,fi)=>(
-        <div key={f.id} style={{background:'#1a0c00',borderRadius:6,border:'1px solid #f59e0b44',padding:'8px 10px'}}>
-          <div style={{display:'flex',gap:6,marginBottom:6}}>
-            <span style={{fontSize:11,color:'#f59e0b',fontWeight:700,flexShrink:0,marginTop:6}}>⚠ DF{fi+1}</span>
-            <input value={f.text} onChange={e=>updFactor(fi,{text:e.target.value})}
-              placeholder="What degrades this barrier? (e.g., corrosion, proof test not performed)"
-              style={{flex:1,fontSize:12,padding:'5px 8px'}}/>
-            <button onClick={()=>delFactor(fi)}
-              style={{fontSize:10,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'0 4px'}}>✕</button>
-          </div>
-          <div style={{paddingLeft:16}}>
-            <div style={{fontSize:10,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>
-              Controls / CCDs
-            </div>
-            {f.controls.map((c,ci)=>(
-              <div key={c.id} style={{display:'flex',gap:6,marginBottom:4}}>
-                <span style={{color:'#22c55e',fontSize:11,flexShrink:0,marginTop:6}}>→</span>
-                <input value={c.text} onChange={e=>updCCD(fi,ci,e.target.value)}
-                  placeholder="Control that prevents/detects this degradation"
-                  style={{flex:1,fontSize:11,padding:'4px 7px'}}/>
-                <button onClick={()=>delCCD(fi,ci)}
-                  style={{fontSize:10,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'0 4px'}}>✕</button>
-              </div>
-            ))}
-            <button onClick={()=>addCCD(fi)}
-              style={{fontSize:10,padding:'3px 8px',borderRadius:3,cursor:'pointer',background:'transparent',
-                color:'#22c55e',border:'1px solid #22c55e44',marginTop:2}}>+ Add CCD</button>
-          </div>
-        </div>
-      ))}
-      <button onClick={addFactor}
-        style={{fontSize:11,padding:'5px 12px',borderRadius:4,cursor:'pointer',background:'transparent',
-          color:'#f59e0b',border:'1px solid #f59e0b44',alignSelf:'flex-start',fontWeight:600}}>
-        ⚠ Add Degradation Factor
-      </button>
-    </div>
-  );
 };
 
 /* ── Barrier Editor Side Panel ── */
