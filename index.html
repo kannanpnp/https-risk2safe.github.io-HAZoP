@@ -2537,6 +2537,208 @@ const INIT_STUDY={projectName:'',company:'',facility:'',unit:'',location:'',docR
    Threats→Prevention Barriers→[TOP EVENT]→Mitigation Barriers→Consequences
    Degradation factors + controls shown below barriers
    ═══════════════════════════════════════════════════════════════════════ */
+/* ── Safety Critical Task row ─────────────────────────────────────── */
+const SCT_TYPES=['Testing','Inspection','Maintenance','Calibration','Operational'];
+
+const SCTRow=({sct,idx,onChange,onDelete})=>(
+  <div style={{padding:'8px 10px',background:'#0d1a0d',borderRadius:6,border:'1px solid #22c55e33',marginBottom:6}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+      <span style={{fontFamily:'var(--mono)',fontSize:10,color:'#22c55e',fontWeight:700,
+        background:'#052e16',padding:'2px 6px',borderRadius:3}}>
+        SCT-{String(idx+1).padStart(2,'0')}
+      </span>
+      <button onClick={onDelete}
+        style={{fontSize:10,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'0 4px'}}>
+        ✕ Remove
+      </button>
+    </div>
+    <div style={{display:'flex',flexDirection:'column',gap:5}}>
+      <div>
+        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Task Description</div>
+        <textarea value={sct.task||''} onChange={e=>onChange({task:e.target.value})} rows={2}
+          placeholder="Describe the safety critical task…"
+          style={{fontSize:11,resize:'vertical',width:'100%',lineHeight:1.4}}/>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Task Type</div>
+          <select value={sct.type||'Testing'} onChange={e=>onChange({type:e.target.value})}
+            style={{width:'100%',fontSize:11,padding:'4px 6px'}}>
+            {SCT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Frequency</div>
+          <input value={sct.frequency||''} onChange={e=>onChange({frequency:e.target.value})}
+            placeholder="e.g., 6-monthly"
+            style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Responsible</div>
+          <input value={sct.responsible||''} onChange={e=>onChange({responsible:e.target.value})}
+            placeholder="Role / discipline"
+            style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+        </div>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Competency</div>
+          <input value={sct.competency||''} onChange={e=>onChange({competency:e.target.value})}
+            placeholder="Required cert / qualification"
+            style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+        </div>
+      </div>
+      <div>
+        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Procedure Reference</div>
+        <input value={sct.procedure||''} onChange={e=>onChange({procedure:e.target.value})}
+          placeholder="e.g., MNT-ESDV-001"
+          style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+      </div>
+    </div>
+  </div>
+);
+
+/* ── Barrier editor side panel (click any barrier rectangle to open) ─ */
+const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
+  const [b,setB]=useState(barrier);
+  useEffect(()=>setB(barrier),[barrier?.id]);
+  const save=()=>{onUpdate(b);onClose();};
+  if(!b)return null;
+  const tc=BARRIER_TYPES[b.type]||BARRIER_TYPES.Engineering;
+  const scts=Array.isArray(b.scts)?b.scts:[];
+
+  const addSCT=()=>setB(prev=>({...prev,scts:[...(prev.scts||[]),
+    {id:uid(),task:'',type:'Testing',frequency:'',responsible:'',competency:'',procedure:''}]}));
+  const delSCT=(i)=>setB(prev=>({...prev,scts:(prev.scts||[]).filter((_,j)=>j!==i)}));
+  const updSCT=(i,upd)=>setB(prev=>({...prev,scts:(prev.scts||[]).map((s,j)=>j===i?{...s,...upd}:s)}));
+
+  return(
+    <div style={{width:400,borderLeft:'1px solid var(--border)',background:'var(--bg-surface)',
+      display:'flex',flexDirection:'column',overflow:'hidden',flexShrink:0}}>
+      <div style={{padding:'12px 16px',borderBottom:'1px solid var(--border)',background:'var(--bg-card)',flexShrink:0}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:tc.color,
+            textTransform:'uppercase',letterSpacing:'0.06em'}}>Edit Barrier</div>
+          <button onClick={onClose} style={{width:24,height:24,borderRadius:4,cursor:'pointer',
+            fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',
+            background:'transparent',color:'var(--text2)',border:'1px solid var(--border)'}}>✕</button>
+        </div>
+        <div style={{fontSize:11,color:'var(--text3)',marginTop:3}}>
+          {b.side==='prevention'?'Prevention Barrier — Safeguard':'Mitigation Barrier — Consequence side'}
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'14px 16px',display:'flex',flexDirection:'column',gap:14}}>
+        <div>
+          <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:4}}>Barrier Description</label>
+          <textarea value={b.text||''} onChange={e=>setB({...b,text:e.target.value})} rows={2}
+            style={{fontSize:12,resize:'vertical',width:'100%',lineHeight:1.5}}/>
+        </div>
+        <div>
+          <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:6}}>Barrier Type</label>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+            {Object.entries(BARRIER_TYPES).map(([k,v])=>(
+              <button key={k} onClick={()=>setB({...b,type:k})}
+                style={{padding:'6px 10px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:600,
+                  background:b.type===k?v.bg:'var(--bg-card)',
+                  color:b.type===k?v.color:'var(--text3)',
+                  border:`2px solid ${b.type===k?v.color:'var(--border)'}`,
+                  textAlign:'left',display:'flex',gap:5,alignItems:'center'}}>
+                <span>{v.icon}</span><span>{v.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{padding:'10px 12px',borderRadius:6,
+          border:`1px solid ${b.isSCE?'#ef444466':'var(--border)'}`,
+          background:b.isSCE?'#1a0505':'var(--bg-card)',
+          display:'flex',alignItems:'center',justifyContent:'space-between',
+          cursor:'pointer',transition:'all 0.2s'}}
+          onClick={()=>setB({...b,isSCE:!b.isSCE})}>
+          <div>
+            <div style={{fontSize:12,fontWeight:700,color:b.isSCE?'#ef4444':'var(--text2)'}}>
+              ★ Safety Critical Element (SCE)
+            </div>
+            <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>
+              Barrier whose failure could contribute substantially to a Major Accident Event
+            </div>
+          </div>
+          <div style={{width:28,height:16,borderRadius:8,background:b.isSCE?'#ef4444':'var(--border)',
+            position:'relative',flexShrink:0,transition:'all 0.2s'}}>
+            <div style={{width:12,height:12,borderRadius:6,background:'#fff',position:'absolute',
+              top:2,left:b.isSCE?14:2,transition:'all 0.2s'}}/>
+          </div>
+        </div>
+        {b.isSCE&&(
+          <div style={{borderLeft:'3px solid #ef4444',paddingLeft:10}}>
+            <label style={{fontSize:11,color:'#ef4444',fontWeight:600,display:'block',marginBottom:4}}>
+              Performance Standard
+            </label>
+            <textarea value={b.performanceStandard||''} onChange={e=>setB({...b,performanceStandard:e.target.value})}
+              rows={2} placeholder="e.g., SIL 2 — PFD at or below 0.01, proof test 6-monthly"
+              style={{fontSize:11,resize:'vertical',width:'100%',border:'1px solid #ef444466',lineHeight:1.5}}/>
+          </div>
+        )}
+        <div style={{borderLeft:`3px solid ${b.isSCE?'#22c55e':'var(--border)'}`,paddingLeft:10}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+            <div>
+              <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',
+                color:b.isSCE?'#22c55e':'var(--text2)'}}>
+                Safety Critical Tasks (SCTs)
+                <span style={{marginLeft:6,fontFamily:'var(--mono)',fontSize:10,fontWeight:400,
+                  color:'var(--text3)'}}>({scts.length})</span>
+              </div>
+              <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>
+                {b.isSCE
+                  ?"Tasks that maintain this SCE performance standard"
+                  :'Toggle SCE ON to formally designate — SCTs can be added now'}
+              </div>
+            </div>
+          </div>
+          {scts.length===0&&(
+            <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',marginBottom:6,
+              padding:'8px 10px',background:'var(--bg-card)',borderRadius:4,border:'1px solid var(--border)'}}>
+              No SCTs yet — click <strong style={{color:'#22c55e',fontStyle:'normal'}}>+ Add</strong> below.
+            </div>
+          )}
+          {scts.map((sct,i)=>(
+            <SCTRow key={sct.id||i} sct={sct} idx={i}
+              onChange={upd=>updSCT(i,upd)}
+              onDelete={()=>delSCT(i)}/>
+          ))}
+          <button onClick={addSCT}
+            style={{fontSize:11,padding:'5px 12px',borderRadius:4,cursor:'pointer',fontWeight:700,
+              background:b.isSCE?'#052e16':'var(--bg-card)',
+              color:b.isSCE?'#22c55e':'var(--text2)',
+              border:`1px solid ${b.isSCE?'#22c55e55':'var(--border)'}`,
+              display:'flex',alignItems:'center',gap:5}}>
+            + Add Safety Critical Task
+          </button>
+        </div>
+        <div>
+          <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:6}}>
+            Degradation Factors &amp; Controls (CCDs)
+          </label>
+          <DegradationEditor
+            factors={b.degradationFactors||[]}
+            onChange={df=>setB({...b,degradationFactors:df})}/>
+        </div>
+      </div>
+      <div style={{padding:'10px 16px',borderTop:'1px solid var(--border)',flexShrink:0,
+        background:'var(--bg-card)',display:'flex',gap:8,justifyContent:'space-between',alignItems:'center'}}>
+        <div style={{fontSize:10,color:'var(--text3)'}}>
+          {b.isSCE&&<span style={{color:'#ef4444'}}>★ SCE · {scts.length} SCT{scts.length!==1?'s':''}</span>}
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={onClose} style={{fontSize:12,padding:'6px 14px',borderRadius:4,cursor:'pointer',
+            background:'transparent',color:'var(--text2)',border:'1px solid var(--border)'}}>Cancel</button>
+          <button onClick={save} style={{fontSize:12,padding:'6px 16px',borderRadius:4,cursor:'pointer',
+            background:'var(--accent)',color:'#000',fontWeight:700,border:'none'}}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* ═══════════════════════════════════════════════════════════════════════
    BOW TIE SVG CANVAS — consequence-centric layout
    Top Event = Consequence | Left = Cause + Prevention Barriers
