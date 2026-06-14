@@ -2533,6 +2533,338 @@ const INIT_STUDY={projectName:'',company:'',facility:'',unit:'',location:'',docR
 
 
 /* ═══════════════════════════════════════════════════════════════════════
+   BOW TIE SVG CANVAS — faithful graphical bow tie per reference image
+   Threats→Prevention Barriers→[TOP EVENT]→Mitigation Barriers→Consequences
+   Degradation factors + controls shown below barriers
+   ═══════════════════════════════════════════════════════════════════════ */
+const BowTieSVGCanvas=({nd,barriers,devLabel,onBarrierClick})=>{
+  const causes=nd.causes||[];
+  const allCons=causes.flatMap((c,ci)=>(c.consequences||[]).map((cn,qi)=>({...cn,ci,qi,cause:c})));
+  const N=Math.max(causes.length,1);
+  const M=Math.max(allCons.length,1);
+  const ROWS=Math.max(N,M);
+
+  // ── SVG dimension constants ───────────────────────────────────────────
+  const VW=1200;
+  const ROW_H=Math.max(140,Math.round(700/ROWS));
+  const CORE_H=ROWS*ROW_H+60;
+  const CY=CORE_H/2;
+
+  // Check if any barriers have degradation factors
+  const allDFs=barriers.flatMap(b=>(b.degradationFactors||[]).map((df,dfi)=>({b,df,dfi})));
+  const DF_ZONE=allDFs.length>0?Math.min(allDFs.length*80+60,320):0;
+  const VH=CORE_H+DF_ZONE+20;
+
+  // ── X zones ───────────────────────────────────────────────────────────
+  const TX=10, TW=148, TH=64;
+  const BARRIER_L_START=TW+TX+28;
+  const BARRIER_L_END=455;
+  const TRUNK_L=470;
+  const TE_CX=VW/2, TE_RX=85, TE_RY=52;
+  const TRUNK_R=VW-470;
+  const BARRIER_R_START=VW-455;
+  const BARRIER_R_END=VW-TW-TX-28;
+  const CX=VW-TW-TX;
+  const BW=26, BH=76;
+
+  // ── Y position helpers ─────────────────────────────────────────────────
+  const cY=ci=>N===1?CY:Math.round(30+ci*(CORE_H-60)/(N-1));
+  const qY=qi=>M===1?CY:Math.round(30+qi*(CORE_H-60)/(M-1));
+
+  // ── Barrier X position helpers ─────────────────────────────────────────
+  const pBX=(ci,bi,total)=>{
+    if(total===0)return (BARRIER_L_START+BARRIER_L_END)/2;
+    const step=(BARRIER_L_END-BARRIER_L_START)/(total+1);
+    return Math.round(BARRIER_L_START+step*(bi+1));
+  };
+  const mBX=(qi,bi,total)=>{
+    if(total===0)return (BARRIER_R_START+BARRIER_R_END)/2;
+    const step=(BARRIER_R_END-BARRIER_R_START)/(total+1);
+    return Math.round(BARRIER_R_START+step*(bi+1));
+  };
+
+  // ── Barrier filter helpers ─────────────────────────────────────────────
+  const prevBs=ci=>barriers.filter(b=>b.side==='prevention'&&b.causeId===causes[ci]?.id);
+  const mitBs=qi=>barriers.filter(b=>b.side==='mitigation'&&b.conId===allCons[qi]?.id);
+  const bCol=type=>(BARRIER_TYPES[type]||BARRIER_TYPES.Engineering).color;
+  const bBg=type=>(BARRIER_TYPES[type]||BARRIER_TYPES.Engineering).bg;
+  const T=(s,n)=>(s||'').substring(0,n)+((s||'').length>n?'…':'');
+
+  // ── Colors ───────────────────────────────────────────────────────────
+  const PC='#f59e0b', MC='#ef4444', TC='#94a3b8';
+
+  return(
+    <svg viewBox={`0 0 ${VW} ${VH}`} style={{width:'100%',height:'auto',display:'block',userSelect:'none'}}
+      xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="sce-glow"><feGaussianBlur stdDeviation="2" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+
+      {/* ── Column labels ── */}
+      <text x={(TX+TW+TRUNK_L)/2} y={14} textAnchor="middle"
+        fill={PC} fontSize={10} fontFamily="system-ui" fontWeight="700" opacity={0.75}>
+        Prevention Barriers
+      </text>
+      <text x={(TRUNK_R+CX+TW)/2} y={14} textAnchor="middle"
+        fill={MC} fontSize={10} fontFamily="system-ui" fontWeight="700" opacity={0.75}>
+        Mitigation Barriers
+      </text>
+
+      {/* ── Left vertical trunk ── */}
+      {N>1&&(
+        <line x1={TRUNK_L} y1={cY(0)} x2={TRUNK_L} y2={cY(N-1)}
+          stroke={TC} strokeWidth={2.5} opacity={0.45}/>
+      )}
+
+      {/* ── Right vertical trunk ── */}
+      {M>1&&(
+        <line x1={TRUNK_R} y1={qY(0)} x2={TRUNK_R} y2={qY(M-1)}
+          stroke={TC} strokeWidth={2.5} opacity={0.45}/>
+      )}
+
+      {/* ── Trunk → Top Event arrows ── */}
+      <line x1={TRUNK_L} y1={CY} x2={TE_CX-TE_RX} y2={CY}
+        stroke={TC} strokeWidth={2.5} opacity={0.6}/>
+      <line x1={TE_CX+TE_RX} y1={CY} x2={TRUNK_R} y2={CY}
+        stroke={TC} strokeWidth={2.5} opacity={0.6}/>
+
+      {/* ── Top Event ── */}
+      <ellipse cx={TE_CX} cy={CY} rx={TE_RX} ry={TE_RY}
+        fill="#78350f" stroke="#f59e0b" strokeWidth={3}/>
+      <text x={TE_CX} y={CY-16} textAnchor="middle" fill="#fff"
+        fontSize={10} fontWeight="800" fontFamily="system-ui">TOP EVENT</text>
+      <text x={TE_CX} y={CY+1} textAnchor="middle" fill="#fde68a"
+        fontSize={8.5} fontFamily="system-ui">{T(devLabel,24)}</text>
+      {(devLabel||'').length>24&&(
+        <text x={TE_CX} y={CY+15} textAnchor="middle" fill="#fde68a"
+          fontSize={8} fontFamily="system-ui">{T((devLabel||'').substring(24),24)}</text>
+      )}
+
+      {/* ═════════════════════════════════════════════════════════════════
+          CAUSES (threats) — left side
+          ═════════════════════════════════════════════════════════════════ */}
+      {causes.map((cause,ci)=>{
+        const y=cY(ci);
+        const pbs=prevBs(ci);
+        const firstBX=pbs.length>0?pBX(ci,0,pbs.length)-BW/2:TRUNK_L;
+        return(
+          <g key={cause.id||ci}>
+            {/* Cause/Threat box */}
+            <rect x={TX} y={y-TH/2} width={TW} height={TH} rx={5}
+              fill="#1a0b00" stroke={PC} strokeWidth={2}/>
+            <text x={TX+7} y={y-TH/2+14} fill={PC} fontSize={9}
+              fontWeight="bold" fontFamily="system-ui">C{ci+1}</text>
+            <text x={TX+7} y={y-TH/2+27} fill="#fde68a" fontSize={8.5}
+              fontFamily="system-ui">{T(cause.text,19)}</text>
+            {(cause.text||'').length>19&&(
+              <text x={TX+7} y={y-TH/2+39} fill="#fde68a" fontSize={8}
+                fontFamily="system-ui">{T((cause.text||'').substring(19),19)}</text>
+            )}
+            {(cause.text||'').length>38&&(
+              <text x={TX+7} y={y-TH/2+50} fill="#fcd34d" fontSize={7.5}
+                fontFamily="system-ui">{T((cause.text||'').substring(38),19)}…</text>
+            )}
+
+            {/* Line: threat box → first barrier (or trunk if no barriers) */}
+            <line x1={TX+TW} y1={y} x2={firstBX} y2={y}
+              stroke={PC} strokeWidth={2} opacity={0.75}/>
+
+            {/* No barriers → line to trunk */}
+            {pbs.length===0&&(
+              <line x1={TX+TW} y1={y} x2={TRUNK_L} y2={y}
+                stroke={PC} strokeWidth={2} opacity={0.55}/>
+            )}
+
+            {/* Prevention barriers + inter-barrier lines */}
+            {pbs.map((b,bi)=>{
+              const bx=pBX(ci,bi,pbs.length);
+              const col=bCol(b.type);
+              const bg=bBg(b.type);
+              const hasDFs=(b.degradationFactors||[]).length>0;
+              const lineEnd=bi<pbs.length-1
+                ?pBX(ci,bi+1,pbs.length)-BW/2
+                :TRUNK_L;
+              return(
+                <g key={b.id||bi}>
+                  {/* Barrier rect — clickable */}
+                  <rect x={bx-BW/2} y={y-BH/2} width={BW} height={BH}
+                    rx={3} fill={bg} stroke={col} strokeWidth={b.isSCE?3:2}
+                    style={{cursor:'pointer'}}
+                    filter={b.isSCE?'url(#sce-glow)':undefined}
+                    onClick={()=>onBarrierClick(b)}/>
+                  {b.isSCE&&(
+                    <text x={bx} y={y-BH/2-6} textAnchor="middle"
+                      fontSize={11} fill="#ef4444" fontFamily="system-ui">★</text>
+                  )}
+                  {/* Line after this barrier */}
+                  <line x1={bx+BW/2} y1={y} x2={lineEnd} y2={y}
+                    stroke={PC} strokeWidth={2} opacity={0.75}/>
+                  {/* Drop line to DF zone */}
+                  {hasDFs&&(
+                    <line x1={bx} y1={y+BH/2} x2={bx} y2={CORE_H+8}
+                      stroke="#f59e0b" strokeWidth={1.5}
+                      strokeDasharray="5,3" opacity={0.55}/>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        );
+      })}
+
+      {/* ═════════════════════════════════════════════════════════════════
+          CONSEQUENCES (escalations) — right side
+          ═════════════════════════════════════════════════════════════════ */}
+      {allCons.map((cn,qi)=>{
+        const y=qY(qi);
+        const mbs=mitBs(qi);
+        const firstMBX=mbs.length>0?mBX(qi,0,mbs.length)-BW/2:CX;
+        return(
+          <g key={cn.id||qi}>
+            {/* Consequence box */}
+            <rect x={CX} y={y-TH/2} width={TW} height={TH} rx={5}
+              fill="#1a0505" stroke={MC} strokeWidth={2}/>
+            <text x={CX+7} y={y-TH/2+14} fill={MC} fontSize={9}
+              fontWeight="bold" fontFamily="system-ui">C{cn.ci+1}.{cn.qi+1}</text>
+            <text x={CX+7} y={y-TH/2+27} fill="#fca5a5" fontSize={8.5}
+              fontFamily="system-ui">{T(cn.text,19)}</text>
+            {(cn.text||'').length>19&&(
+              <text x={CX+7} y={y-TH/2+39} fill="#fca5a5" fontSize={8}
+                fontFamily="system-ui">{T((cn.text||'').substring(19),19)}</text>
+            )}
+            {(cn.text||'').length>38&&(
+              <text x={CX+7} y={y-TH/2+50} fill="#fca5a5" fontSize={7.5}
+                fontFamily="system-ui">{T((cn.text||'').substring(38),19)}…</text>
+            )}
+
+            {/* No barriers → line from trunk to consequence */}
+            {mbs.length===0&&(
+              <line x1={TRUNK_R} y1={y} x2={CX} y2={y}
+                stroke={MC} strokeWidth={2} opacity={0.55}/>
+            )}
+
+            {/* Line: trunk → first mitigation barrier */}
+            {mbs.length>0&&(
+              <line x1={TRUNK_R} y1={y} x2={firstMBX} y2={y}
+                stroke={MC} strokeWidth={2} opacity={0.75}/>
+            )}
+
+            {/* Mitigation barriers */}
+            {mbs.map((b,bi)=>{
+              const bx=mBX(qi,bi,mbs.length);
+              const col=bCol(b.type);
+              const bg=bBg(b.type);
+              const hasDFs=(b.degradationFactors||[]).length>0;
+              const lineEnd=bi<mbs.length-1
+                ?mBX(qi,bi+1,mbs.length)-BW/2
+                :CX;
+              return(
+                <g key={b.id||bi}>
+                  <rect x={bx-BW/2} y={y-BH/2} width={BW} height={BH}
+                    rx={3} fill={bg} stroke={col} strokeWidth={b.isSCE?3:2}
+                    style={{cursor:'pointer'}}
+                    filter={b.isSCE?'url(#sce-glow)':undefined}
+                    onClick={()=>onBarrierClick(b)}/>
+                  {b.isSCE&&(
+                    <text x={bx} y={y-BH/2-6} textAnchor="middle"
+                      fontSize={11} fill="#ef4444" fontFamily="system-ui">★</text>
+                  )}
+                  <line x1={bx+BW/2} y1={y} x2={lineEnd} y2={y}
+                    stroke={MC} strokeWidth={2} opacity={0.75}/>
+                  {hasDFs&&(
+                    <line x1={bx} y1={y+BH/2} x2={bx} y2={CORE_H+8}
+                      stroke="#f59e0b" strokeWidth={1.5}
+                      strokeDasharray="5,3" opacity={0.55}/>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        );
+      })}
+
+      {/* ═════════════════════════════════════════════════════════════════
+          DEGRADATION FACTORS + CONTROLS — below the main diagram
+          ═════════════════════════════════════════════════════════════════ */}
+      {allDFs.length>0&&(
+        <g>
+          <line x1={20} y1={CORE_H+12} x2={VW-20} y2={CORE_H+12}
+            stroke="#334155" strokeWidth={1} strokeDasharray="8,5" opacity={0.5}/>
+          <text x={VW/2} y={CORE_H+30} textAnchor="middle"
+            fill="#64748b" fontSize={9} fontFamily="system-ui" fontWeight="600">
+            Degradation Factors &amp; Controls (CCDs)
+          </text>
+
+          {allDFs.map(({b,df,dfi},idx)=>{
+            // Find barrier X in diagram
+            let bx2=TE_CX;
+            const ci2=causes.findIndex(c=>c.id===b.causeId);
+            if(b.side==='prevention'&&ci2>=0){
+              const pbs2=prevBs(ci2);
+              const bi2=pbs2.findIndex(pb=>pb.id===b.id);
+              if(bi2>=0)bx2=pBX(ci2,bi2,pbs2.length);
+            }
+            const qi2=allCons.findIndex(cn=>cn.id===b.conId);
+            if(b.side==='mitigation'&&qi2>=0){
+              const mbs2=mitBs(qi2);
+              const bi2=mbs2.findIndex(mb=>mb.id===b.id);
+              if(bi2>=0)bx2=mBX(qi2,bi2,mbs2.length);
+            }
+            const isPrev=b.side==='prevention';
+            const DFY=CORE_H+42+dfi*80;
+            const DFW=130,DFH=36;
+            const DCW=110,DCH=32;
+            return(
+              <g key={b.id+'-'+dfi}>
+                {/* DF box */}
+                <rect x={bx2-DFW/2} y={DFY} width={DFW} height={DFH}
+                  rx={4} fill="#451a03" stroke="#f59e0b" strokeWidth={1.5}/>
+                <text x={bx2} y={DFY+13} textAnchor="middle"
+                  fill="#fde68a" fontSize={8} fontFamily="system-ui">{T(df.text,17)}</text>
+                {(df.text||'').length>17&&(
+                  <text x={bx2} y={DFY+25} textAnchor="middle"
+                    fill="#fde68a" fontSize={7.5} fontFamily="system-ui">
+                    {T((df.text||'').substring(17),17)}
+                  </text>
+                )}
+                {/* Controls (CCDs) */}
+                {(df.controls||[]).map((dc,dci)=>{
+                  const DCX=isPrev
+                    ?bx2-DFW/2-DCW-12
+                    :bx2+DFW/2+12;
+                  const DCY=DFY+(dci*40);
+                  return(
+                    <g key={dci}>
+                      <line x1={isPrev?bx2-DFW/2:bx2+DFW/2} y1={DFY+DFH/2}
+                        x2={isPrev?DCX+DCW:DCX} y2={DCY+DCH/2}
+                        stroke="#22c55e" strokeWidth={1.5} opacity={0.7}/>
+                      <rect x={DCX} y={DCY} width={DCW} height={DCH}
+                        rx={4} fill="#052e16" stroke="#22c55e" strokeWidth={1.5}/>
+                      <text x={DCX+DCW/2} y={DCY+12} textAnchor="middle"
+                        fill="#86efac" fontSize={7.5} fontFamily="system-ui">
+                        {T(dc.text||'',16)}
+                      </text>
+                      {(dc.text||'').length>16&&(
+                        <text x={DCX+DCW/2} y={DCY+24} textAnchor="middle"
+                          fill="#86efac" fontSize={7} fontFamily="system-ui">
+                          {T((dc.text||'').substring(16),16)}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            );
+          })}
+        </g>
+      )}
+    </svg>
+  );
+};
+
+
+/* ═══════════════════════════════════════════════════════════════════════
    BOW TIE STUDIO — Tier 3 Full Barrier Model
    Auto-generated from HAZOP data + enrichable with degradation factors
    AI-assisted SCE/SCT identification → Excel export
@@ -3099,38 +3431,12 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
               </div>
             </div>
 
-            {/* Three-column bow tie */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 2px 1fr',gap:0,alignItems:'start'}}>
-              {/* LEFT — Threats & Prevention Barriers */}
-              <div style={{paddingRight:16}}>
-                <div style={{fontSize:10,color:'var(--text3)',fontWeight:700,textTransform:'uppercase',
-                  letterSpacing:'0.08em',marginBottom:12,textAlign:'right'}}>
-                  ← Threats &amp; Prevention Barriers
-                </div>
-                {nd.causes.length===0&&(
-                  <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',textAlign:'right'}}>No causes — add in HAZOP Worksheet</div>
-                )}
-                {nd.causes.map((cause,ci)=><ThreatBlock key={cause.id} cause={cause} ci={ci}/>)}
-              </div>
-
-              {/* Center divider */}
-              <div style={{background:'var(--accent)',opacity:0.4,alignSelf:'stretch'}}/>
-
-              {/* RIGHT — Mitigation Barriers & Consequences */}
-              <div style={{paddingLeft:16}}>
-                <div style={{fontSize:10,color:'var(--text3)',fontWeight:700,textTransform:'uppercase',
-                  letterSpacing:'0.08em',marginBottom:12}}>
-                  Mitigation Barriers &amp; Consequences →
-                </div>
-                {nd.causes.flatMap((cause,ci)=>
-                  cause.consequences.map((con,qi)=>
-                    <ConseqBlock key={con.id} con={con} cause={cause} ci={ci} qi={qi}/>
-                  )
-                )}
-                {nd.causes.every(c=>c.consequences.length===0)&&(
-                  <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic'}}>No consequences — add in HAZOP Worksheet</div>
-                )}
-              </div>
+            {/* Bow Tie SVG Canvas */}
+            <div style={{overflowX:'auto',overflowY:'visible'}}>
+              <BowTieSVGCanvas
+                nd={nd} barriers={barriers}
+                devLabel={activeDev.deviation||activeDev.guideWord+' '+activeDev.parameter}
+                onBarrierClick={(b)=>setEditingBarrierId(b.id)}/>
             </div>
 
             {/* SCE/SCT Results Panel */}
