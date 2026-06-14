@@ -1547,7 +1547,29 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel})=>{
     }))};
   });
   const conRecAdd=(devId,cid,conId,rec)=>updDev(devId,d=>({...d,causes:(d.causes||[]).map(c=>c.id===cid?{...c,consequences:(c.consequences||[]).map(cn=>cn.id===conId?{...cn,recommendations:[...(cn.recommendations||[]),{id:uid(),...rec}]}:cn)}:c)}));
-  const conRecEdit=(devId,cid,conId,i,updated)=>updDev(devId,d=>({...d,causes:(d.causes||[]).map(c=>c.id===cid?{...c,consequences:(c.consequences||[]).map(cn=>cn.id===conId?{...cn,recommendations:(cn.recommendations||[]).map((r,j)=>j===i?{...r,...updated}:r)}:cn)}:c)}));
+  // conRecEdit: updates one rec AND syncs DFs to all recs with the same text across the deviation
+  const conRecEdit=(devId,cid,conId,i,updated)=>updDev(devId,d=>{
+    // Find the text of the rec being updated (to match against others)
+    let matchText='';
+    (d.causes||[]).forEach(c=>c.consequences.forEach(cn=>
+      (cn.recommendations||[]).forEach((r,j)=>{
+        if(c.id===cid&&cn.id===conId&&j===i)
+          matchText=(r.text||updated.text||'').trim().toLowerCase();
+      })
+    ));
+    return{...d,causes:(d.causes||[]).map(c=>({...c,
+      consequences:c.consequences.map(cn=>({...cn,
+        recommendations:(cn.recommendations||[]).map((r,j)=>{
+          // Update the targeted rec
+          if(c.id===cid&&cn.id===conId&&j===i)return{...r,...updated};
+          // Sync degradation factors to all recs with the same text
+          if(updated.degradationFactors&&matchText&&(r.text||'').trim().toLowerCase()===matchText)
+            return{...r,degradationFactors:updated.degradationFactors};
+          return r;
+        })
+      }))
+    }))};
+  });
   const conRecDel=(devId,cid,conId,i)=>updDev(devId,d=>({...d,causes:(d.causes||[]).map(c=>c.id===cid?{...c,consequences:(c.consequences||[]).map(cn=>cn.id===conId?{...cn,recommendations:(cn.recommendations||[]).filter((_,j)=>j!==i)}:cn)}:c)}));
   const conMitUpdate=(devId,cid,conId,newMbs)=>updDev(devId,d=>({...d,causes:(d.causes||[]).map(c=>c.id===cid?{...c,consequences:(c.consequences||[]).map(cn=>cn.id===conId?{...cn,mitigationBarriers:newMbs}:cn)}:c)}));
   const causeRiskUpdate=(devId,cid,type,risk)=>updDev(devId,d=>({...d,causes:(d.causes||[]).map(c=>c.id===cid?{...c,[type]:risk}:c)}));
@@ -2264,30 +2286,41 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
   const updateBarrier=(updated)=>{
     if(!activeCon)return;
     const conKey=(activeCon.cause?.id||'')+'-'+(activeCon.id||'');
-    // If DFs changed, sync to all barriers across node with matching text
+    const matchText=(updated.text||'').trim().toLowerCase();
     setState(s=>{
+      // ── Update BowTie enrichment ──
       let newBowties={...s.bowties,[conKey]:{...(s.bowties[conKey]||{}),[updated.id]:updated}};
-      if(updated.degradationFactors){
-        const matchText=(updated.text||'').trim().toLowerCase();
-        if(matchText){
-          Object.keys(newBowties).forEach(ck=>{
-            const ckData=newBowties[ck]||{};
-            const updated2={};
-            let changed=false;
-            Object.keys(ckData).forEach(bid=>{
-              const b=ckData[bid];
-              if(b&&b.id!==updated.id&&(b.text||'').trim().toLowerCase()===matchText){
-                updated2[bid]={...b,degradationFactors:updated.degradationFactors};
-                changed=true;
-              } else {
-                updated2[bid]=b;
-              }
-            });
-            if(changed)newBowties[ck]=updated2;
+      // Sync DFs to barriers with same text in other consequences (BowTie side)
+      if(updated.degradationFactors&&matchText){
+        Object.keys(newBowties).forEach(ck=>{
+          const ckData=newBowties[ck]||{};
+          const sync={};let changed=false;
+          Object.keys(ckData).forEach(bid=>{
+            const b=ckData[bid];
+            if(b&&b.id!==updated.id&&(b.text||'').trim().toLowerCase()===matchText){
+              sync[bid]={...b,degradationFactors:updated.degradationFactors};changed=true;
+            }else{sync[bid]=b;}
           });
-        }
+          if(changed)newBowties[ck]=sync;
+        });
       }
-      return{...s,bowties:newBowties};
+      // ── For recommendation barriers: also write DFs back to HAZOP deviations ──
+      // This keeps the worksheet RecCard and BowTie in sync
+      let newDevs=s.deviations;
+      if(updated.side==='recommendation'&&updated.degradationFactors&&matchText){
+        newDevs=(s.deviations||[]).map(dev=>({...dev,
+          causes:(dev.causes||[]).map(c=>({...c,
+            consequences:c.consequences.map(cn=>({...cn,
+              recommendations:(cn.recommendations||[]).map(r=>{
+                if((r.text||'').trim().toLowerCase()===matchText)
+                  return{...r,degradationFactors:updated.degradationFactors};
+                return r;
+              })
+            }))
+          }))
+        }));
+      }
+      return{...s,bowties:newBowties,deviations:newDevs};
     });
   };
 
