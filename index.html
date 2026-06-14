@@ -639,7 +639,9 @@ const normalizeDev=(d)=>{
       causes:d.causes.map(c=>({initialRisk:null,residualRisk:null,recommendations:[],...c,
         recommendations:normRecs(c.recommendations),
         consequences:(c.consequences||[]).map(cn=>({safeguards:[],recommendations:[],...cn,
-          safeguards:Array.isArray(cn.safeguards)?cn.safeguards:(cn.safeguard?[cn.safeguard]:[]),
+          safeguards:(Array.isArray(cn.safeguards)?cn.safeguards:(cn.safeguard?[cn.safeguard]:[])).map(s=>
+            typeof s==='string'?{id:uid(),text:s,degradationFactors:[]}:{id:uid(),degradationFactors:[],...s}
+          ),
           recommendations:normRecs(cn.recommendations),
           mitigationBarriers:Array.isArray(cn.mitigationBarriers)?cn.mitigationBarriers.map(m=>({
             id:uid(),text:'',type:'Engineering',degradationFactors:[],...m
@@ -653,11 +655,11 @@ const normalizeDev=(d)=>{
   const osg=Array.isArray(d.safeguards)?d.safeguards:[];
   const newCauses=oc.map((txt,ci)=>({
     id:uid(),text:txt,initialRisk:null,residualRisk:null,recommendations:[],
-    consequences:ci<ocon.length?[{id:uid(),text:ocon[ci],safeguards:ci<osg.length&&osg[ci]?[osg[ci]]:[],recommendations:[],mitigationBarriers:[]}]:[]
+    consequences:ci<ocon.length?[{id:uid(),text:ocon[ci],safeguards:ci<osg.length&&osg[ci]?[{id:uid(),text:osg[ci],degradationFactors:[]}]:[],recommendations:[],mitigationBarriers:[]}]:[]
   }));
   for(let i=oc.length;i<ocon.length;i++){
     if(!newCauses.length)newCauses.push({id:uid(),text:'',initialRisk:null,residualRisk:null,recommendations:[],consequences:[]});
-    newCauses[newCauses.length-1].consequences.push({id:uid(),text:ocon[i],safeguards:i<osg.length&&osg[i]?[osg[i]]:[],recommendations:[],mitigationBarriers:[]});
+    newCauses[newCauses.length-1].consequences.push({id:uid(),text:ocon[i],safeguards:i<osg.length&&osg[i]?[{id:uid(),text:osg[i],degradationFactors:[]}]:[],recommendations:[],mitigationBarriers:[]});
   }
   return {...d,causes:newCauses,recommendations:normRecs(d.recommendations)};
 };
@@ -936,6 +938,31 @@ const RecList=({recs,color,label,emptyMsg,onAdd,onEdit,onDel})=>{
     </div>
   );
 };
+/* ── Module-level context globals (set by WorksheetView on render) ─── */
+window._R2S={key:'',model:'claude-sonnet-4-6',nodeName:'',deviation:'',fluid:''};
+
+/* ── AI suggest degradation factors + CCDs for a barrier ─────────────── */
+const suggestDFsAI=async(barrierText,existingDFs)=>{
+  const ctx=window._R2S||{};
+  if(!ctx.key)return[];
+  const existing=(existingDFs||[]).map(d=>d.text).filter(Boolean).join('; ');
+  const sys='You are a process safety barrier integrity engineer. Return only valid compact JSON, no explanation.';
+  const usr='Barrier: '+barrierText+
+    '\nProcess context: Node='+ctx.nodeName+' | Deviation='+ctx.deviation+' | Fluid='+ctx.fluid+
+    (existing?'\nAlready identified: '+existing:'')+
+    '\n\nIdentify 2-3 degradation factors for this barrier and 1-2 degradation controls (CCDs) per factor.'+
+    '\nJSON: {"degradationFactors":[{"text":"DF text","controls":[{"text":"CCD text"}]}]}';
+  try{
+    const raw=await window.callAnthropicAPI(ctx.key,ctx.model,sys,usr);
+    const parsed=repairJSON(raw);
+    return(parsed.degradationFactors||[]).map(df=>({
+      id:uid(),text:df.text||'',
+      controls:(df.controls||[]).map(c=>({id:uid(),text:typeof c==='string'?c:(c.text||'')}))
+    }));
+  }catch{return[];}
+};
+
+
 
 /* ── Barrier types (shared by HAZOP ConBlock + BowTie) ───────────── */
 const BARRIER_TYPES={
@@ -992,6 +1019,53 @@ const DegradationEditor=({factors,onChange})=>{
   );
 };
 
+/* ── Safeguard card — prevention barrier with DFs + AI suggest ───── */
+const SafeguardCard=({sg,onUpdate,onDelete})=>{
+  const sgObj=typeof sg==='string'?{id:uid(),text:sg,degradationFactors:[]}:sg;
+  const [aiLoading,setAiLoading]=useState(false);
+  const suggestDFs=async()=>{
+    if(!window._R2S?.key)return;
+    setAiLoading(true);
+    const newDFs=await suggestDFsAI(sgObj.text,sgObj.degradationFactors||[]);
+    if(newDFs.length>0)onUpdate({...sgObj,degradationFactors:[...(sgObj.degradationFactors||[]),...newDFs]});
+    setAiLoading(false);
+  };
+  return(
+    <div style={{marginBottom:6,borderRadius:6,overflow:'hidden',border:'1px solid #22c55e44'}}>
+      {/* Text row + delete */}
+      <div style={{display:'flex',gap:6,padding:'6px 10px',background:'#071408',
+        alignItems:'flex-start',borderBottom:'1px solid #1a3324'}}>
+        <span style={{color:'#22c55e',fontSize:13,flexShrink:0,marginTop:3}}>🛡</span>
+        <InlineEdit value={sgObj.text} onChange={t=>onUpdate({...sgObj,text:t})} multiline
+          placeholder="[Engineering / Admin / Instrumented / PPE] describe this safeguard…"
+          style={{minHeight:36}} textStyle={{fontSize:12,color:'var(--text1)',flex:1}}/>
+        <button onClick={onDelete} title="Delete safeguard"
+          style={{width:20,height:20,borderRadius:3,cursor:'pointer',fontSize:10,display:'flex',
+            alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1,
+            background:'transparent',color:'#ef4444',border:'1px solid #ef444455'}}>✕</button>
+      </div>
+      {/* Degradation factors + AI suggest */}
+      <div style={{padding:'7px 10px',background:'#050d0a'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
+          <span style={{fontSize:9,color:'var(--text3)',fontWeight:700,
+            textTransform:'uppercase',letterSpacing:'0.06em'}}>
+            ⚠ Degradation Factors &amp; Controls
+          </span>
+          <button onClick={suggestDFs} disabled={aiLoading}
+            style={{fontSize:10,padding:'2px 8px',borderRadius:3,cursor:'pointer',
+              background:'transparent',color:'#a78bfa',border:'1px solid #a78bfa44',
+              opacity:aiLoading?0.6:1}}>
+            {aiLoading?<><span className="spin">⟳</span> Suggesting…</>:<>✦ AI Suggest</>}
+          </button>
+        </div>
+        <DegradationEditor
+          factors={sgObj.degradationFactors||[]}
+          onChange={df=>onUpdate({...sgObj,degradationFactors:df})}/>
+      </div>
+    </div>
+  );
+};
+
 /* ── Mitigation Barrier card (inside HAZOP consequence) ──────────── */
 const MitBarrierCard=({mb,onUpdate,onDelete})=>{
   const tc=BARRIER_TYPES[mb.type]||BARRIER_TYPES.Engineering;
@@ -1027,8 +1101,18 @@ const MitBarrierCard=({mb,onUpdate,onDelete})=>{
       </div>
       {/* ── Degradation Factors + CCDs ── */}
       <div style={{padding:'8px 10px',background:'#0a0a18'}}>
-        <div style={{fontSize:9,color:'var(--text3)',fontWeight:700,textTransform:'uppercase',
-          letterSpacing:'0.06em',marginBottom:6}}>⚠ Degradation Factors &amp; Controls (CCDs)</div>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+          <span style={{fontSize:9,color:'var(--text3)',fontWeight:700,
+            textTransform:'uppercase',letterSpacing:'0.06em'}}>⚠ Degradation Factors &amp; Controls</span>
+          <button onClick={async()=>{
+            if(!window._R2S?.key)return;
+            const newDFs=await suggestDFsAI(mb.text||'',mb.degradationFactors||[]);
+            if(newDFs.length>0)onUpdate({degradationFactors:[...(mb.degradationFactors||[]),...newDFs]});
+          }} style={{fontSize:10,padding:'2px 8px',borderRadius:3,cursor:'pointer',
+            background:'transparent',color:'#a78bfa',border:'1px solid #a78bfa44'}}>
+            ✦ AI Suggest
+          </button>
+        </div>
         <DegradationEditor
           factors={mb.degradationFactors||[]}
           onChange={df=>onUpdate({degradationFactors:df})}/>
@@ -1157,8 +1241,11 @@ const ItemList=({items,color,icon,addPlaceholder,onAdd,onDel,onEdit,emptyMsg,tex
   );
 };
 
-const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,onSgDel,onRecAdd,onRecEdit,onRecDel,onMitUpdate})=>{
-  const safeguards=Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[con.safeguard]:[]);
+const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,onSgDel,onSgUpdate,onRecAdd,onRecEdit,onRecDel,onMitUpdate})=>{
+  const safeguards=Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[{id:'sg0',text:con.safeguard,degradationFactors:[]}]:[]);
+  const conSgUpdateRef=(devId,cid,conId,sgIdOrSg,updated)=>{
+    if(onSgUpdate)onSgUpdate(devId,cid,conId,typeof sgIdOrSg==='string'?sgIdOrSg:sgIdOrSg,updated);
+  };
   const recs=Array.isArray(con.recommendations)?con.recommendations:[];
   const ref=`C${causeIdx+1}.${conIdx+1}`;
   return(
@@ -1179,20 +1266,28 @@ const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,
             marginTop:4,display:'flex',alignItems:'center',justifyContent:'center',
             background:'transparent',color:'#ef4444',border:'1px solid #ef444455',flexShrink:0}}>✕</button>
       </div>
-      {/* Safeguards */}
+      {/* Safeguards — prevention barriers with DFs + CCDs */}
       <div style={{padding:'8px 12px',background:'#071408',borderBottom:'1px solid #1a3324'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
           <span style={{color:'#22c55e',fontSize:10,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
-            🛡 Safeguards<span style={{marginLeft:5,fontFamily:'var(--mono)',fontWeight:400,color:'var(--text3)',fontSize:9}}>({safeguards.length})</span>
+            🛡 Safeguards
+            <span style={{marginLeft:5,fontFamily:'var(--mono)',fontWeight:400,color:'var(--text3)',fontSize:9}}>({safeguards.length})</span>
           </span>
+          <button onClick={()=>onSgAdd(devId,cid,con.id,'')}
+            style={{fontSize:10,padding:'2px 8px',borderRadius:3,cursor:'pointer',
+              background:'transparent',color:'#22c55e',border:'1px solid #22c55e44',fontWeight:600}}>+ Add</button>
         </div>
-        <ItemList items={safeguards} color="#22c55e" icon="🛡"
-          addPlaceholder="[Engineering / Admin / Instrumentation / PPE] describe existing safeguard…"
-          emptyMsg="No safeguards identified"
-          onAdd={(t)=>onSgAdd(devId,cid,con.id,t)}
-          onDel={(i)=>onSgDel(devId,cid,con.id,i)}
-          onEdit={(i,t)=>{onSgDel(devId,cid,con.id,i);setTimeout(()=>onSgAdd(devId,cid,con.id,t),0);}}
-          textareaRows={2}/>
+        {safeguards.length===0&&(
+          <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',cursor:'pointer'}}
+            onClick={()=>onSgAdd(devId,cid,con.id,'')}>
+            No safeguards identified — click <strong style={{color:'#22c55e',fontStyle:'normal'}}>+ Add</strong>
+          </div>
+        )}
+        {safeguards.map((sg,si)=>(
+          <SafeguardCard key={sg.id||si} sg={sg}
+            onUpdate={updated=>conSgUpdateRef(devId,cid,con.id,sg.id||sg,updated)}
+            onDelete={()=>onSgDel(devId,cid,con.id,si)}/>
+        ))}
       </div>
       {/* Recommendations with owner + date */}
       <div style={{padding:'8px 12px',background:'#030b1a'}}>
@@ -1233,7 +1328,7 @@ const RiskSection=({risk,label,color,borderColor,bgHint,type,onSetRisk,devId,cid
 };
 
 // ── Cause card — 4-section layout ────────────────────────────────────
-const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConAdd,onConUpdate,onConDelete,onSgAdd,onSgDel,onConRecAdd,onConRecEdit,onConRecDel,onSetRisk,onRecAdd,onRecEdit,onRecDel,onConMitUpdate})=>{
+const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConAdd,onConUpdate,onConDelete,onSgAdd,onSgDel,onSgUpdate,onConRecAdd,onConRecEdit,onConRecDel,onSetRisk,onRecAdd,onRecEdit,onRecDel,onConMitUpdate})=>{
   const causeRef=`C${causeIdx+1}`;
   const causeRecs=Array.isArray(cause.recommendations)?cause.recommendations:[];
   return(
@@ -1272,7 +1367,7 @@ const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConA
           <ConBlock key={con.id} con={con} conIdx={ci} causeIdx={causeIdx} devIdx={devIdx}
             devId={devId} cid={cause.id}
             onUpdate={onConUpdate} onDelete={onConDelete}
-            onSgAdd={onSgAdd} onSgDel={onSgDel}
+            onSgAdd={onSgAdd} onSgDel={onSgDel} onSgUpdate={onSgUpdate}
             onRecAdd={onConRecAdd} onRecEdit={onConRecEdit} onRecDel={onConRecDel}
             onMitUpdate={onConMitUpdate}/>
         ))}
@@ -1690,6 +1785,14 @@ const WorksheetView=({state,setState,apiKey,aiModel})=>{
   const set=f=>setState(s=>({...s,...f}));
   const activeNode=nodes.find(n=>n.id===activeNodeId);
   const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
+  // Set global context for AI suggest in child components
+  window._R2S={
+    key:apiKey||'',
+    model:aiModel||'claude-sonnet-4-6',
+    nodeName:activeNode?.name||'',
+    deviation:activeDev?.deviation||((activeDev?.guideWord||'')+' '+(activeDev?.parameter||'')),
+    fluid:activeNode?.fluid||''
+  };
   const activeDev=useMemo(()=>{
     const raw=deviations.find(d=>d.id===activeDevId);
     return raw?normalizeDev(raw):null;
@@ -1714,7 +1817,17 @@ const WorksheetView=({state,setState,apiKey,aiModel})=>{
   const conUpdate=(devId,cid,conId,text)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,text}:cn)}:c)}));
   const conDelete=(devId,cid,conId)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.filter(cn=>cn.id!==conId)}:c)}));
 
-  const conSgAdd=(devId,cid,conId,text)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,safeguards:[...(cn.safeguards||[]),text]}:cn)}:c)}));
+  const conSgAdd=(devId,cid,conId,text)=>{
+    const obj=typeof text==='string'?{id:uid(),text,degradationFactors:[]}:{id:uid(),degradationFactors:[],...text};
+    updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,safeguards:[...(cn.safeguards||[]),obj]}:cn)}:c)}));
+  };
+  const conSgUpdate=(devId,cid,conId,sgId,updates)=>updDev(devId,d=>({...d,
+    causes:d.causes.map(c=>c.id===cid?{...c,
+      consequences:c.consequences.map(cn=>cn.id===conId?{...cn,
+        safeguards:(cn.safeguards||[]).map(s=>s.id===sgId?{...s,...updates}:s)
+      }:cn)
+    }:c)
+  }));
   const conSgDel=(devId,cid,conId,i)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,safeguards:(cn.safeguards||[]).filter((_,j)=>j!==i)}:cn)}:c)}));
   const conRecAdd=(devId,cid,conId,rec)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,recommendations:[...(cn.recommendations||[]),typeof rec==='string'?{id:uid(),text:rec,actionOwner:'',targetDate:''}:rec]}:cn)}:c)}));
   const conRecDel=(devId,cid,conId,i)=>updDev(devId,d=>({...d,causes:d.causes.map(c=>c.id===cid?{...c,consequences:c.consequences.map(cn=>cn.id===conId?{...cn,recommendations:(cn.recommendations||[]).filter((_,j)=>j!==i)}:cn)}:c)}));
@@ -1910,7 +2023,7 @@ Generate 3-4 causes, 2 consequences each with 1-2 safeguards and 1 recommendatio
                 devId={activeDev.id} devIdx={nodeDevs.findIndex(d=>d.id===activeDev.id)}
                 onCauseUpdate={causeUpdate} onCauseDelete={causeDelete}
                 onConAdd={conAdd} onConUpdate={conUpdate} onConDelete={conDelete}
-                onSgAdd={conSgAdd} onSgDel={conSgDel}
+                onSgAdd={conSgAdd} onSgDel={conSgDel} onSgUpdate={conSgUpdate}
                 onConRecAdd={conRecAdd} onConRecEdit={conRecEdit} onConRecDel={conRecDel}
                 onConMitUpdate={conMitUpdate}
                 onSetRisk={causeRiskUpdate}
@@ -2127,7 +2240,7 @@ const ReportView=({study,nodes,deviations})=>{
           const cons=cause.consequences.length>0?cause.consequences:[{id:'none',text:'',safeguards:[],recommendations:[]}];
           cons.forEach((con,qi)=>{
             const conRef=`${causeRef}.${qi+1}`;
-            const sgs=(Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[con.safeguard]:[])); const mbs=(Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[]).filter(m=>m&&m.text);
+            const sgs=(Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[{text:con.safeguard}]:[])).map(s=>typeof s==='string'?s:(s?.text||'')).filter(Boolean); const mbs=(Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[]).filter(m=>m&&m.text);
             const conRecs=(Array.isArray(con.recommendations)?con.recommendations:[]).map(r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r);
             const causeRecs=(Array.isArray(cause.recommendations)?cause.recommendations:[]).map(r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:''}:r);
             const allRecs=[...conRecs.map(r=>({...r,fromRef:conRef})),...causeRecs.map(r=>({...r,fromRef:causeRef}))];
@@ -2439,8 +2552,8 @@ const buildBowTieBarriers=(dev,storedBT)=>{
         const id=`prev-${cause.id}-${con.id}-${si}`;
         barriers.push({id,side:'prevention',causeId:cause.id,conId:con.id,
           causeRef:`C${ci+1}`,conRef:`C${ci+1}.${qi+1}`,
-          text:sg,type:'Engineering',isSCE:false,performanceStandard:'',
-          degradationFactors:[],...(stored[id]||{})});
+          text:typeof sg==='string'?sg:(sg?.text||''),type:'Engineering',isSCE:false,performanceStandard:'',
+          degradationFactors:(typeof sg==='object'&&Array.isArray(sg.degradationFactors))?sg.degradationFactors:[],...(stored[id]||{})});
       });
       // Mitigation barriers from HAZOP (with embedded DFs + CCDs)
       const mits=Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[];
