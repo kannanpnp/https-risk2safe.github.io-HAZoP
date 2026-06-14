@@ -2470,14 +2470,77 @@ const buildBowTieBarriers=(dev,storedBT)=>{
 };
 
 /* ── Barrier Editor Side Panel ── */
+const SCT_TYPES=['Testing','Inspection','Maintenance','Calibration','Operational'];
+
+const SCTRow=({sct,idx,onChange,onDelete})=>(
+  <div style={{padding:'8px 10px',background:'#0d1a0d',borderRadius:6,border:'1px solid #22c55e33',marginBottom:6}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+      <span style={{fontFamily:'var(--mono)',fontSize:10,color:'#22c55e',fontWeight:700,
+        background:'#052e16',padding:'2px 6px',borderRadius:3}}>SCT-{String(idx+1).padStart(2,'0')}</span>
+      <button onClick={onDelete}
+        style={{fontSize:10,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'0 4px'}}>✕ Remove</button>
+    </div>
+    <div style={{display:'flex',flexDirection:'column',gap:5}}>
+      <div>
+        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Task Description</div>
+        <textarea value={sct.task||''} onChange={e=>onChange({task:e.target.value})} rows={2}
+          placeholder="Describe the safety critical task…"
+          style={{fontSize:11,resize:'vertical',width:'100%',lineHeight:1.4}}/>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Task Type</div>
+          <select value={sct.type||'Testing'} onChange={e=>onChange({type:e.target.value})}
+            style={{width:'100%',fontSize:11,padding:'4px 6px'}}>
+            {SCT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Frequency</div>
+          <input value={sct.frequency||''} onChange={e=>onChange({frequency:e.target.value})}
+            placeholder="e.g., 6-monthly"
+            style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Responsible</div>
+          <input value={sct.responsible||''} onChange={e=>onChange({responsible:e.target.value})}
+            placeholder="Role / discipline"
+            style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+        </div>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Competency</div>
+          <input value={sct.competency||''} onChange={e=>onChange({competency:e.target.value})}
+            placeholder="Required cert / qualification"
+            style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+        </div>
+      </div>
+      <div>
+        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Procedure Reference</div>
+        <input value={sct.procedure||''} onChange={e=>onChange({procedure:e.target.value})}
+          placeholder="e.g., MNT-ESDV-001"
+          style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+      </div>
+    </div>
+  </div>
+);
+
 const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
   const [b,setB]=useState(barrier);
   useEffect(()=>setB(barrier),[barrier?.id]);
   const save=()=>{onUpdate(b);onClose();};
   if(!b)return null;
   const tc=BARRIER_TYPES[b.type]||BARRIER_TYPES.Engineering;
+  const scts=Array.isArray(b.scts)?b.scts:[];
+
+  const addSCT=()=>setB(prev=>({...prev,scts:[...(prev.scts||[]),
+    {id:uid(),task:'',type:'Testing',frequency:'',responsible:'',competency:'',procedure:''}]}));
+  const delSCT=(i)=>setB(prev=>({...prev,scts:(prev.scts||[]).filter((_,j)=>j!==i)}));
+  const updSCT=(i,upd)=>setB(prev=>({...prev,scts:(prev.scts||[]).map((s,j)=>j===i?{...s,...upd}:s)}));
+
   return(
-    <div style={{width:360,borderLeft:'1px solid var(--border)',background:'var(--bg-surface)',
+    <div style={{width:400,borderLeft:'1px solid var(--border)',background:'var(--bg-surface)',
       display:'flex',flexDirection:'column',overflow:'hidden',flexShrink:0}}>
       {/* Header */}
       <div style={{padding:'12px 16px',borderBottom:'1px solid var(--border)',background:'var(--bg-card)',flexShrink:0}}>
@@ -2494,7 +2557,7 @@ const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
       </div>
       {/* Body */}
       <div style={{flex:1,overflowY:'auto',padding:'14px 16px',display:'flex',flexDirection:'column',gap:14}}>
-        {/* Barrier text */}
+        {/* Barrier description */}
         <div>
           <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:4}}>
             Barrier Description
@@ -2521,9 +2584,10 @@ const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
           </div>
         </div>
         {/* SCE flag */}
-        <div style={{padding:'10px 12px',borderRadius:6,border:'1px solid var(--border)',
-          background:'var(--bg-card)',display:'flex',alignItems:'center',justifyContent:'space-between',
-          cursor:'pointer'}} onClick={()=>setB({...b,isSCE:!b.isSCE})}>
+        <div style={{padding:'10px 12px',borderRadius:6,border:`1px solid ${b.isSCE?'#ef444466':'var(--border)'}`,
+          background:b.isSCE?'#1a0505':'var(--bg-card)',display:'flex',alignItems:'center',
+          justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s'}}
+          onClick={()=>setB({...b,isSCE:!b.isSCE})}>
           <div>
             <div style={{fontSize:12,fontWeight:700,color:b.isSCE?'#ef4444':'var(--text2)'}}>
               ★ Safety Critical Element (SCE)
@@ -2538,21 +2602,55 @@ const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
               top:2,left:b.isSCE?14:2,transition:'all 0.2s'}}/>
           </div>
         </div>
-        {/* Performance Standard */}
+        {/* SCE fields — only shown when isSCE is true */}
         {b.isSCE&&(
-          <div>
-            <label style={{fontSize:11,color:'#ef4444',fontWeight:600,display:'block',marginBottom:4}}>
-              Performance Standard
-            </label>
-            <textarea value={b.performanceStandard||''} onChange={e=>setB({...b,performanceStandard:e.target.value})}
-              rows={2} placeholder="e.g., SIL 2 — PFD ≤ 0.01, proof test 6-monthly, demand rate < 0.1/yr"
-              style={{fontSize:11,resize:'vertical',width:'100%',border:'1px solid #ef444466'}}/>
-          </div>
+          <>
+            {/* Performance Standard */}
+            <div style={{borderLeft:'3px solid #ef4444',paddingLeft:10}}>
+              <label style={{fontSize:11,color:'#ef4444',fontWeight:600,display:'block',marginBottom:4}}>
+                Performance Standard
+              </label>
+              <textarea value={b.performanceStandard||''} onChange={e=>setB({...b,performanceStandard:e.target.value})}
+                rows={2} placeholder="e.g., SIL 2 — PFD ≤ 0.01, proof test 6-monthly, demand rate < 0.1/yr"
+                style={{fontSize:11,resize:'vertical',width:'100%',border:'1px solid #ef444466',lineHeight:1.5}}/>
+            </div>
+            {/* Safety Critical Tasks */}
+            <div style={{borderLeft:'3px solid #22c55e',paddingLeft:10}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                <div>
+                  <div style={{fontSize:11,color:'#22c55e',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+                    Safety Critical Tasks (SCTs)
+                  </div>
+                  <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>
+                    Tasks required to maintain this SCE's performance standard
+                  </div>
+                </div>
+                <span style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--text3)'}}>({scts.length})</span>
+              </div>
+              {scts.length===0&&(
+                <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',marginBottom:6,
+                  padding:'8px 10px',background:'var(--bg-card)',borderRadius:4,border:'1px solid var(--border)'}}>
+                  No SCTs defined — add manually or use ✦ Analyse SCE / SCT in the sidebar to auto-generate.
+                </div>
+              )}
+              {scts.map((sct,i)=>(
+                <SCTRow key={sct.id||i} sct={sct} idx={i}
+                  onChange={upd=>updSCT(i,upd)}
+                  onDelete={()=>delSCT(i)}/>
+              ))}
+              <button onClick={addSCT}
+                style={{fontSize:11,padding:'5px 12px',borderRadius:4,cursor:'pointer',fontWeight:700,
+                  background:'#052e16',color:'#22c55e',border:'1px solid #22c55e55',
+                  display:'flex',alignItems:'center',gap:5}}>
+                + Add Safety Critical Task
+              </button>
+            </div>
+          </>
         )}
         {/* Degradation factors */}
         <div>
           <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:6}}>
-            Degradation Factors & Controls (CCDs)
+            Degradation Factors &amp; Controls (CCDs)
           </label>
           <DegradationEditor
             factors={b.degradationFactors||[]}
@@ -2561,11 +2659,16 @@ const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
       </div>
       {/* Footer */}
       <div style={{padding:'10px 16px',borderTop:'1px solid var(--border)',flexShrink:0,
-        background:'var(--bg-card)',display:'flex',gap:8,justifyContent:'flex-end'}}>
-        <button onClick={onClose} style={{fontSize:12,padding:'6px 14px',borderRadius:4,cursor:'pointer',
-          background:'transparent',color:'var(--text2)',border:'1px solid var(--border)'}}>Cancel</button>
-        <button onClick={save} style={{fontSize:12,padding:'6px 16px',borderRadius:4,cursor:'pointer',
-          background:'var(--accent)',color:'#000',fontWeight:700,border:'none'}}>✓ Save</button>
+        background:'var(--bg-card)',display:'flex',gap:8,justifyContent:'space-between',alignItems:'center'}}>
+        <div style={{fontSize:10,color:'var(--text3)'}}>
+          {b.isSCE&&<span style={{color:'#ef4444'}}>★ SCE · {scts.length} SCT{scts.length!==1?'s':''}</span>}
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={onClose} style={{fontSize:12,padding:'6px 14px',borderRadius:4,cursor:'pointer',
+            background:'transparent',color:'var(--text2)',border:'1px solid var(--border)'}}>Cancel</button>
+          <button onClick={save} style={{fontSize:12,padding:'6px 16px',borderRadius:4,cursor:'pointer',
+            background:'var(--accent)',color:'#000',fontWeight:700,border:'none'}}>✓ Save</button>
+        </div>
       </div>
     </div>
   );
@@ -2581,7 +2684,7 @@ const BarrierPill=({barrier,onClick,compact})=>{
         border:`2px solid ${barrier.isSCE?'#ef4444':tc.color+'88'}`,
         borderRadius:5,cursor:'pointer',maxWidth:160,transition:'all 0.15s',
         boxShadow:barrier.isSCE?'0 0 8px #ef444444':'none'}}>
-      {barrier.isSCE&&<div style={{fontSize:8,color:'#ef4444',fontWeight:800,letterSpacing:'0.05em',marginBottom:2}}>★ SCE</div>}
+      {barrier.isSCE&&<div style={{fontSize:8,color:'#ef4444',fontWeight:800,letterSpacing:'0.05em',marginBottom:2}}>★ SCE{Array.isArray(barrier.scts)&&barrier.scts.length>0?' · '+barrier.scts.length+' SCT':''}</div>}
       <div style={{fontSize:10,color:tc.color,lineHeight:1.35,fontWeight:500}}>
         {tc.icon} {barrier.text.length>60?barrier.text.substring(0,60)+'…':barrier.text}
       </div>
@@ -2654,10 +2757,20 @@ Return ONLY this JSON:
       const parsed=repairJSON(raw);
       if(!parsed.sces)throw new Error('Invalid response structure');
       setSceData(parsed);
-      // Auto-flag SCE barriers
+      // Auto-flag SCE barriers and merge AI SCTs with existing manual ones
       parsed.sces.forEach(sce=>{
         const b=barriers.find(x=>x.id===sce.barrierId);
-        if(b&&!b.isSCE) updateBarrier({...b,isSCE:true,performanceStandard:sce.performanceStandard||''});
+        if(b){
+          const existingSCTs=Array.isArray(b.scts)?b.scts:[];
+          const aiSCTs=(sce.scts||[]).map(t=>({id:uid(),task:t.task||'',type:t.type||'Testing',
+            frequency:t.frequency||'',responsible:t.responsible||'',
+            competency:t.competency||'',procedure:t.procedure||'',source:'AI'}));
+          // Merge: keep existing manual SCTs, append AI ones not already present
+          const merged=[...existingSCTs,...aiSCTs.filter(ai=>
+            !existingSCTs.some(m=>m.task&&ai.task&&m.task.trim().toLowerCase()===ai.task.trim().toLowerCase())
+          )];
+          updateBarrier({...b,isSCE:true,performanceStandard:b.performanceStandard||sce.performanceStandard||'',scts:merged});
+        }
       });
     }catch(e){setSceError(e.message);}
     finally{setAnalyzing(false);}
@@ -2686,10 +2799,19 @@ Return ONLY this JSON:
     ws2['!cols']=[{wch:10},{wch:12},{wch:25},{wch:30},{wch:30},{wch:30},{wch:25},{wch:18},{wch:22}];
     XLSX.utils.book_append_sheet(wb,ws2,'SCE Register');
     // Sheet 3: SCT Register
-    const sctRows=[['SCT ID','SCE ID','SCE Designation','Task Description','Task Type','Frequency','Responsible','Competency Required','Procedure Reference','Node']];
+    const sctRows=[['SCT ID','SCE ID','Barrier','Task Description','Task Type','Frequency','Responsible','Competency Required','Procedure Reference','Source','Node']];
+    // AI-generated SCTs
     if(sceData?.sces) sceData.sces.forEach(s=>{
       (s.scts||[]).forEach(t=>{
-        sctRows.push([t.sctId,s.sceId,s.designation,t.task,t.type,t.frequency,t.responsible,t.competency,t.procedure,activeNode?.name||'']);
+        sctRows.push([t.sctId,s.sceId,s.designation,t.task,t.type||'',t.frequency||'',t.responsible||'',t.competency||'',t.procedure||'','AI Analysis',activeNode?.name||'']);
+      });
+    });
+    // Manually entered SCTs from barrier editor
+    barriers.filter(bar=>bar.isSCE&&Array.isArray(bar.scts)&&bar.scts.length>0).forEach((bar,bi)=>{
+      bar.scts.forEach((t,ti)=>{
+        const sctId=`SCT-M${bi+1}-${String(ti+1).padStart(2,'0')}`;
+        const sceId=`SCE-M${bi+1}`;
+        sctRows.push([sctId,sceId,bar.text?.substring(0,40)||'',t.task||'',t.type||'',t.frequency||'',t.responsible||'',t.competency||'',t.procedure||'','Manual Entry',activeNode?.name||'']);
       });
     });
     const ws3=XLSX.utils.aoa_to_sheet(sctRows);
