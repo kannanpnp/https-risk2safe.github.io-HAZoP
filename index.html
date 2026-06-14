@@ -2537,318 +2537,238 @@ const INIT_STUDY={projectName:'',company:'',facility:'',unit:'',location:'',docR
    Threats→Prevention Barriers→[TOP EVENT]→Mitigation Barriers→Consequences
    Degradation factors + controls shown below barriers
    ═══════════════════════════════════════════════════════════════════════ */
-const BowTieSVGCanvas=({nd,barriers,devLabel,onBarrierClick})=>{
-  const causes=nd.causes||[];
-  const allCons=causes.flatMap((c,ci)=>(c.consequences||[]).map((cn,qi)=>({...cn,ci,qi,cause:c})));
-  const N=Math.max(causes.length,1);
-  const M=Math.max(allCons.length,1);
-  const ROWS=Math.max(N,M);
-
-  // ── SVG dimension constants ───────────────────────────────────────────
-  const VW=1200;
-  const ROW_H=Math.max(140,Math.round(700/ROWS));
-  const CORE_H=ROWS*ROW_H+60;
-  const CY=CORE_H/2;
-
-  // Check if any barriers have degradation factors
+/* ═══════════════════════════════════════════════════════════════════════
+   BOW TIE SVG CANVAS — consequence-centric layout
+   Top Event = Consequence | Left = Cause + Prevention Barriers
+   Right = Mitigation Barriers | Bottom = Degradation Factors + CCDs
+   ═══════════════════════════════════════════════════════════════════════ */
+const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
+  if(!activeCon)return null;
+  const cause=activeCon.cause;
+  const prevBs=barriers.filter(b=>b.side==='prevention');
+  const mitBs=barriers.filter(b=>b.side==='mitigation');
   const allDFs=barriers.flatMap(b=>(b.degradationFactors||[]).map((df,dfi)=>({b,df,dfi})));
-  const DF_ZONE=allDFs.length>0?Math.min(allDFs.length*80+60,320):0;
-  const VH=CORE_H+DF_ZONE+20;
 
-  // ── X zones ───────────────────────────────────────────────────────────
-  const TX=10, TW=148, TH=64;
-  const BARRIER_L_START=TW+TX+28;
-  const BARRIER_L_END=455;
-  const TRUNK_L=470;
-  const TE_CX=VW/2, TE_RX=85, TE_RY=52;
-  const TRUNK_R=VW-470;
-  const BARRIER_R_START=VW-455;
-  const BARRIER_R_END=VW-TW-TX-28;
-  const CX=VW-TW-TX;
-  const BW=26, BH=76;
+  // ── Layout ──────────────────────────────────────────────────────────
+  const VW=1200, BW=28, BH=82, BOX_H=84;
+  const CY=220;                              // main horizontal line Y
+  const TE_CX=VW/2, TE_RX=92, TE_RY=58;   // top event ellipse
+  const CAUSE_X=10, CAUSE_W=160;
+  const OUT_X=VW-170, OUT_W=155;
+  const PREV_START=CAUSE_X+CAUSE_W+28;
+  const PREV_END=TE_CX-TE_RX-18;
+  const MIT_START=TE_CX+TE_RX+18;
+  const MIT_END=OUT_X-18;
+  const CORE_H=CY+BOX_H/2+50;
+  const DF_ZONE=allDFs.length>0?30+allDFs.length*78:0;
+  const VH=CORE_H+DF_ZONE;
 
-  // ── Y position helpers ─────────────────────────────────────────────────
-  const cY=ci=>N===1?CY:Math.round(30+ci*(CORE_H-60)/(N-1));
-  const qY=qi=>M===1?CY:Math.round(30+qi*(CORE_H-60)/(M-1));
-
-  // ── Barrier X position helpers ─────────────────────────────────────────
-  const pBX=(ci,bi,total)=>{
-    if(total===0)return (BARRIER_L_START+BARRIER_L_END)/2;
-    const step=(BARRIER_L_END-BARRIER_L_START)/(total+1);
-    return Math.round(BARRIER_L_START+step*(bi+1));
+  const pBX=(bi,total)=>{
+    if(total===0)return(PREV_START+PREV_END)/2;
+    return Math.round(PREV_START+(PREV_END-PREV_START)/(total+1)*(bi+1));
   };
-  const mBX=(qi,bi,total)=>{
-    if(total===0)return (BARRIER_R_START+BARRIER_R_END)/2;
-    const step=(BARRIER_R_END-BARRIER_R_START)/(total+1);
-    return Math.round(BARRIER_R_START+step*(bi+1));
+  const mBX=(bi,total)=>{
+    if(total===0)return(MIT_START+MIT_END)/2;
+    return Math.round(MIT_START+(MIT_END-MIT_START)/(total+1)*(bi+1));
   };
-
-  // ── Barrier filter helpers ─────────────────────────────────────────────
-  const prevBs=ci=>barriers.filter(b=>b.side==='prevention'&&b.causeId===causes[ci]?.id);
-  const mitBs=qi=>barriers.filter(b=>b.side==='mitigation'&&b.conId===allCons[qi]?.id);
-  const bCol=type=>(BARRIER_TYPES[type]||BARRIER_TYPES.Engineering).color;
-  const bBg=type=>(BARRIER_TYPES[type]||BARRIER_TYPES.Engineering).bg;
+  const bCol=t=>(BARRIER_TYPES[t]||BARRIER_TYPES.Engineering).color;
+  const bBg=t=>(BARRIER_TYPES[t]||BARRIER_TYPES.Engineering).bg;
   const T=(s,n)=>(s||'').substring(0,n)+((s||'').length>n?'…':'');
 
-  // ── Colors ───────────────────────────────────────────────────────────
-  const PC='#f59e0b', MC='#ef4444', TC='#94a3b8';
+  const PC='#f59e0b', MC='#ef4444';
 
   return(
     <svg viewBox={`0 0 ${VW} ${VH}`} style={{width:'100%',height:'auto',display:'block',userSelect:'none'}}
       xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <filter id="sce-glow"><feGaussianBlur stdDeviation="2" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="sce-glow2"><feGaussianBlur stdDeviation="2.5" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
 
       {/* ── Column labels ── */}
-      <text x={(TX+TW+TRUNK_L)/2} y={14} textAnchor="middle"
-        fill={PC} fontSize={10} fontFamily="system-ui" fontWeight="700" opacity={0.75}>
-        Prevention Barriers
+      <text x={(CAUSE_X+CAUSE_W+PREV_END)/2} y={16} textAnchor="middle"
+        fill={PC} fontSize={10} fontFamily="system-ui" fontWeight="700" opacity={0.8}>
+        Prevention Barriers (Safeguards)
       </text>
-      <text x={(TRUNK_R+CX+TW)/2} y={14} textAnchor="middle"
-        fill={MC} fontSize={10} fontFamily="system-ui" fontWeight="700" opacity={0.75}>
+      <text x={(MIT_START+OUT_X+OUT_W)/2} y={16} textAnchor="middle"
+        fill={MC} fontSize={10} fontFamily="system-ui" fontWeight="700" opacity={0.8}>
         Mitigation Barriers
       </text>
 
-      {/* ── Left vertical trunk ── */}
-      {N>1&&(
-        <line x1={TRUNK_L} y1={cY(0)} x2={TRUNK_L} y2={cY(N-1)}
-          stroke={TC} strokeWidth={2.5} opacity={0.45}/>
+      {/* ── Main horizontal line ── */}
+      <line x1={CAUSE_X+CAUSE_W} y1={CY} x2={TE_CX-TE_RX} y2={CY}
+        stroke={PC} strokeWidth={2.5} opacity={0.7}/>
+      <line x1={TE_CX+TE_RX} y1={CY} x2={OUT_X} y2={CY}
+        stroke={MC} strokeWidth={2.5} opacity={0.7}/>
+
+      {/* ── Cause / Threat box ── */}
+      <rect x={CAUSE_X} y={CY-BOX_H/2} width={CAUSE_W} height={BOX_H} rx={6}
+        fill="#1a0b00" stroke={PC} strokeWidth={2.5}/>
+      <text x={CAUSE_X+8} y={CY-BOX_H/2+16} fill={PC} fontSize={9}
+        fontWeight="bold" fontFamily="system-ui">C{activeCon.ci+1} — Cause</text>
+      <text x={CAUSE_X+8} y={CY-BOX_H/2+30} fill="#fde68a" fontSize={8.5}
+        fontFamily="system-ui">{T(cause?.text,21)}</text>
+      {(cause?.text||'').length>21&&(
+        <text x={CAUSE_X+8} y={CY-BOX_H/2+43} fill="#fde68a" fontSize={8}
+          fontFamily="system-ui">{T((cause?.text||'').substring(21),21)}</text>
+      )}
+      {(cause?.text||'').length>42&&(
+        <text x={CAUSE_X+8} y={CY-BOX_H/2+55} fill="#fcd34d" fontSize={7.5}
+          fontFamily="system-ui">{T((cause?.text||'').substring(42),21)}…</text>
       )}
 
-      {/* ── Right vertical trunk ── */}
-      {M>1&&(
-        <line x1={TRUNK_R} y1={qY(0)} x2={TRUNK_R} y2={qY(M-1)}
-          stroke={TC} strokeWidth={2.5} opacity={0.45}/>
+      {/* ── Prevention Barriers ── */}
+      {prevBs.length===0&&(
+        <text x={(PREV_START+PREV_END)/2} y={CY+4} textAnchor="middle"
+          fill="#f59e0b" fontSize={10} fontFamily="system-ui" opacity={0.4}
+          fontStyle="italic">no safeguards</text>
       )}
+      {prevBs.map((b,bi)=>{
+        const bx=pBX(bi,prevBs.length);
+        const col=bCol(b.type), bg=bBg(b.type);
+        const hasDFs=(b.degradationFactors||[]).length>0;
+        // Line segment after this barrier
+        const nextX=bi<prevBs.length-1?pBX(bi+1,prevBs.length)-BW/2:TE_CX-TE_RX;
+        return(
+          <g key={b.id||bi}>
+            <line x1={bx+BW/2} y1={CY} x2={nextX} y2={CY}
+              stroke={PC} strokeWidth={2.5} opacity={0.7}/>
+            <rect x={bx-BW/2} y={CY-BH/2} width={BW} height={BH}
+              rx={4} fill={bg} stroke={col} strokeWidth={b.isSCE?3.5:2}
+              style={{cursor:'pointer'}} filter={b.isSCE?'url(#sce-glow2)':undefined}
+              onClick={()=>onBarrierClick(b)}/>
+            {b.isSCE&&(
+              <text x={bx} y={CY-BH/2-7} textAnchor="middle"
+                fontSize={12} fill="#ef4444" fontFamily="system-ui">★</text>
+            )}
+            {/* Tooltip-style type indicator */}
+            <text x={bx} y={CY+BH/2+11} textAnchor="middle"
+              fontSize={7} fill={col} fontFamily="system-ui" opacity={0.8}>
+              {(BARRIER_TYPES[b.type]||BARRIER_TYPES.Engineering).icon}
+            </text>
+            {hasDFs&&(
+              <line x1={bx} y1={CY+BH/2} x2={bx} y2={CORE_H+5}
+                stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5,3" opacity={0.5}/>
+            )}
+          </g>
+        );
+      })}
 
-      {/* ── Trunk → Top Event arrows ── */}
-      <line x1={TRUNK_L} y1={CY} x2={TE_CX-TE_RX} y2={CY}
-        stroke={TC} strokeWidth={2.5} opacity={0.6}/>
-      <line x1={TE_CX+TE_RX} y1={CY} x2={TRUNK_R} y2={CY}
-        stroke={TC} strokeWidth={2.5} opacity={0.6}/>
-
-      {/* ── Top Event ── */}
+      {/* ── Top Event (Consequence) ellipse ── */}
       <ellipse cx={TE_CX} cy={CY} rx={TE_RX} ry={TE_RY}
         fill="#78350f" stroke="#f59e0b" strokeWidth={3}/>
-      <text x={TE_CX} y={CY-16} textAnchor="middle" fill="#fff"
-        fontSize={10} fontWeight="800" fontFamily="system-ui">TOP EVENT</text>
-      <text x={TE_CX} y={CY+1} textAnchor="middle" fill="#fde68a"
-        fontSize={8.5} fontFamily="system-ui">{T(devLabel,24)}</text>
-      {(devLabel||'').length>24&&(
-        <text x={TE_CX} y={CY+15} textAnchor="middle" fill="#fde68a"
-          fontSize={8} fontFamily="system-ui">{T((devLabel||'').substring(24),24)}</text>
+      <text x={TE_CX} y={CY-20} textAnchor="middle" fill="#fde68a"
+        fontSize={8.5} fontWeight="800" fontFamily="system-ui" opacity={0.75}>TOP EVENT</text>
+      <text x={TE_CX} y={CY-7} textAnchor="middle" fill="#fff"
+        fontSize={9} fontFamily="system-ui">{T(activeCon.text,22)}</text>
+      {(activeCon.text||'').length>22&&(
+        <text x={TE_CX} y={CY+7} textAnchor="middle" fill="#fff"
+          fontSize={8.5} fontFamily="system-ui">{T((activeCon.text||'').substring(22),22)}</text>
+      )}
+      {(activeCon.text||'').length>44&&(
+        <text x={TE_CX} y={CY+20} textAnchor="middle" fill="#fde68a"
+          fontSize={8} fontFamily="system-ui">{T((activeCon.text||'').substring(44),22)}…</text>
       )}
 
-      {/* ═════════════════════════════════════════════════════════════════
-          CAUSES (threats) — left side
-          ═════════════════════════════════════════════════════════════════ */}
-      {causes.map((cause,ci)=>{
-        const y=cY(ci);
-        const pbs=prevBs(ci);
-        const firstBX=pbs.length>0?pBX(ci,0,pbs.length)-BW/2:TRUNK_L;
+      {/* ── Mitigation Barriers ── */}
+      {mitBs.length===0&&(
+        <text x={(MIT_START+OUT_X)/2} y={CY+4} textAnchor="middle"
+          fill={MC} fontSize={10} fontFamily="system-ui" opacity={0.4}
+          fontStyle="italic">no mitigation barriers</text>
+      )}
+      {mitBs.map((b,bi)=>{
+        const bx=mBX(bi,mitBs.length);
+        const col=bCol(b.type), bg=bBg(b.type);
+        const hasDFs=(b.degradationFactors||[]).length>0;
+        const nextX=bi<mitBs.length-1?mBX(bi+1,mitBs.length)-BW/2:OUT_X;
         return(
-          <g key={cause.id||ci}>
-            {/* Cause/Threat box */}
-            <rect x={TX} y={y-TH/2} width={TW} height={TH} rx={5}
-              fill="#1a0b00" stroke={PC} strokeWidth={2}/>
-            <text x={TX+7} y={y-TH/2+14} fill={PC} fontSize={9}
-              fontWeight="bold" fontFamily="system-ui">C{ci+1}</text>
-            <text x={TX+7} y={y-TH/2+27} fill="#fde68a" fontSize={8.5}
-              fontFamily="system-ui">{T(cause.text,19)}</text>
-            {(cause.text||'').length>19&&(
-              <text x={TX+7} y={y-TH/2+39} fill="#fde68a" fontSize={8}
-                fontFamily="system-ui">{T((cause.text||'').substring(19),19)}</text>
+          <g key={b.id||bi}>
+            <line x1={bx+BW/2} y1={CY} x2={nextX} y2={CY}
+              stroke={MC} strokeWidth={2.5} opacity={0.7}/>
+            <rect x={bx-BW/2} y={CY-BH/2} width={BW} height={BH}
+              rx={4} fill={bg} stroke={col} strokeWidth={b.isSCE?3.5:2}
+              style={{cursor:'pointer'}} filter={b.isSCE?'url(#sce-glow2)':undefined}
+              onClick={()=>onBarrierClick(b)}/>
+            {b.isSCE&&(
+              <text x={bx} y={CY-BH/2-7} textAnchor="middle"
+                fontSize={12} fill="#ef4444" fontFamily="system-ui">★</text>
             )}
-            {(cause.text||'').length>38&&(
-              <text x={TX+7} y={y-TH/2+50} fill="#fcd34d" fontSize={7.5}
-                fontFamily="system-ui">{T((cause.text||'').substring(38),19)}…</text>
+            <text x={bx} y={CY+BH/2+11} textAnchor="middle"
+              fontSize={7} fill={col} fontFamily="system-ui" opacity={0.8}>
+              {(BARRIER_TYPES[b.type]||BARRIER_TYPES.Engineering).icon}
+            </text>
+            {hasDFs&&(
+              <line x1={bx} y1={CY+BH/2} x2={bx} y2={CORE_H+5}
+                stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5,3" opacity={0.5}/>
             )}
-
-            {/* Line: threat box → first barrier (or trunk if no barriers) */}
-            <line x1={TX+TW} y1={y} x2={firstBX} y2={y}
-              stroke={PC} strokeWidth={2} opacity={0.75}/>
-
-            {/* No barriers → line to trunk */}
-            {pbs.length===0&&(
-              <line x1={TX+TW} y1={y} x2={TRUNK_L} y2={y}
-                stroke={PC} strokeWidth={2} opacity={0.55}/>
-            )}
-
-            {/* Prevention barriers + inter-barrier lines */}
-            {pbs.map((b,bi)=>{
-              const bx=pBX(ci,bi,pbs.length);
-              const col=bCol(b.type);
-              const bg=bBg(b.type);
-              const hasDFs=(b.degradationFactors||[]).length>0;
-              const lineEnd=bi<pbs.length-1
-                ?pBX(ci,bi+1,pbs.length)-BW/2
-                :TRUNK_L;
-              return(
-                <g key={b.id||bi}>
-                  {/* Barrier rect — clickable */}
-                  <rect x={bx-BW/2} y={y-BH/2} width={BW} height={BH}
-                    rx={3} fill={bg} stroke={col} strokeWidth={b.isSCE?3:2}
-                    style={{cursor:'pointer'}}
-                    filter={b.isSCE?'url(#sce-glow)':undefined}
-                    onClick={()=>onBarrierClick(b)}/>
-                  {b.isSCE&&(
-                    <text x={bx} y={y-BH/2-6} textAnchor="middle"
-                      fontSize={11} fill="#ef4444" fontFamily="system-ui">★</text>
-                  )}
-                  {/* Line after this barrier */}
-                  <line x1={bx+BW/2} y1={y} x2={lineEnd} y2={y}
-                    stroke={PC} strokeWidth={2} opacity={0.75}/>
-                  {/* Drop line to DF zone */}
-                  {hasDFs&&(
-                    <line x1={bx} y1={y+BH/2} x2={bx} y2={CORE_H+8}
-                      stroke="#f59e0b" strokeWidth={1.5}
-                      strokeDasharray="5,3" opacity={0.55}/>
-                  )}
-                </g>
-              );
-            })}
           </g>
         );
       })}
 
-      {/* ═════════════════════════════════════════════════════════════════
-          CONSEQUENCES (escalations) — right side
-          ═════════════════════════════════════════════════════════════════ */}
-      {allCons.map((cn,qi)=>{
-        const y=qY(qi);
-        const mbs=mitBs(qi);
-        const firstMBX=mbs.length>0?mBX(qi,0,mbs.length)-BW/2:CX;
-        return(
-          <g key={cn.id||qi}>
-            {/* Consequence box */}
-            <rect x={CX} y={y-TH/2} width={TW} height={TH} rx={5}
-              fill="#1a0505" stroke={MC} strokeWidth={2}/>
-            <text x={CX+7} y={y-TH/2+14} fill={MC} fontSize={9}
-              fontWeight="bold" fontFamily="system-ui">C{cn.ci+1}.{cn.qi+1}</text>
-            <text x={CX+7} y={y-TH/2+27} fill="#fca5a5" fontSize={8.5}
-              fontFamily="system-ui">{T(cn.text,19)}</text>
-            {(cn.text||'').length>19&&(
-              <text x={CX+7} y={y-TH/2+39} fill="#fca5a5" fontSize={8}
-                fontFamily="system-ui">{T((cn.text||'').substring(19),19)}</text>
-            )}
-            {(cn.text||'').length>38&&(
-              <text x={CX+7} y={y-TH/2+50} fill="#fca5a5" fontSize={7.5}
-                fontFamily="system-ui">{T((cn.text||'').substring(38),19)}…</text>
-            )}
+      {/* ── Outcome box (right) ── */}
+      <rect x={OUT_X} y={CY-BOX_H/2} width={OUT_W} height={BOX_H} rx={6}
+        fill="#0a1f0a" stroke={MC} strokeWidth={2}/>
+      <text x={OUT_X+OUT_W/2} y={CY-14} textAnchor="middle"
+        fill={MC} fontSize={9} fontWeight="bold" fontFamily="system-ui">Escalation / MAE</text>
+      <text x={OUT_X+OUT_W/2} y={CY+2} textAnchor="middle"
+        fill="#fca5a5" fontSize={8} fontFamily="system-ui">if mitigation fails</text>
+      <text x={OUT_X+OUT_W/2} y={CY+15} textAnchor="middle"
+        fill="#fca5a5" fontSize={8} fontFamily="system-ui">→ Major Accident Event</text>
 
-            {/* No barriers → line from trunk to consequence */}
-            {mbs.length===0&&(
-              <line x1={TRUNK_R} y1={y} x2={CX} y2={y}
-                stroke={MC} strokeWidth={2} opacity={0.55}/>
-            )}
-
-            {/* Line: trunk → first mitigation barrier */}
-            {mbs.length>0&&(
-              <line x1={TRUNK_R} y1={y} x2={firstMBX} y2={y}
-                stroke={MC} strokeWidth={2} opacity={0.75}/>
-            )}
-
-            {/* Mitigation barriers */}
-            {mbs.map((b,bi)=>{
-              const bx=mBX(qi,bi,mbs.length);
-              const col=bCol(b.type);
-              const bg=bBg(b.type);
-              const hasDFs=(b.degradationFactors||[]).length>0;
-              const lineEnd=bi<mbs.length-1
-                ?mBX(qi,bi+1,mbs.length)-BW/2
-                :CX;
-              return(
-                <g key={b.id||bi}>
-                  <rect x={bx-BW/2} y={y-BH/2} width={BW} height={BH}
-                    rx={3} fill={bg} stroke={col} strokeWidth={b.isSCE?3:2}
-                    style={{cursor:'pointer'}}
-                    filter={b.isSCE?'url(#sce-glow)':undefined}
-                    onClick={()=>onBarrierClick(b)}/>
-                  {b.isSCE&&(
-                    <text x={bx} y={y-BH/2-6} textAnchor="middle"
-                      fontSize={11} fill="#ef4444" fontFamily="system-ui">★</text>
-                  )}
-                  <line x1={bx+BW/2} y1={y} x2={lineEnd} y2={y}
-                    stroke={MC} strokeWidth={2} opacity={0.75}/>
-                  {hasDFs&&(
-                    <line x1={bx} y1={y+BH/2} x2={bx} y2={CORE_H+8}
-                      stroke="#f59e0b" strokeWidth={1.5}
-                      strokeDasharray="5,3" opacity={0.55}/>
-                  )}
-                </g>
-              );
-            })}
-          </g>
-        );
-      })}
-
-      {/* ═════════════════════════════════════════════════════════════════
-          DEGRADATION FACTORS + CONTROLS — below the main diagram
-          ═════════════════════════════════════════════════════════════════ */}
+      {/* ── Degradation Factors + Controls zone ── */}
       {allDFs.length>0&&(
         <g>
-          <line x1={20} y1={CORE_H+12} x2={VW-20} y2={CORE_H+12}
-            stroke="#334155" strokeWidth={1} strokeDasharray="8,5" opacity={0.5}/>
-          <text x={VW/2} y={CORE_H+30} textAnchor="middle"
+          <line x1={20} y1={CORE_H+8} x2={VW-20} y2={CORE_H+8}
+            stroke="#334155" strokeWidth={1} strokeDasharray="8,5" opacity={0.45}/>
+          <text x={VW/2} y={CORE_H+26} textAnchor="middle"
             fill="#64748b" fontSize={9} fontFamily="system-ui" fontWeight="600">
             Degradation Factors &amp; Controls (CCDs)
           </text>
-
           {allDFs.map(({b,df,dfi},idx)=>{
-            // Find barrier X in diagram
+            // Find X of this barrier in the canvas
             let bx2=TE_CX;
-            const ci2=causes.findIndex(c=>c.id===b.causeId);
-            if(b.side==='prevention'&&ci2>=0){
-              const pbs2=prevBs(ci2);
-              const bi2=pbs2.findIndex(pb=>pb.id===b.id);
-              if(bi2>=0)bx2=pBX(ci2,bi2,pbs2.length);
-            }
-            const qi2=allCons.findIndex(cn=>cn.id===b.conId);
-            if(b.side==='mitigation'&&qi2>=0){
-              const mbs2=mitBs(qi2);
-              const bi2=mbs2.findIndex(mb=>mb.id===b.id);
-              if(bi2>=0)bx2=mBX(qi2,bi2,mbs2.length);
+            if(b.side==='prevention'){
+              const bi2=prevBs.findIndex(pb=>pb.id===b.id);
+              if(bi2>=0)bx2=pBX(bi2,prevBs.length);
+            } else {
+              const bi2=mitBs.findIndex(mb=>mb.id===b.id);
+              if(bi2>=0)bx2=mBX(bi2,mitBs.length);
             }
             const isPrev=b.side==='prevention';
-            const DFY=CORE_H+42+dfi*80;
-            const DFW=130,DFH=36;
-            const DCW=110,DCH=32;
+            const DFY=CORE_H+36+idx*76;
+            const DFW=138, DFH=38, DCW=118, DCH=34;
+            const DCX=isPrev?bx2-DFW/2-DCW-14:bx2+DFW/2+14;
             return(
-              <g key={b.id+'-'+dfi}>
+              <g key={b.id+'-df-'+dfi}>
                 {/* DF box */}
                 <rect x={bx2-DFW/2} y={DFY} width={DFW} height={DFH}
                   rx={4} fill="#451a03" stroke="#f59e0b" strokeWidth={1.5}/>
                 <text x={bx2} y={DFY+13} textAnchor="middle"
-                  fill="#fde68a" fontSize={8} fontFamily="system-ui">{T(df.text,17)}</text>
-                {(df.text||'').length>17&&(
-                  <text x={bx2} y={DFY+25} textAnchor="middle"
-                    fill="#fde68a" fontSize={7.5} fontFamily="system-ui">
-                    {T((df.text||'').substring(17),17)}
+                  fill="#fde68a" fontSize={8.5} fontFamily="system-ui">{T(df.text,18)}</text>
+                {(df.text||'').length>18&&(
+                  <text x={bx2} y={DFY+26} textAnchor="middle"
+                    fill="#fde68a" fontSize={8} fontFamily="system-ui">
+                    {T((df.text||'').substring(18),18)}
                   </text>
                 )}
-                {/* Controls (CCDs) */}
+                {/* CCD boxes */}
                 {(df.controls||[]).map((dc,dci)=>{
-                  const DCX=isPrev
-                    ?bx2-DFW/2-DCW-12
-                    :bx2+DFW/2+12;
-                  const DCY=DFY+(dci*40);
+                  const DCOY=DFY+(dci*42);
                   return(
                     <g key={dci}>
                       <line x1={isPrev?bx2-DFW/2:bx2+DFW/2} y1={DFY+DFH/2}
-                        x2={isPrev?DCX+DCW:DCX} y2={DCY+DCH/2}
-                        stroke="#22c55e" strokeWidth={1.5} opacity={0.7}/>
-                      <rect x={DCX} y={DCY} width={DCW} height={DCH}
+                        x2={isPrev?DCX+DCW:DCX} y2={DCOY+DCH/2}
+                        stroke="#22c55e" strokeWidth={1.5} opacity={0.75}/>
+                      <rect x={DCX} y={DCOY} width={DCW} height={DCH}
                         rx={4} fill="#052e16" stroke="#22c55e" strokeWidth={1.5}/>
-                      <text x={DCX+DCW/2} y={DCY+12} textAnchor="middle"
-                        fill="#86efac" fontSize={7.5} fontFamily="system-ui">
-                        {T(dc.text||'',16)}
+                      <text x={DCX+DCW/2} y={DCOY+13} textAnchor="middle"
+                        fill="#86efac" fontSize={8} fontFamily="system-ui">
+                        {T(dc.text||'',17)}
                       </text>
-                      {(dc.text||'').length>16&&(
-                        <text x={DCX+DCW/2} y={DCY+24} textAnchor="middle"
-                          fill="#86efac" fontSize={7} fontFamily="system-ui">
-                          {T((dc.text||'').substring(16),16)}
+                      {(dc.text||'').length>17&&(
+                        <text x={DCX+DCW/2} y={DCOY+25} textAnchor="middle"
+                          fill="#86efac" fontSize={7.5} fontFamily="system-ui">
+                          {T((dc.text||'').substring(17),17)}
                         </text>
                       )}
                     </g>
@@ -2863,290 +2783,16 @@ const BowTieSVGCanvas=({nd,barriers,devLabel,onBarrierClick})=>{
   );
 };
 
-
 /* ═══════════════════════════════════════════════════════════════════════
-   BOW TIE STUDIO — Tier 3 Full Barrier Model
-   Auto-generated from HAZOP data + enrichable with degradation factors
-   AI-assisted SCE/SCT identification → Excel export
+   BOW TIE STUDIO — Consequence-centric view
+   Select Deviation → Select Consequence → See/Edit Bow Tie
    ═══════════════════════════════════════════════════════════════════════ */
-
-/* ── Merge HAZOP data with stored bowtie enrichment ── */
-const buildBowTieBarriers=(dev,storedBT)=>{
-  if(!dev)return[];
-  const nd=normalizeDev(dev);
-  const stored=storedBT||{};
-  const barriers=[];
-  nd.causes.forEach((cause,ci)=>{
-    // Safeguards → prevention barriers (per consequence)
-    cause.consequences.forEach((con,qi)=>{
-      const sgs=Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[con.safeguard]:[]);
-      sgs.forEach((sg,si)=>{
-        const id=`prev-${cause.id}-${con.id}-${si}`;
-        barriers.push({id,side:'prevention',causeId:cause.id,conId:con.id,
-          causeRef:`C${ci+1}`,conRef:`C${ci+1}.${qi+1}`,
-          text:typeof sg==='string'?sg:(sg?.text||''),type:'Engineering',isSCE:false,performanceStandard:'',
-          degradationFactors:(typeof sg==='object'&&Array.isArray(sg.degradationFactors))?sg.degradationFactors:[],...(stored[id]||{})});
-      });
-      // Mitigation barriers from HAZOP (with embedded DFs + CCDs)
-      const mits=Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[];
-      mits.forEach((m,mi)=>{
-        if(!m.text)return;
-        const id=`mit-${cause.id}-${con.id}-${m.id||mi}`;
-        barriers.push({id,side:'mitigation',causeId:cause.id,conId:con.id,
-          causeRef:`C${ci+1}`,conRef:`C${ci+1}.${qi+1}`,
-          text:m.text,type:m.type||'Engineering',isSCE:false,performanceStandard:'',
-          degradationFactors:m.degradationFactors||[],
-          ...(stored[id]||{})});
-      });
-    });
-    // Cause-level recommendations → prevention barriers
-    const crecs=Array.isArray(cause.recommendations)?cause.recommendations:[];
-    crecs.forEach((r,ri)=>{
-      const txt=typeof r==='string'?r:(r.text||'');
-      if(!txt)return;
-      const id=`prev-cause-${cause.id}-${ri}`;
-      barriers.push({id,side:'prevention',causeId:cause.id,conId:null,
-        causeRef:`C${ci+1}`,conRef:null,
-        text:txt,type:'Administrative',isSCE:false,performanceStandard:'',
-        degradationFactors:[],...(stored[id]||{})});
-    });
-  });
-  return barriers;
-};
-
-/* ── Barrier Editor Side Panel ── */
-const SCT_TYPES=['Testing','Inspection','Maintenance','Calibration','Operational'];
-
-const SCTRow=({sct,idx,onChange,onDelete})=>(
-  <div style={{padding:'8px 10px',background:'#0d1a0d',borderRadius:6,border:'1px solid #22c55e33',marginBottom:6}}>
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-      <span style={{fontFamily:'var(--mono)',fontSize:10,color:'#22c55e',fontWeight:700,
-        background:'#052e16',padding:'2px 6px',borderRadius:3}}>SCT-{String(idx+1).padStart(2,'0')}</span>
-      <button onClick={onDelete}
-        style={{fontSize:10,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'0 4px'}}>✕ Remove</button>
-    </div>
-    <div style={{display:'flex',flexDirection:'column',gap:5}}>
-      <div>
-        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Task Description</div>
-        <textarea value={sct.task||''} onChange={e=>onChange({task:e.target.value})} rows={2}
-          placeholder="Describe the safety critical task…"
-          style={{fontSize:11,resize:'vertical',width:'100%',lineHeight:1.4}}/>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
-        <div>
-          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Task Type</div>
-          <select value={sct.type||'Testing'} onChange={e=>onChange({type:e.target.value})}
-            style={{width:'100%',fontSize:11,padding:'4px 6px'}}>
-            {SCT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div>
-          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Frequency</div>
-          <input value={sct.frequency||''} onChange={e=>onChange({frequency:e.target.value})}
-            placeholder="e.g., 6-monthly"
-            style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
-        </div>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
-        <div>
-          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Responsible</div>
-          <input value={sct.responsible||''} onChange={e=>onChange({responsible:e.target.value})}
-            placeholder="Role / discipline"
-            style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
-        </div>
-        <div>
-          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Competency</div>
-          <input value={sct.competency||''} onChange={e=>onChange({competency:e.target.value})}
-            placeholder="Required cert / qualification"
-            style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
-        </div>
-      </div>
-      <div>
-        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Procedure Reference</div>
-        <input value={sct.procedure||''} onChange={e=>onChange({procedure:e.target.value})}
-          placeholder="e.g., MNT-ESDV-001"
-          style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
-      </div>
-    </div>
-  </div>
-);
-
-const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
-  const [b,setB]=useState(barrier);
-  useEffect(()=>setB(barrier),[barrier?.id]);
-  const save=()=>{onUpdate(b);onClose();};
-  if(!b)return null;
-  const tc=BARRIER_TYPES[b.type]||BARRIER_TYPES.Engineering;
-  const scts=Array.isArray(b.scts)?b.scts:[];
-
-  const addSCT=()=>setB(prev=>({...prev,scts:[...(prev.scts||[]),
-    {id:uid(),task:'',type:'Testing',frequency:'',responsible:'',competency:'',procedure:''}]}));
-  const delSCT=(i)=>setB(prev=>({...prev,scts:(prev.scts||[]).filter((_,j)=>j!==i)}));
-  const updSCT=(i,upd)=>setB(prev=>({...prev,scts:(prev.scts||[]).map((s,j)=>j===i?{...s,...upd}:s)}));
-
-  return(
-    <div style={{width:400,borderLeft:'1px solid var(--border)',background:'var(--bg-surface)',
-      display:'flex',flexDirection:'column',overflow:'hidden',flexShrink:0}}>
-      {/* Header */}
-      <div style={{padding:'12px 16px',borderBottom:'1px solid var(--border)',background:'var(--bg-card)',flexShrink:0}}>
-        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-          <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:tc.color,
-            textTransform:'uppercase',letterSpacing:'0.06em'}}>Edit Barrier</div>
-          <button onClick={onClose} style={{width:24,height:24,borderRadius:4,cursor:'pointer',
-            fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',
-            background:'transparent',color:'var(--text2)',border:'1px solid var(--border)'}}>✕</button>
-        </div>
-        <div style={{fontSize:11,color:'var(--text3)',marginTop:3}}>
-          {b.side==='prevention'?'Prevention Barrier — Threat side':'Mitigation Barrier — Consequence side'}
-        </div>
-      </div>
-      {/* Body */}
-      <div style={{flex:1,overflowY:'auto',padding:'14px 16px',display:'flex',flexDirection:'column',gap:14}}>
-        {/* Barrier description */}
-        <div>
-          <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:4}}>
-            Barrier Description
-          </label>
-          <textarea value={b.text} onChange={e=>setB({...b,text:e.target.value})} rows={2}
-            style={{fontSize:12,resize:'vertical',width:'100%',lineHeight:1.5}}/>
-        </div>
-        {/* Barrier type */}
-        <div>
-          <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:6}}>
-            Barrier Type
-          </label>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
-            {Object.entries(BARRIER_TYPES).map(([k,v])=>(
-              <button key={k} onClick={()=>setB({...b,type:k})}
-                style={{padding:'6px 10px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:600,
-                  background:b.type===k?v.bg:'var(--bg-card)',
-                  color:b.type===k?v.color:'var(--text3)',
-                  border:`2px solid ${b.type===k?v.color:'var(--border)'}`,
-                  textAlign:'left',display:'flex',gap:5,alignItems:'center'}}>
-                <span>{v.icon}</span><span>{v.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        {/* SCE flag */}
-        <div style={{padding:'10px 12px',borderRadius:6,border:`1px solid ${b.isSCE?'#ef444466':'var(--border)'}`,
-          background:b.isSCE?'#1a0505':'var(--bg-card)',display:'flex',alignItems:'center',
-          justifyContent:'space-between',cursor:'pointer',transition:'all 0.2s'}}
-          onClick={()=>setB({...b,isSCE:!b.isSCE})}>
-          <div>
-            <div style={{fontSize:12,fontWeight:700,color:b.isSCE?'#ef4444':'var(--text2)'}}>
-              ★ Safety Critical Element (SCE)
-            </div>
-            <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>
-              Barrier whose failure could contribute substantially to a Major Accident Event
-            </div>
-          </div>
-          <div style={{width:28,height:16,borderRadius:8,background:b.isSCE?'#ef4444':'var(--border)',
-            position:'relative',flexShrink:0,transition:'all 0.2s'}}>
-            <div style={{width:12,height:12,borderRadius:6,background:'#fff',position:'absolute',
-              top:2,left:b.isSCE?14:2,transition:'all 0.2s'}}/>
-          </div>
-        </div>
-        {/* Performance Standard — only when SCE is ON */}
-        {b.isSCE&&(
-          <div style={{borderLeft:'3px solid #ef4444',paddingLeft:10}}>
-            <label style={{fontSize:11,color:'#ef4444',fontWeight:600,display:'block',marginBottom:4}}>
-              Performance Standard
-            </label>
-            <textarea value={b.performanceStandard||''} onChange={e=>setB({...b,performanceStandard:e.target.value})}
-              rows={2} placeholder="e.g., SIL 2 — PFD ≤ 0.01, proof test 6-monthly, demand rate < 0.1/yr"
-              style={{fontSize:11,resize:'vertical',width:'100%',border:'1px solid #ef444466',lineHeight:1.5}}/>
-          </div>
-        )}
-        {/* Safety Critical Tasks — ALWAYS visible */}
-        <div style={{borderLeft:`3px solid ${b.isSCE?'#22c55e':'var(--border)'}`,paddingLeft:10}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-            <div>
-              <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',
-                color:b.isSCE?'#22c55e':'var(--text2)'}}>
-                Safety Critical Tasks (SCTs)
-                <span style={{marginLeft:6,fontFamily:'var(--mono)',fontSize:10,fontWeight:400,
-                  color:'var(--text3)'}}>({scts.length})</span>
-              </div>
-              <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>
-                {b.isSCE
-                  ?"Tasks required to maintain this SCE's performance standard"
-                  :'Toggle SCE ON to formally designate — SCTs can still be added now'}
-              </div>
-            </div>
-          </div>
-          {scts.length===0&&(
-            <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',marginBottom:6,
-              padding:'8px 10px',background:'var(--bg-card)',borderRadius:4,border:'1px solid var(--border)'}}>
-              No SCTs yet — click <strong style={{color:'#22c55e',fontStyle:'normal'}}>+ Add</strong> below, or use <strong style={{color:'#a78bfa',fontStyle:'normal'}}>✦ Analyse SCE / SCT</strong> to auto-generate.
-            </div>
-          )}
-          {scts.map((sct,i)=>(
-            <SCTRow key={sct.id||i} sct={sct} idx={i}
-              onChange={upd=>updSCT(i,upd)}
-              onDelete={()=>delSCT(i)}/>
-          ))}
-          <button onClick={addSCT}
-            style={{fontSize:11,padding:'5px 12px',borderRadius:4,cursor:'pointer',fontWeight:700,
-              background:b.isSCE?'#052e16':'var(--bg-card)',
-              color:b.isSCE?'#22c55e':'var(--text2)',
-              border:`1px solid ${b.isSCE?'#22c55e55':'var(--border)'}`,
-              display:'flex',alignItems:'center',gap:5}}>
-            + Add Safety Critical Task
-          </button>
-        </div>
-        {/* Degradation factors */}
-        <div>
-          <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:6}}>
-            Degradation Factors &amp; Controls (CCDs)
-          </label>
-          <DegradationEditor
-            factors={b.degradationFactors||[]}
-            onChange={df=>setB({...b,degradationFactors:df})}/>
-        </div>
-      </div>
-      {/* Footer */}
-      <div style={{padding:'10px 16px',borderTop:'1px solid var(--border)',flexShrink:0,
-        background:'var(--bg-card)',display:'flex',gap:8,justifyContent:'space-between',alignItems:'center'}}>
-        <div style={{fontSize:10,color:'var(--text3)'}}>
-          {b.isSCE&&<span style={{color:'#ef4444'}}>★ SCE · {scts.length} SCT{scts.length!==1?'s':''}</span>}
-        </div>
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={onClose} style={{fontSize:12,padding:'6px 14px',borderRadius:4,cursor:'pointer',
-            background:'transparent',color:'var(--text2)',border:'1px solid var(--border)'}}>Cancel</button>
-          <button onClick={save} style={{fontSize:12,padding:'6px 16px',borderRadius:4,cursor:'pointer',
-            background:'var(--accent)',color:'#000',fontWeight:700,border:'none'}}>✓ Save</button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-/* ── Barrier Pill (visual element on bow tie) ── */
-const BarrierPill=({barrier,onClick,compact})=>{
-  const tc=BARRIER_TYPES[barrier.type]||BARRIER_TYPES.Engineering;
-  const hasDeg=barrier.degradationFactors&&barrier.degradationFactors.length>0;
-  return(
-    <div onClick={onClick}
-      style={{padding:compact?'3px 6px':'5px 8px',background:tc.bg,
-        border:`2px solid ${barrier.isSCE?'#ef4444':tc.color+'88'}`,
-        borderRadius:5,cursor:'pointer',maxWidth:160,transition:'all 0.15s',
-        boxShadow:barrier.isSCE?'0 0 8px #ef444444':'none'}}>
-      {barrier.isSCE&&<div style={{fontSize:8,color:'#ef4444',fontWeight:800,letterSpacing:'0.05em',marginBottom:2}}>★ SCE{Array.isArray(barrier.scts)&&barrier.scts.length>0?' · '+barrier.scts.length+' SCT':''}</div>}
-      <div style={{fontSize:10,color:tc.color,lineHeight:1.35,fontWeight:500}}>
-        {tc.icon} {barrier.text.length>60?barrier.text.substring(0,60)+'…':barrier.text}
-      </div>
-      {hasDeg&&<div style={{fontSize:8,color:'#f59e0b',marginTop:2}}>⚠ {barrier.degradationFactors.length} degradation factor{barrier.degradationFactors.length>1?'s':''}</div>}
-    </div>
-  );
-};
-
-/* ── Main Bow Tie View ── */
 const BowTieView=({state,setState,apiKey,aiModel})=>{
   const {nodes,deviations}=state;
   const bowties=state.bowties||{};
   const [activeNodeId,setActiveNodeId]=useState(nodes[0]?.id||null);
   const [activeDevId,setActiveDevId]=useState(null);
+  const [activeConKey,setActiveConKey]=useState(null); // 'ci-qi' format
   const [editingBarrierId,setEditingBarrierId]=useState(null);
   const [sceData,setSceData]=useState(null);
   const [analyzing,setAnalyzing]=useState(false);
@@ -3157,58 +2803,82 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
   const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
   const nd=activeDev?normalizeDev(activeDev):null;
 
-  // Get merged barriers (HAZOP data + enrichment)
-  const barriers=activeDev?buildBowTieBarriers(activeDev,bowties[activeDev.id]):[];
-  const editingBarrier=barriers.find(b=>b.id===editingBarrierId)||null;
+  // All consequences across all causes for this deviation
+  const allCons=nd?nd.causes.flatMap((c,ci)=>
+    (c.consequences||[]).map((cn,qi)=>({...cn,ci,qi,cause:c}))
+  ):[];
 
-  // Persist barrier enrichment
-  const updateBarrier=(updated)=>{
-    setState(s=>{
-      const bt=s.bowties||{};
-      const devBt=bt[activeDev.id]||{};
-      return{...s,bowties:{...bt,[activeDev.id]:{...devBt,[updated.id]:updated}}};
+  // Parse active consequence
+  const [activeCi,activeQi]=activeConKey?activeConKey.split('-').map(Number):[null,null];
+  const activeCon=(activeCi!=null&&activeQi!=null&&nd)
+    ?{...(nd.causes[activeCi]?.consequences?.[activeQi]||{}),
+      ci:activeCi,qi:activeQi,cause:nd.causes[activeCi]}
+    :null;
+
+  // Build barriers for this consequence (safeguards=prev, mitigationBarriers=mit)
+  const buildConBarriers=(con)=>{
+    if(!con)return[];
+    const conKey=(con.cause?.id||'')+'-'+(con.id||'');
+    const stored=bowties[conKey]||{};
+    const bs=[];
+    // Prevention barriers — from safeguards
+    (Array.isArray(con.safeguards)?con.safeguards:[]).forEach((sg,si)=>{
+      const o=typeof sg==='string'?{id:'sg'+si,text:sg,degradationFactors:[]}:sg;
+      if(!o.text)return;
+      const id='prev-'+(o.id||si);
+      bs.push({id,text:o.text,side:'prevention',
+        type:'Engineering',isSCE:false,performanceStandard:'',scts:[],
+        degradationFactors:o.degradationFactors||[],...(stored[id]||{})});
     });
+    // Mitigation barriers
+    (Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[]).forEach((mb,mi)=>{
+      if(!mb.text)return;
+      const id='mit-'+(mb.id||mi);
+      bs.push({id,text:mb.text,side:'mitigation',
+        type:mb.type||'Engineering',isSCE:false,performanceStandard:'',scts:[],
+        degradationFactors:mb.degradationFactors||[],...(stored[id]||{})});
+    });
+    return bs;
   };
 
-  const prevBarriers=barriers.filter(b=>b.side==='prevention');
-  const mitBarriers=barriers.filter(b=>b.side==='mitigation');
+  const barriers=buildConBarriers(activeCon);
+  const editingBarrier=barriers.find(b=>b.id===editingBarrierId)||null;
   const sceBarriers=barriers.filter(b=>b.isSCE);
 
-  /* ── AI SCE/SCT Analysis ── */
+  const updateBarrier=(updated)=>{
+    if(!activeCon)return;
+    const conKey=(activeCon.cause?.id||'')+'-'+(activeCon.id||'');
+    setState(s=>({...s,bowties:{...s.bowties,
+      [conKey]:{...(s.bowties[conKey]||{}),[updated.id]:updated}}}));
+  };
+
+  // ── AI SCE/SCT Analysis ─────────────────────────────────────────────
   const analyzeForSCE=async()=>{
     if(!apiKey){setSceError('API key required.');return;}
-    if(!activeDev||barriers.length===0){setSceError('No barriers to analyse. Add barriers in the HAZOP Worksheet first.');return;}
+    if(!activeCon||barriers.length===0){setSceError('No barriers to analyse.');return;}
     setAnalyzing(true);setSceError('');setSceData(null);
     try{
       const devLabel=activeDev.deviation||activeDev.guideWord+' '+activeDev.parameter;
-      // Compact barrier list to keep prompt small
       const barrierList=barriers.map((b,i)=>(
         '['+( i+1)+'] id='+b.id+' type='+b.type+' side='+b.side+': '+(b.text||'').substring(0,100)
       )).join('\n');
-      const sys='You are a Process Safety Engineer. Identify Safety Critical Elements (SCE) and Safety Critical Tasks (SCT) from a bow tie barrier list. Return ONLY valid compact JSON, no explanation, no markdown.';
-      const schema='{"sces":[{"barrierId":"BARRIER_ID","sceId":"SCE-001","designation":"SCE name","function":"safety function description","maeScenario":"MAE scenario","performanceStandard":"e.g. SIL 2 PFD 0.01","verificationScheme":"verification method","scts":[{"sctId":"SCT-001-01","task":"task description","type":"Testing","frequency":"6-monthly","responsible":"role","competency":"cert","procedure":"MNT-001"}]}],"nonSCEBarriers":[{"barrierId":"BARRIER_ID","reason":"reason"}]}';
-      const usr='Node: '+(activeNode?.name||'')+' | Top Event: '+devLabel+
-        '\nFluid: '+(activeNode?.fluid||'unspecified')+
-        ' | Conditions: '+(activeNode?.conditions||'unspecified')+
+      const sys='You are a Process Safety Engineer. Identify SCEs and SCTs from bow tie barriers. Return only valid compact JSON.';
+      const schema='{"sces":[{"barrierId":"BARRIER_ID","sceId":"SCE-001","designation":"name","function":"safety function","maeScenario":"MAE","performanceStandard":"SIL 2 PFD 0.01","verificationScheme":"method","scts":[{"sctId":"SCT-001-01","task":"task","type":"Testing","frequency":"6-monthly","responsible":"role","competency":"cert","procedure":"MNT-001"}]}],"nonSCEBarriers":[{"barrierId":"BARRIER_ID","reason":"reason"}]}';
+      const usr='Consequence (Top Event): '+activeCon.text+
+        '\nCause: '+(activeCon.cause?.text||'')+
+        '\nContext: Node='+activeNode?.name+' | Deviation='+devLabel+
         '\n\nBarriers ('+barriers.length+'):\n'+barrierList+
-        '\n\nReturn JSON matching this schema exactly:\n'+schema+
-        '\n\nRules: Only Engineering and Instrumented barriers whose failure causes MAE qualify as SCEs. Each SCE needs 2-3 SCTs.';
-
+        '\n\nReturn JSON matching this schema:\n'+schema+
+        '\n\nOnly barriers whose failure causes MAE qualify as SCEs. Each SCE needs 2-3 SCTs.';
       const raw=await window.callAnthropicAPI(apiKey,aiModel||'claude-sonnet-4-6',sys,usr);
-      // Progressive parse: direct, strip markdown, repair
       let parsed=null;
       const clean=raw.replace(/```json|```/g,'').trim();
-      for(const attempt of [
-        ()=>JSON.parse(clean),
-        ()=>repairJSON(clean),
-        ()=>{const m=clean.match(/"sces"\s*:\s*\[/);if(!m)throw new Error();const idx=clean.indexOf(m[0]);return repairJSON(clean.substring(idx-1));}
-      ]){
+      for(const attempt of[()=>JSON.parse(clean),()=>repairJSON(clean)]){
         try{parsed=attempt();if(parsed)break;}catch{}
       }
       if(!parsed||!Array.isArray(parsed.sces))
-        throw new Error('Could not parse AI response. Try switching to claude-sonnet-4-6 in API settings.');
+        throw new Error('Could not parse AI response.');
       setSceData(parsed);
-      // Auto-flag SCE barriers and merge AI SCTs with existing manual SCTs
       parsed.sces.forEach(sce=>{
         const b=barriers.find(x=>x.id===sce.barrierId);
         if(b){
@@ -3223,175 +2893,153 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
               m.task.trim().toLowerCase()===ai.task.trim().toLowerCase())
           )];
           updateBarrier({...b,isSCE:true,
-            performanceStandard:b.performanceStandard||sce.performanceStandard||'',
-            scts:merged});
+            performanceStandard:b.performanceStandard||sce.performanceStandard||'',scts:merged});
         }
       });
     }catch(e){setSceError(e.message);}
     finally{setAnalyzing(false);}
   };
 
-  /* ── Excel Export ── */
+  // ── Excel Export ────────────────────────────────────────────────────
   const exportExcel=()=>{
     if(typeof XLSX==='undefined'){alert('SheetJS not loaded.');return;}
     const wb=XLSX.utils.book_new();
-    // Sheet 1: Bow Tie Barriers
-    const btRows=[['Node','Top Event','Ref','Side','Barrier','Type','SCE?','Performance Standard','Degradation Factors','CCDs']];
+    // Bow Tie Barriers sheet
+    const btRows=[['Node','Deviation','Consequence (Top Event)','Cause','Side','Barrier','Type','SCE?','Perf Standard','Degradation Factors','CCDs']];
     barriers.forEach(b=>{
       const dfs=(b.degradationFactors||[]).map(d=>d.text).join('; ');
       const ccds=(b.degradationFactors||[]).flatMap(d=>(d.controls||[]).map(c=>c.text)).join('; ');
-      btRows.push([activeNode?.name||'',activeDev?.deviation||activeDev?.guideWord+' '+activeDev?.parameter||'',b.causeRef+(b.conRef?'/'+b.conRef:''),b.side,b.text,b.type,b.isSCE?'YES':'',b.performanceStandard||'',dfs,ccds]);
+      btRows.push([activeNode?.name||'',activeDev?.deviation||'',activeCon?.text||'',
+        activeCon?.cause?.text||'',b.side,b.text,b.type,b.isSCE?'YES':'',
+        b.performanceStandard||'',dfs,ccds]);
     });
     const ws1=XLSX.utils.aoa_to_sheet(btRows);
-    ws1['!cols']=[{wch:18},{wch:22},{wch:10},{wch:12},{wch:35},{wch:14},{wch:5},{wch:30},{wch:30},{wch:30}];
+    ws1['!cols']=[{wch:18},{wch:22},{wch:28},{wch:28},{wch:10},{wch:35},{wch:14},{wch:5},{wch:28},{wch:28},{wch:28}];
     XLSX.utils.book_append_sheet(wb,ws1,'Bow Tie Barriers');
-    // Sheet 2: SCE Register
-    const sceRows=[['SCE ID','Barrier ID','SCE Designation','Safety Function','MAE Scenario','Performance Standard','Verification Scheme','Node','Top Event']];
-    if(sceData?.sces) sceData.sces.forEach(s=>{
-      sceRows.push([s.sceId,s.barrierId,s.designation,s.function,s.maeScenario,s.performanceStandard,s.verificationScheme,activeNode?.name||'',activeDev?.deviation||'']);
+    // SCE sheet
+    const sceRows=[['SCE ID','Barrier','Function','MAE Scenario','Perf Standard','Verification']];
+    if(sceData?.sces)sceData.sces.forEach(s=>sceRows.push([s.sceId,s.designation,s.function,s.maeScenario,s.performanceStandard,s.verificationScheme]));
+    barriers.filter(b=>b.isSCE).forEach(b=>{
+      if(!(sceData?.sces||[]).find(s=>s.barrierId===b.id))
+        sceRows.push(['SCE-M',b.text,'','','',b.performanceStandard||'']);
     });
     const ws2=XLSX.utils.aoa_to_sheet(sceRows);
-    ws2['!cols']=[{wch:10},{wch:12},{wch:25},{wch:30},{wch:30},{wch:30},{wch:25},{wch:18},{wch:22}];
+    ws2['!cols']=[{wch:10},{wch:25},{wch:30},{wch:30},{wch:28},{wch:25}];
     XLSX.utils.book_append_sheet(wb,ws2,'SCE Register');
-    // Sheet 3: SCT Register
-    const sctRows=[['SCT ID','SCE ID','Barrier','Task Description','Task Type','Frequency','Responsible','Competency Required','Procedure Reference','Source','Node']];
-    // AI-generated SCTs
-    if(sceData?.sces) sceData.sces.forEach(s=>{
-      (s.scts||[]).forEach(t=>{
-        sctRows.push([t.sctId,s.sceId,s.designation,t.task,t.type||'',t.frequency||'',t.responsible||'',t.competency||'',t.procedure||'','AI Analysis',activeNode?.name||'']);
-      });
+    // SCT sheet
+    const sctRows=[['SCT ID','SCE ID','Barrier','Task','Type','Frequency','Responsible','Competency','Procedure','Source']];
+    barriers.filter(b=>b.isSCE&&Array.isArray(b.scts)&&b.scts.length>0).forEach((b,bi)=>{
+      b.scts.forEach((t,ti)=>sctRows.push([
+        `SCT-${bi+1}-${String(ti+1).padStart(2,'0')}`,`SCE-${bi+1}`,b.text,
+        t.task,t.type,t.frequency,t.responsible,t.competency,t.procedure,t.source||'Manual'
+      ]));
     });
-    // Manually entered SCTs from barrier editor
-    barriers.filter(bar=>bar.isSCE&&Array.isArray(bar.scts)&&bar.scts.length>0).forEach((bar,bi)=>{
-      bar.scts.forEach((t,ti)=>{
-        const sctId=`SCT-M${bi+1}-${String(ti+1).padStart(2,'0')}`;
-        const sceId=`SCE-M${bi+1}`;
-        sctRows.push([sctId,sceId,bar.text?.substring(0,40)||'',t.task||'',t.type||'',t.frequency||'',t.responsible||'',t.competency||'',t.procedure||'','Manual Entry',activeNode?.name||'']);
-      });
-    });
+    if(sceData?.sces)sceData.sces.forEach(s=>(s.scts||[]).forEach(t=>sctRows.push([
+      t.sctId,s.sceId,s.designation,t.task,t.type,t.frequency,t.responsible,t.competency,t.procedure,'AI'
+    ])));
     const ws3=XLSX.utils.aoa_to_sheet(sctRows);
-    ws3['!cols']=[{wch:12},{wch:10},{wch:20},{wch:35},{wch:14},{wch:12},{wch:20},{wch:25},{wch:18},{wch:18}];
+    ws3['!cols']=[{wch:12},{wch:10},{wch:20},{wch:35},{wch:14},{wch:12},{wch:20},{wch:22},{wch:18},{wch:8}];
     XLSX.utils.book_append_sheet(wb,ws3,'SCT Register');
-    const fname=`BowTie_${(activeNode?.name||'node').replace(/\s+/g,'_')}_${(activeDev?.deviation||'dev').substring(0,20).replace(/\s+/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const fname='BowTie_'+((activeNode?.name||'').replace(/\s+/g,'_'))+'_'+((activeCon?.text||'con').substring(0,20).replace(/\s+/g,'_'))+'_'+new Date().toISOString().split('T')[0]+'.xlsx';
     XLSX.writeFile(wb,fname);
-  };
-
-  /* ── Layout helpers ── */
-  const ThreatBlock=({cause,ci})=>{
-    const cPrev=prevBarriers.filter(b=>b.causeId===cause.id);
-    return(
-      <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:6}}>
-        <div style={{padding:'8px 10px',background:'#1a0b00',borderRadius:6,border:'2px solid #f59e0b55',
-          fontSize:11,fontWeight:700,color:'#fcd34d',display:'flex',gap:6,alignItems:'flex-start'}}>
-          <span style={{fontFamily:'var(--mono)',fontSize:10,background:'#451a03',padding:'1px 5px',
-            borderRadius:3,flexShrink:0,marginTop:1}}>C{ci+1}</span>
-          <span style={{lineHeight:1.4}}>{cause.text||<span style={{color:'var(--text3)',fontWeight:400}}>No cause text</span>}</span>
-        </div>
-        {cPrev.length>0&&(
-          <div style={{display:'flex',flexDirection:'column',gap:4,paddingLeft:12,borderLeft:'2px solid #f59e0b33'}}>
-            <div style={{fontSize:9,color:'var(--text3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
-              Prevention Barriers
-            </div>
-            {cPrev.map(b=><BarrierPill key={b.id} barrier={b} onClick={()=>setEditingBarrierId(b.id)}/>)}
-          </div>
-        )}
-        {cPrev.length===0&&(
-          <div style={{fontSize:10,color:'var(--text3)',fontStyle:'italic',paddingLeft:12}}>No prevention barriers — add safeguards in Worksheet</div>
-        )}
-      </div>
-    );
-  };
-
-  const ConseqBlock=({con,cause,ci,qi})=>{
-    const cMit=mitBarriers.filter(b=>b.causeId===cause.id&&b.conId===con.id);
-    return(
-      <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:6}}>
-        {cMit.length>0&&(
-          <div style={{display:'flex',flexDirection:'column',gap:4,paddingRight:12,borderRight:'2px solid #ef444433',alignItems:'flex-end'}}>
-            <div style={{fontSize:9,color:'var(--text3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
-              Mitigation Barriers
-            </div>
-            {cMit.map(b=><BarrierPill key={b.id} barrier={b} onClick={()=>setEditingBarrierId(b.id)}/>)}
-          </div>
-        )}
-        {cMit.length===0&&(
-          <div style={{fontSize:10,color:'var(--text3)',fontStyle:'italic',paddingRight:12,textAlign:'right'}}>No mitigation barriers</div>
-        )}
-        <div style={{padding:'8px 10px',background:'#1a0505',borderRadius:6,border:'2px solid #ef444455',
-          fontSize:11,fontWeight:600,color:'#fca5a5',display:'flex',gap:6,alignItems:'flex-start',justifyContent:'flex-end'}}>
-          <span style={{lineHeight:1.4,textAlign:'right'}}>{con.text||<span style={{color:'var(--text3)',fontWeight:400}}>No consequence text</span>}</span>
-          <span style={{fontFamily:'var(--mono)',fontSize:9,background:'#450a0a',padding:'1px 5px',
-            borderRadius:3,flexShrink:0,marginTop:1}}>{ci+1}.{qi+1}</span>
-        </div>
-      </div>
-    );
   };
 
   return(
     <div style={{flex:1,display:'flex',overflow:'hidden'}}>
-
-      {/* Sidebar */}
-      <div className="sidebar" style={{width:220,display:'flex',flexDirection:'column',gap:12,overflow:'auto'}}>
+      {/* ── Sidebar ── */}
+      <div className="sidebar" style={{width:230,display:'flex',flexDirection:'column',gap:0,overflow:'auto'}}>
         <div className="sec-hdr" style={{flexDirection:'column',alignItems:'flex-start',gap:8}}>
           <label style={{fontSize:11,color:'var(--text2)',fontWeight:600}}>Node</label>
-          <select value={activeNodeId||''} onChange={e=>{setActiveNodeId(e.target.value);setActiveDevId(null);setSceData(null);}}
+          <select value={activeNodeId||''} onChange={e=>{setActiveNodeId(e.target.value);setActiveDevId(null);setActiveConKey(null);setSceData(null);}}
             style={{fontSize:12,width:'100%'}}>
             <option value="">— Select Node —</option>
             {nodes.map(n=><option key={n.id} value={n.id}>{n.name||'Unnamed'}</option>)}
           </select>
+
           {activeNodeId&&(
             <>
-              <label style={{fontSize:11,color:'var(--text2)',fontWeight:600}}>Deviation (Top Event)</label>
-              <div style={{display:'flex',flexDirection:'column',gap:4,width:'100%'}}>
+              <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,marginTop:6}}>Deviation</label>
+              <div style={{display:'flex',flexDirection:'column',gap:3,width:'100%'}}>
                 {nodeDevs.map((d,di)=>(
-                  <button key={d.id} onClick={()=>{setActiveDevId(d.id);setSceData(null);setEditingBarrierId(null);}}
-                    style={{textAlign:'left',padding:'7px 10px',borderRadius:5,cursor:'pointer',fontSize:11,
+                  <button key={d.id} onClick={()=>{setActiveDevId(d.id);setActiveConKey(null);setSceData(null);}}
+                    style={{textAlign:'left',padding:'6px 8px',borderRadius:5,cursor:'pointer',fontSize:11,
                       background:activeDevId===d.id?'var(--accent-dim)':'var(--bg-card)',
                       color:activeDevId===d.id?'var(--accent)':'var(--text2)',
-                      border:`1px solid ${activeDevId===d.id?'var(--accent)':'var(--border)'}`,fontWeight:activeDevId===d.id?700:400}}>
-                    <div style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--text3)',marginBottom:2}}>D{di+1}</div>
+                      border:`1px solid ${activeDevId===d.id?'var(--accent)':'var(--border)'}`,
+                      fontWeight:activeDevId===d.id?700:400}}>
+                    <div style={{fontFamily:'var(--mono)',fontSize:8.5,color:'var(--text3)',marginBottom:2}}>D{di+1}</div>
                     {d.deviation||d.guideWord+' '+d.parameter}
                   </button>
                 ))}
-                {nodeDevs.length===0&&<div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic'}}>No deviations yet</div>}
               </div>
             </>
           )}
+
+          {activeDev&&allCons.length>0&&(
+            <>
+              <label style={{fontSize:11,color:'#ef4444',fontWeight:700,marginTop:8,letterSpacing:'0.03em'}}>
+                Select Consequence (Top Event)
+              </label>
+              <div style={{display:'flex',flexDirection:'column',gap:3,width:'100%'}}>
+                {allCons.map((cn,idx)=>{
+                  const key=cn.ci+'-'+cn.qi;
+                  const isActive=activeConKey===key;
+                  return(
+                    <button key={key} onClick={()=>{setActiveConKey(key);setEditingBarrierId(null);setSceData(null);}}
+                      style={{textAlign:'left',padding:'6px 8px',borderRadius:5,cursor:'pointer',fontSize:11,
+                        background:isActive?'#2d0a0a':'var(--bg-card)',
+                        color:isActive?'#fca5a5':'var(--text2)',
+                        border:`1px solid ${isActive?'#ef4444':'var(--border)'}`,
+                        fontWeight:isActive?700:400}}>
+                      <div style={{fontFamily:'var(--mono)',fontSize:8.5,color:isActive?'#ef4444':'var(--text3)',marginBottom:2}}>
+                        C{cn.ci+1}.{cn.qi+1}
+                      </div>
+                      {(cn.text||'No text').substring(0,45)}{(cn.text||'').length>45?'…':''}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {activeDev&&allCons.length===0&&(
+            <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',marginTop:8}}>
+              No consequences in this deviation. Add them in the Worksheet first.
+            </div>
+          )}
         </div>
 
-        {activeDev&&(
-          <div style={{display:'flex',flexDirection:'column',gap:6,padding:'0 12px'}}>
+        {activeCon&&(
+          <div style={{display:'flex',flexDirection:'column',gap:6,padding:'8px 12px',
+            borderTop:'1px solid var(--border)'}}>
             <div style={{fontSize:10,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em'}}>
               Bow Tie Summary
             </div>
-            <div style={{fontSize:11,color:'var(--text2)'}}>
+            <div style={{fontSize:11,color:'var(--text2)',lineHeight:1.7}}>
               Barriers: <strong style={{color:'var(--accent)'}}>{barriers.length}</strong><br/>
-              Prevention: <strong style={{color:'#22c55e'}}>{prevBarriers.length}</strong><br/>
-              Mitigation: <strong style={{color:'#ef4444'}}>{mitBarriers.length}</strong><br/>
+              Prevention: <strong style={{color:'#22c55e'}}>{barriers.filter(b=>b.side==='prevention').length}</strong><br/>
+              Mitigation: <strong style={{color:'#ef4444'}}>{barriers.filter(b=>b.side==='mitigation').length}</strong><br/>
               SCEs: <strong style={{color:'#ef4444'}}>{sceBarriers.length}</strong>
             </div>
-
-            <div style={{borderTop:'1px solid var(--border)',paddingTop:8,display:'flex',flexDirection:'column',gap:6}}>
-              <div style={{fontSize:10,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em'}}>Barrier Type Legend</div>
-              {Object.entries(BARRIER_TYPES).map(([k,v])=>(
-                <div key={k} style={{display:'flex',gap:6,alignItems:'center',fontSize:10}}>
-                  <div style={{width:10,height:10,borderRadius:2,background:v.bg,border:`1px solid ${v.color}`,flexShrink:0}}/>
-                  <span style={{color:v.color}}>{v.icon} {v.label}</span>
-                </div>
-              ))}
-              <div style={{display:'flex',gap:6,alignItems:'center',fontSize:10}}>
-                <div style={{width:10,height:10,borderRadius:2,background:'transparent',border:'2px solid #ef4444',flexShrink:0}}/>
-                <span style={{color:'#ef4444'}}>★ SCE</span>
-              </div>
+            <div style={{fontSize:10,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginTop:4}}>
+              Barrier Legend
             </div>
-
+            {Object.entries(BARRIER_TYPES).map(([k,v])=>(
+              <div key={k} style={{display:'flex',gap:6,alignItems:'center',fontSize:10}}>
+                <div style={{width:10,height:10,borderRadius:2,background:v.bg,border:`1px solid ${v.color}`,flexShrink:0}}/>
+                <span style={{color:v.color}}>{v.icon} {v.label}</span>
+              </div>
+            ))}
+            <div style={{display:'flex',gap:6,alignItems:'center',fontSize:10}}>
+              <div style={{width:10,height:10,borderRadius:2,background:'transparent',border:'2px solid #ef4444',flexShrink:0}}/>
+              <span style={{color:'#ef4444'}}>★ SCE</span>
+            </div>
             <button onClick={analyzeForSCE} disabled={analyzing}
-              style={{padding:'8px 10px',borderRadius:5,cursor:'pointer',fontWeight:700,fontSize:11,
+              style={{marginTop:4,padding:'8px 10px',borderRadius:5,cursor:'pointer',fontWeight:700,fontSize:11,
                 background:'#2d1f5e',color:'#c4b5fd',border:'1px solid #7c3aed88',
                 display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
               {analyzing?<><span className="spin">⟳</span> Analysing…</>:<>✦ Analyse SCE / SCT</>}
             </button>
-
             {(sceData||barriers.length>0)&&(
               <button onClick={exportExcel}
                 style={{padding:'7px 10px',borderRadius:5,cursor:'pointer',fontWeight:600,fontSize:11,
@@ -3400,61 +3048,96 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
                 ⬇ Export Excel
               </button>
             )}
-
-            {sceError&&<div style={{fontSize:10,color:'#fca5a5',background:'#2d0a0a',padding:'6px 8px',borderRadius:4,border:'1px solid #7f1d1d'}}>{sceError}</div>}
+            {sceError&&(
+              <div style={{fontSize:10,color:'#fca5a5',background:'#2d0a0a',padding:'6px 8px',
+                borderRadius:4,border:'1px solid #7f1d1d'}}>{sceError}</div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Main Bow Tie Area */}
+      {/* ── Main Bow Tie Area ── */}
       <div style={{flex:1,overflowY:'auto',overflowX:'auto',padding:16,minWidth:0}}>
-        {!activeDev&&(
-          <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
-            height:'100%',gap:12,color:'var(--text3)'}}>
+        {!activeCon&&(
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',
+            justifyContent:'center',height:'100%',gap:12,color:'var(--text3)'}}>
             <div style={{fontSize:32}}>🎯</div>
-            <div style={{fontSize:14,fontWeight:600}}>Select a node and deviation to view its Bow Tie</div>
-            <div style={{fontSize:12}}>Bow ties are automatically built from your HAZOP worksheet data.<br/>Click any barrier to enrich it with type, degradation factors and CCDs.</div>
+            <div style={{fontSize:14,fontWeight:600,color:'var(--text2)'}}>
+              {!activeDevId?'Select a node and deviation':'Select a consequence to view its Bow Tie'}
+            </div>
+            <div style={{fontSize:12,textAlign:'center',maxWidth:400}}>
+              {!activeDevId
+                ?'Each consequence becomes a Top Event. Select a deviation to see its consequences.'
+                :'Each consequence has its own bow tie: Cause → Prevention Barriers → [Consequence] → Mitigation Barriers'}
+            </div>
           </div>
         )}
 
-        {activeDev&&nd&&(
-          <div style={{minWidth:700}}>
-            {/* Top Event Banner */}
-            <div style={{textAlign:'center',marginBottom:20}}>
-              <div style={{display:'inline-block',padding:'10px 24px',background:'#0d1f3c',
-                border:'2px solid var(--accent)',borderRadius:8,boxShadow:'0 0 24px var(--accent)44'}}>
-                <div style={{fontSize:9,color:'var(--text3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:2}}>TOP EVENT</div>
-                <div style={{fontFamily:'var(--disp)',fontSize:17,fontWeight:800,color:'var(--accent)',letterSpacing:'0.04em'}}>
-                  {activeDev.deviation||activeDev.guideWord+' '+activeDev.parameter}
+        {activeCon&&(
+          <div>
+            {/* Consequence header */}
+            <div style={{marginBottom:14,padding:'10px 16px',background:'var(--bg-card)',
+              borderRadius:8,border:'1px solid #ef444455',display:'flex',gap:10,alignItems:'flex-start'}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:10,color:'#ef4444',fontWeight:700,textTransform:'uppercase',
+                  letterSpacing:'0.06em',marginBottom:3}}>
+                  Top Event — C{activeCon.ci+1}.{activeCon.qi+1}
                 </div>
-                <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>{activeNode?.name}</div>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--text1)',lineHeight:1.4}}>
+                  {activeCon.text||'No consequence text'}
+                </div>
+                <div style={{fontSize:11,color:'var(--text3)',marginTop:5}}>
+                  Cause: <span style={{color:'#f59e0b'}}>{activeCon.cause?.text?.substring(0,80)||'—'}</span>
+                </div>
+                <div style={{fontSize:10,color:'var(--text3)',marginTop:3}}>
+                  Deviation: {activeDev.deviation||activeDev.guideWord+' '+activeDev.parameter}
+                  {' · '}{activeNode?.name}
+                </div>
+              </div>
+              <div style={{display:'flex',gap:8,flexShrink:0,flexDirection:'column'}}>
+                {activeCon.cause?.initialRisk&&(
+                  <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11}}>
+                    <span style={{color:'var(--text3)'}}>Initial:</span>
+                    <RiskBadge cat={activeCon.cause.initialRisk.cat} small/>
+                    <span style={{fontFamily:'var(--mono)',color:'#f59e0b',fontSize:10}}>
+                      S{activeCon.cause.initialRisk.s}/{activeCon.cause.initialRisk.l}
+                    </span>
+                  </div>
+                )}
+                {activeCon.cause?.residualRisk&&(
+                  <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11}}>
+                    <span style={{color:'var(--text3)'}}>Residual:</span>
+                    <RiskBadge cat={activeCon.cause.residualRisk.cat} small/>
+                    <span style={{fontFamily:'var(--mono)',color:'#22c55e',fontSize:10}}>
+                      S{activeCon.cause.residualRisk.s}/{activeCon.cause.residualRisk.l}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Bow Tie SVG Canvas */}
-            <div style={{overflowX:'auto',overflowY:'visible'}}>
+            {/* SVG Bow Tie Canvas */}
+            <div style={{overflowX:'auto'}}>
               <BowTieSVGCanvas
-                nd={nd} barriers={barriers}
-                devLabel={activeDev.deviation||activeDev.guideWord+' '+activeDev.parameter}
-                onBarrierClick={(b)=>setEditingBarrierId(b.id)}/>
+                activeCon={activeCon} barriers={barriers}
+                onBarrierClick={b=>setEditingBarrierId(b.id)}/>
             </div>
 
-            {/* SCE/SCT Results Panel */}
+            {/* SCE/SCT Results */}
             {sceData&&(
-              <div style={{marginTop:24}}>
-                <div style={{fontFamily:'var(--disp)',fontSize:14,fontWeight:700,color:'#ef4444',
-                  textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4}}>
+              <div style={{marginTop:20}}>
+                <div style={{fontFamily:'var(--disp)',fontSize:13,fontWeight:700,color:'#ef4444',
+                  textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>
                   ★ SCE / SCT Analysis Results
                 </div>
-                <div style={{fontSize:11,color:'#fca5a5',marginBottom:12,padding:'6px 10px',
-                  background:'#2d0a0a',borderRadius:4,border:'1px solid #7f1d1d'}}>
-                  ⚠ AI-generated first pass. All SCE designations and Performance Standards must be validated by a competent engineer against the engineering Design Basis, applicable regulations (UKCS DCR, PFEER; API 14C; ISO 14224) and SIL/LOPA study results before use.
+                <div style={{fontSize:11,color:'#fca5a5',marginBottom:10,padding:'6px 10px',
+                  background:'#2d0a0a',borderRadius:4,border:'1px solid #7f1d1d',lineHeight:1.5}}>
+                  ⚠ AI-generated first pass — validate all SCE designations and Performance Standards against engineering Design Basis and applicable regulations before use.
                 </div>
-
                 {sceData.sces.map((sce,si)=>(
-                  <div key={si} style={{marginBottom:16,background:'var(--bg-card)',borderRadius:8,
+                  <div key={si} style={{marginBottom:14,background:'var(--bg-card)',borderRadius:8,
                     border:'2px solid #ef444466',overflow:'hidden'}}>
-                    <div style={{padding:'10px 14px',background:'#2d0a0a',borderBottom:'1px solid #7f1d1d',
+                    <div style={{padding:'9px 14px',background:'#2d0a0a',borderBottom:'1px solid #7f1d1d',
                       display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10}}>
                       <div>
                         <div style={{fontFamily:'var(--mono)',fontSize:10,color:'#ef4444',fontWeight:700}}>{sce.sceId}</div>
@@ -3463,7 +3146,7 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
                       </div>
                       <div style={{textAlign:'right',fontSize:10,color:'#f59e0b',flexShrink:0}}>
                         <div style={{fontWeight:600}}>{sce.performanceStandard}</div>
-                        <div style={{color:'var(--text3)',marginTop:2}}>MAE: {sce.maeScenario?.substring(0,50)}</div>
+                        <div style={{color:'var(--text3)',marginTop:2}}>{sce.maeScenario?.substring(0,50)}</div>
                       </div>
                     </div>
                     <div style={{padding:'10px 14px'}}>
@@ -3499,7 +3182,7 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
         )}
       </div>
 
-      {/* Barrier Editor Right Panel */}
+      {/* Barrier Editor Panel */}
       {editingBarrier&&(
         <BarrierEditorPanel
           barrier={editingBarrier}
@@ -3509,6 +3192,7 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
     </div>
   );
 };
+
 
 const App=()=>{
   const [apiKey,setApiKey]=useState(()=>localStorage.getItem('hazop_api_key')||'');
