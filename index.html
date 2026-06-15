@@ -2226,6 +2226,10 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
   const [analyzing,setAnalyzing]=useState(false);
   const [sceError,setSceError]=useState('');
 
+  const [lopcResults,setLopcResults]=useState({});   // {conId:{classification,category,reason,priority}}
+  const [lopcLoading,setLopcLoading]=useState(false);
+  const [lopcError,setLopcError]=useState('');
+
   const activeNode=nodes.find(n=>n.id===activeNodeId);
   const activeDev=deviations.find(d=>d.id===activeDevId);
   const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
@@ -2288,26 +2292,38 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
     const conKey=(activeCon.cause?.id||'')+'-'+(activeCon.id||'');
     const matchText=(updated.text||'').trim().toLowerCase();
     setState(s=>{
-      // ── Update BowTie enrichment ──
+      // ── Update BowTie enrichment for the current barrier ──
       let newBowties={...s.bowties,[conKey]:{...(s.bowties[conKey]||{}),[updated.id]:updated}};
-      // Sync DFs to barriers with same text in other consequences (BowTie side)
-      if(updated.degradationFactors&&matchText){
+
+      // ── Collect ALL fields that should sync to matching barriers ──
+      // isSCE, performanceStandard, scts — sync the full SCE package
+      // degradationFactors — sync DFs and controls
+      const syncFields={};
+      if(updated.degradationFactors!==undefined)syncFields.degradationFactors=updated.degradationFactors;
+      if(updated.isSCE!==undefined)syncFields.isSCE=updated.isSCE;
+      if(updated.performanceStandard!==undefined)syncFields.performanceStandard=updated.performanceStandard;
+      if(updated.scts!==undefined)syncFields.scts=updated.scts;
+      if(updated.type!==undefined)syncFields.type=updated.type;
+
+      // ── Sync to all barriers with same text across every consequence key ──
+      if(matchText&&Object.keys(syncFields).length>0){
         Object.keys(newBowties).forEach(ck=>{
           const ckData=newBowties[ck]||{};
           const sync={};let changed=false;
           Object.keys(ckData).forEach(bid=>{
             const b=ckData[bid];
             if(b&&b.id!==updated.id&&(b.text||'').trim().toLowerCase()===matchText){
-              sync[bid]={...b,degradationFactors:updated.degradationFactors};changed=true;
+              sync[bid]={...b,...syncFields};changed=true;
             }else{sync[bid]=b;}
           });
           if(changed)newBowties[ck]=sync;
         });
       }
-      // ── For recommendation barriers: also write DFs back to HAZOP deviations ──
-      // This keeps the worksheet RecCard and BowTie in sync
+
+      // ── For recommendation barriers: write DFs back to HAZOP deviations data ──
+      // Keeps worksheet RecCard in sync with BowTie editor changes
       let newDevs=s.deviations;
-      if(updated.side==='recommendation'&&updated.degradationFactors&&matchText){
+      if(updated.side==='recommendation'&&updated.degradationFactors!==undefined&&matchText){
         newDevs=(s.deviations||[]).map(dev=>({...dev,
           causes:(dev.causes||[]).map(c=>({...c,
             consequences:c.consequences.map(cn=>({...cn,
@@ -2372,6 +2388,43 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
     finally{setAnalyzing(false);}
   };
 
+  /* ── AI: Identify LOPC / hazardous event consequences ── */
+  const analyzeLopc=async()=>{
+    if(!apiKey){setLopcError('API key required.');return;}
+    if(!nd||allCons.length===0){setLopcError('No consequences to analyse.');return;}
+    setLopcLoading(true);setLopcError('');
+    try{
+      const devLabel=activeDev.deviation||activeDev.guideWord+' '+activeDev.parameter;
+      const conList=allCons.map(cn=>
+        '[C'+(cn.ci+1)+'.'+(cn.qi+1)+'] Cause: '+(cn.cause?.text||'').substring(0,60)+
+        ' | Consequence: '+(cn.text||'').substring(0,80)
+      ).join('\n');
+      const sys='You are a Process Safety Engineer specialising in oil and gas hazard identification. Classify HAZOP consequences by LOPC or major hazard potential. Return only valid compact JSON.';
+      const usr='HAZOP Study: Node='+(activeNode?.name||'')+
+        ' | Fluid='+(activeNode?.fluid||'unspecified')+
+        ' | Deviation='+devLabel+
+        '\n\nConsequences:\n'+conList+
+        '\n\nClassify each as:'+
+        ' LOPC (Loss of Primary Containment: hydrocarbon release, fire, explosion, toxic cloud) |'+
+        ' MAE (Major Accident: overpressure rupture, structural collapse, BLEVE) |'+
+        ' HIGH (serious injury, major env or production loss) |'+
+        ' OPTIONAL (minor consequence, bow tie optional)'+
+        '\nCategories: fire_explosion | toxic_release | overpressure | structural | environmental | production | equipment'+
+        '\nJSON: {"results":[{"ref":"C1.1","classification":"LOPC","category":"fire_explosion","reason":"brief reason","priority":"CRITICAL"}]}';
+      const raw=await window.callAnthropicAPI(apiKey,aiModel||'claude-sonnet-4-6',sys,usr);
+      let parsed=null;
+      try{parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());}catch{parsed=repairJSON(raw);}
+      if(!parsed||!Array.isArray(parsed.results))throw new Error('Could not parse AI response.');
+      const mapped={};
+      parsed.results.forEach(r=>{
+        const cn=allCons.find(c=>'C'+(c.ci+1)+'.'+(c.qi+1)===r.ref);
+        if(cn)mapped[cn.id]={classification:r.classification||'OPTIONAL',category:r.category||'',reason:r.reason||'',priority:r.priority||''};
+      });
+      setLopcResults(prev=>({...prev,...mapped}));
+    }catch(e){setLopcError(e.message||'AI error.');}
+    finally{setLopcLoading(false);}
+  };
+
   // ── Excel Export ────────────────────────────────────────────────────
   const exportExcel=()=>{
     if(typeof XLSX==='undefined'){alert('SheetJS not loaded.');return;}
@@ -2422,7 +2475,7 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
       <div className="sidebar" style={{width:230,display:'flex',flexDirection:'column',gap:0,overflow:'auto'}}>
         <div className="sec-hdr" style={{flexDirection:'column',alignItems:'flex-start',gap:8}}>
           <label style={{fontSize:11,color:'var(--text2)',fontWeight:600}}>Node</label>
-          <select value={activeNodeId||''} onChange={e=>{setActiveNodeId(e.target.value);setActiveDevId(null);setActiveConKey(null);setSceData(null);}}
+          <select value={activeNodeId||''} onChange={e=>{setActiveNodeId(e.target.value);setActiveDevId(null);setActiveConKey(null);setSceData(null);setLopcResults({});setLopcError('');}}
             style={{fontSize:12,width:'100%'}}>
             <option value="">— Select Node —</option>
             {nodes.map(n=><option key={n.id} value={n.id}>{n.name||'Unnamed'}</option>)}
@@ -2433,7 +2486,7 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
               <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,marginTop:6}}>Deviation</label>
               <div style={{display:'flex',flexDirection:'column',gap:3,width:'100%'}}>
                 {nodeDevs.map((d,di)=>(
-                  <button key={d.id} onClick={()=>{setActiveDevId(d.id);setActiveConKey(null);setSceData(null);}}
+                  <button key={d.id} onClick={()=>{setActiveDevId(d.id);setActiveConKey(null);setSceData(null);setLopcResults({});setLopcError('');}}
                     style={{textAlign:'left',padding:'6px 8px',borderRadius:5,cursor:'pointer',fontSize:11,
                       background:activeDevId===d.id?'var(--accent-dim)':'var(--bg-card)',
                       color:activeDevId===d.id?'var(--accent)':'var(--text2)',
@@ -2449,24 +2502,62 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
 
           {activeDev&&allCons.length>0&&(
             <>
+              {/* LOPC Analyse button */}
+              <button onClick={analyzeLopc} disabled={lopcLoading}
+                style={{marginTop:8,width:'100%',padding:'7px 10px',borderRadius:5,cursor:'pointer',
+                  fontWeight:700,fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',gap:6,
+                  background:lopcLoading?'var(--bg-card)':'#1a0b00',
+                  color:lopcLoading?'var(--text3)':'#fb923c',
+                  border:'1px solid #f5712244',opacity:lopcLoading?0.7:1}}>
+                {lopcLoading
+                  ?<><span style={{animation:'spin 1s linear infinite',display:'inline-block'}}>⟳</span> Analysing…</>
+                  :<>🔥 Identify LOPC / Hazardous Events</>}
+              </button>
+              {lopcError&&<div style={{fontSize:10,color:'#fca5a5',background:'#2d0a0a',padding:'5px 8px',borderRadius:4,marginTop:4}}>{lopcError}</div>}
+
+              {/* Consequence selector — colour-coded by LOPC classification */}
               <label style={{fontSize:11,color:'#ef4444',fontWeight:700,marginTop:8,letterSpacing:'0.03em'}}>
                 Select Consequence (Top Event)
               </label>
+              {Object.keys(lopcResults).length>0&&(
+                <div style={{fontSize:9,color:'var(--text3)',marginBottom:3,lineHeight:1.5}}>
+                  <span style={{color:'#ef4444',fontWeight:700}}>🔴 LOPC/MAE</span> = mandatory bow tie
+                  {' · '}<span style={{color:'#f59e0b'}}>⚠ HIGH</span> = recommended
+                  {' · '}<span style={{color:'var(--text3)'}}>⚪ Optional</span>
+                </div>
+              )}
               <div style={{display:'flex',flexDirection:'column',gap:3,width:'100%'}}>
                 {allCons.map((cn,idx)=>{
                   const key=cn.ci+'-'+cn.qi;
                   const isActive=activeConKey===key;
+                  const lopc=lopcResults[cn.id];
+                  const cls=lopc?.classification||'';
+                  const isMandatory=cls==='LOPC'||cls==='MAE';
+                  const isHigh=cls==='HIGH';
+                  const isOptional=cls==='OPTIONAL';
+                  // colour scheme
+                  const borderCol=isActive?'#ef4444':isMandatory?'#f97316':isHigh?'#f59e0b44':isOptional?'#33415566':'var(--border)';
+                  const bgCol=isActive?'#2d0a0a':isMandatory?'#1c0800':isHigh?'#1a100000':'var(--bg-card)';
+                  const textCol=isActive?'#fca5a5':isMandatory?'#fb923c':isHigh?'#fcd34d':isOptional?'var(--text3)':'var(--text2)';
                   return(
                     <button key={key} onClick={()=>{setActiveConKey(key);setEditingBarrierId(null);setSceData(null);}}
                       style={{textAlign:'left',padding:'6px 8px',borderRadius:5,cursor:'pointer',fontSize:11,
-                        background:isActive?'#2d0a0a':'var(--bg-card)',
-                        color:isActive?'#fca5a5':'var(--text2)',
-                        border:`1px solid ${isActive?'#ef4444':'var(--border)'}`,
-                        fontWeight:isActive?700:400}}>
-                      <div style={{fontFamily:'var(--mono)',fontSize:8.5,color:isActive?'#ef4444':'var(--text3)',marginBottom:2}}>
-                        C{cn.ci+1}.{cn.qi+1}
+                        background:bgCol,color:textCol,border:'1px solid '+borderCol,fontWeight:isActive||isMandatory?700:400,
+                        opacity:isOptional&&!isActive?0.65:1}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:2}}>
+                        <span style={{fontFamily:'var(--mono)',fontSize:8.5,color:isActive?'#ef4444':isMandatory?'#f97316':isHigh?'#f59e0b':'var(--text3)'}}>
+                          C{cn.ci+1}.{cn.qi+1}
+                        </span>
+                        {isMandatory&&<span style={{fontSize:8,fontWeight:800,color:'#ef4444',background:'#450a0a',padding:'1px 5px',borderRadius:3,letterSpacing:'0.04em'}}>{cls}</span>}
+                        {isHigh&&!isActive&&<span style={{fontSize:8,fontWeight:700,color:'#f59e0b'}}>⚠ HIGH</span>}
+                        {isOptional&&!isActive&&<span style={{fontSize:8,color:'var(--text3)'}}>⚪ opt</span>}
                       </div>
                       {(cn.text||'No text').substring(0,45)}{(cn.text||'').length>45?'…':''}
+                      {lopc?.category&&!isActive&&(
+                        <div style={{fontSize:8,color:isMandatory?'#f97316':isHigh?'#f59e0b':'var(--text3)',marginTop:2,opacity:0.8}}>
+                          {lopc.category.replace(/_/g,' ')}
+                        </div>
+                      )}
                     </button>
                   );
                 })}
@@ -2532,17 +2623,133 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
       {/* ── Main Bow Tie Area ── */}
       <div style={{flex:1,overflowY:'auto',overflowX:'auto',padding:16,minWidth:0}}>
         {!activeCon&&(
-          <div style={{display:'flex',flexDirection:'column',alignItems:'center',
-            justifyContent:'center',height:'100%',gap:12,color:'var(--text3)'}}>
-            <div style={{fontSize:32}}>🎯</div>
-            <div style={{fontSize:14,fontWeight:600,color:'var(--text2)'}}>
-              {!activeDevId?'Select a node and deviation':'Select a consequence to view its Bow Tie'}
-            </div>
-            <div style={{fontSize:12,textAlign:'center',maxWidth:400}}>
-              {!activeDevId
-                ?'Each consequence becomes a Top Event. Select a deviation to see its consequences.'
-                :'Each consequence has its own bow tie: Cause → Prevention Barriers → [Consequence] → Mitigation Barriers'}
-            </div>
+          <div style={{flex:1,overflowY:'auto',padding:20}}>
+            {(!activeDevId||allCons.length===0)?(
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:12,color:'var(--text3)'}}>
+                <div style={{fontSize:32}}>🎯</div>
+                <div style={{fontSize:14,fontWeight:600,color:'var(--text2)'}}>
+                  {!activeDevId?'Select a node and deviation':'Add causes and consequences in the Worksheet first.'}
+                </div>
+                <div style={{fontSize:12,textAlign:'center',maxWidth:400}}>
+                  {!activeDevId?'Each consequence becomes a Top Event. Select a deviation to see its consequences.':''}
+                </div>
+              </div>
+            ):(
+              <div>
+                {/* Instruction card */}
+                <div style={{marginBottom:16,padding:'12px 16px',background:'var(--bg-card)',
+                  borderRadius:8,border:'1px solid #f9731633'}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'#fb923c',marginBottom:6}}>
+                    🔥 LOPC / Hazardous Event Screening
+                  </div>
+                  <div style={{fontSize:12,color:'var(--text2)',lineHeight:1.6}}>
+                    Click <strong style={{color:'#fb923c'}}>🔥 Identify LOPC / Hazardous Events</strong> in the sidebar to let AI classify which consequences require mandatory bow tie analysis (LOPC, MAE) versus optional ones.
+                  </div>
+                  {Object.keys(lopcResults).length===0&&(
+                    <div style={{marginTop:8,fontSize:11,color:'var(--text3)',fontStyle:'italic'}}>
+                      All {allCons.length} consequence{allCons.length!==1?'s':''} are currently unclassified — run the AI screening or select one directly from the sidebar.
+                    </div>
+                  )}
+                </div>
+
+                {/* LOPC summary grid — shown after AI screening */}
+                {Object.keys(lopcResults).length>0&&(
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:'var(--text2)',marginBottom:12,
+                      textTransform:'uppercase',letterSpacing:'0.05em'}}>
+                      Consequence Classification — {Object.keys(lopcResults).length} of {allCons.length} screened
+                    </div>
+                    {/* Summary counts */}
+                    {[
+                        ['LOPC','#ef4444','#450a0a','Loss of Primary Containment'],
+                        ['MAE','#f97316','#431407','Major Accident Event'],
+                        ['HIGH','#f59e0b','#451a03','High Severity'],
+                        ['OPTIONAL','#64748b','#1e293b','Optional Analysis']
+                      ].map(([cls,col,bg,lbl])=>{
+                        const cnt=allCons.filter(cn=>(lopcResults[cn.id]?.classification||'')===cls).length;
+                        return(
+                          <div key={cls} style={{textAlign:'center',padding:'12px 8px',borderRadius:7,
+                            background:bg,border:'1px solid '+col+'66'}}>
+                            <div style={{fontSize:24,fontWeight:700,color:col}}>{cnt}</div>
+                            <div style={{fontSize:10,fontWeight:700,color:col}}>{cls}</div>
+                            <div style={{fontSize:9,color:'var(--text3)',marginTop:2}}>{lbl}</div>
+                          </div>
+                        );
+                      })}
+
+                    {/* Consequence cards sorted by priority */}
+                    {['LOPC','MAE','HIGH','OPTIONAL'].map(cls=>{
+                      const group=allCons.filter(cn=>(lopcResults[cn.id]?.classification||'')===cls);
+                      if(group.length===0)return null;
+                      const col=cls==='LOPC'?'#ef4444':cls==='MAE'?'#f97316':cls==='HIGH'?'#f59e0b':'#64748b';
+                      const bg=cls==='LOPC'?'#450a0a':cls==='MAE'?'#431407':cls==='HIGH'?'#451a03':'#1e293b';
+                      return(
+                        <div key={cls} style={{marginBottom:16}}>
+                          <div style={{fontSize:11,fontWeight:700,color:col,textTransform:'uppercase',
+                            letterSpacing:'0.06em',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
+                            {cls==='LOPC'?'🔴':cls==='MAE'?'🟠':cls==='HIGH'?'⚠':'⚪'}
+                            {cls} — {cls==='LOPC'||cls==='MAE'?'MANDATORY bow tie analysis':'bow tie analysis '+(cls==='HIGH'?'recommended':'optional')}
+                          </div>
+                          {group.map(cn=>{
+                            const lopc=lopcResults[cn.id];
+                            return(
+                              <div key={cn.id}
+                                onClick={()=>{setActiveConKey(cn.ci+'-'+cn.qi);setEditingBarrierId(null);setSceData(null);}}
+                                style={{padding:'10px 14px',marginBottom:6,borderRadius:6,cursor:'pointer',
+                                  background:bg,border:'1px solid '+col+'55',
+                                  transition:'border-color 0.15s',userSelect:'none'}}
+                                onMouseEnter={e=>e.currentTarget.style.borderColor=col}
+                                onMouseLeave={e=>e.currentTarget.style.borderColor=col+'55'}>
+                                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                                  <div style={{flex:1}}>
+                                    <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:4}}>
+                                      <span style={{fontFamily:'var(--mono)',fontSize:10,color:col,fontWeight:700,
+                                        background:bg,padding:'1px 6px',borderRadius:3,border:'1px solid '+col+'66'}}>
+                                        C{cn.ci+1}.{cn.qi+1}
+                                      </span>
+                                      {lopc.category&&(
+                                        <span style={{fontSize:9,color:col,opacity:0.8}}>
+                                          {lopc.category.replace(/_/g,' ')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{fontSize:12,fontWeight:600,color:'var(--text1)',lineHeight:1.4,marginBottom:4}}>
+                                      {cn.text}
+                                    </div>
+                                    {lopc.reason&&(
+                                      <div style={{fontSize:11,color:'var(--text3)',lineHeight:1.4,fontStyle:'italic'}}>
+                                        {lopc.reason}
+                                      </div>
+                                    )}
+                                    <div style={{fontSize:10,color:'var(--text3)',marginTop:4}}>
+                                      Cause: {cn.cause?.text?.substring(0,60)}{(cn.cause?.text||'').length>60?'…':''}
+                                    </div>
+                                  </div>
+                                  <div style={{fontSize:10,fontWeight:700,color:col,flexShrink:0,
+                                    padding:'3px 8px',borderRadius:4,border:'1px solid '+col+'55',background:'var(--bg-base)'}}>
+                                    Open →
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                    {/* Unscreened remainder */}
+                    {allCons.filter(cn=>!lopcResults[cn.id]).map(cn=>(
+                      <div key={cn.id} onClick={()=>{setActiveConKey(cn.ci+'-'+cn.qi);setEditingBarrierId(null);setSceData(null);}}
+                        style={{padding:'8px 12px',marginBottom:4,borderRadius:5,cursor:'pointer',
+                          background:'var(--bg-card)',border:'1px solid var(--border)',opacity:0.7}}>
+                        <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--text3)',marginRight:8}}>C{cn.ci+1}.{cn.qi+1}</span>
+                        <span style={{fontSize:11,color:'var(--text2)'}}>{cn.text?.substring(0,60)}</span>
+                        <span style={{fontSize:9,color:'var(--text3)',marginLeft:6}}>(not screened)</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
