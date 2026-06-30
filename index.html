@@ -501,12 +501,12 @@ const SetupView=({study,setStudy})=>{
       <div className="card">
         <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',letterSpacing:'0.06em',marginBottom:16,textTransform:'uppercase'}}>Study & Project Details</div>
         <div className="form-row form-row-2">
-          <div className="form-group"><label>Company / Client</label><input value={study.company} onChange={e=>upd('company',e.target.value)} placeholder="e.g. Dragon Oil (Turkmenistan) Ltd"/></div>
-          <div className="form-group"><label>Project Name</label><input value={study.projectName} onChange={e=>upd('projectName',e.target.value)} placeholder="e.g. Hazar CPF Expansion"/></div>
+          <div className="form-group"><label>Company / Client</label><input value={study.company} onChange={e=>upd('company',e.target.value)} placeholder="e.g. Operating Company Ltd"/></div>
+          <div className="form-group"><label>Project Name</label><input value={study.projectName} onChange={e=>upd('projectName',e.target.value)} placeholder="e.g. Process Unit Expansion"/></div>
         </div>
         <div className="form-row form-row-3">
           <div className="form-group"><label>Facility / Unit</label><input value={study.facility} onChange={e=>upd('facility',e.target.value)} placeholder="e.g. Gas Treatment Unit"/></div>
-          <div className="form-group"><label>Location</label><input value={study.location} onChange={e=>upd('location',e.target.value)} placeholder="e.g. Hazar, Turkmenistan"/></div>
+          <div className="form-group"><label>Location</label><input value={study.location} onChange={e=>upd('location',e.target.value)} placeholder="e.g. Site / City, Country"/></div>
           <div className="form-group"><label>Document Ref.</label><input value={study.docRef} onChange={e=>upd('docRef',e.target.value)} placeholder="e.g. HAZOP-GTU-001"/></div>
         </div>
         <div className="form-row form-row-3">
