@@ -1501,4 +1501,1648 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
     const newCauses=(causesArr||[]).map(ca=>({
       id:uid(),text:ca.text||'',recommendations:[],initialRisk:null,residualRisk:null,
       consequences:(ca.consequences||[]).map(cn=>({
-      
+        id:uid(),text:typeof cn==='string'?cn:cn.text||'',safeguards:[],recommendations:[],mitigationBarriers:[]
+      }))
+    }));
+    updDev(activeDevId,d=>({...d,causes:[...(d.causes||[]),...newCauses]}));
+  };
+
+  return(
+    <>
+    <div className="main" style={{display:'flex',flex:1,overflow:'hidden'}}>
+      {/* Sidebar */}
+      <div className="sidebar" style={{width:240,display:'flex',flexDirection:'column',gap:0,overflow:'auto'}}>
+        <div className="sec-hdr" style={{flexDirection:'column',alignItems:'stretch'}}>
+          <label style={{fontSize:11,color:'var(--text2)',fontWeight:600}}>Active Node</label>
+          <select value={activeNodeId||''} onChange={e=>{setActiveNodeId(e.target.value);setActiveDevId(null);setShowSuggest(false);}} style={{fontSize:12,width:'100%',marginTop:4}}>
+            <option value="">— Select Node —</option>
+            {nodes.map(n=><option key={n.id} value={n.id}>{n.name||'Unnamed'}</option>)}
+          </select>
+          {activeNodeId&&<button className="btn btn-primary" style={{marginTop:8,width:'100%',fontSize:12,justifyContent:'center'}} onClick={addDev}>+ Add Deviation</button>}
+        </div>
+        {activeNodeId&&nodeDevs.map((d,i)=>{
+          const isActive=d.id===activeDevId;
+          const dn=normalizeDev(d);
+          const highRisk=dn.causes.some(c=>c.initialRisk&&[1,2].includes(c.initialRisk.cat));
+          return(
+            <div key={d.id} style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',background:isActive?'var(--bg-hover)':'transparent',cursor:'pointer',display:'flex',gap:8,alignItems:'flex-start'}}
+              onClick={()=>{setActiveDevId(d.id);setShowSuggest(false);}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--text3)',marginBottom:2}}>D{i+1} · {d.guideWord||''}</div>
+                <div style={{fontSize:11,color:isActive?'var(--accent)':'var(--text2)',fontWeight:isActive?700:400,lineHeight:1.3}}>
+                  {(d.deviation||d.guideWord+' '+d.parameter).substring(0,45)}
+                </div>
+                <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>{dn.causes.length} cause{dn.causes.length!==1?'s':''}</div>
+              </div>
+              {highRisk&&<span style={{background:'#7f1d1d',color:'#fca5a5',fontSize:8,fontWeight:700,padding:'1px 5px',borderRadius:3,flexShrink:0,marginTop:1}}>HIGH</span>}
+              <button onClick={e=>{e.stopPropagation();if(window.confirm('Delete this deviation?'))delDev(d.id);}} style={{width:18,height:18,borderRadius:3,cursor:'pointer',fontSize:9,display:'flex',alignItems:'center',justifyContent:'center',background:'transparent',color:'#ef4444',border:'none',flexShrink:0,marginTop:1}} title="Delete">✕</button>
+            </div>
+          );
+        })}
+        {activeNodeId&&nodeDevs.length===0&&<div style={{padding:'16px 12px',color:'var(--text3)',fontSize:12,textAlign:'center'}}>No deviations yet. Click + Add Deviation to start.</div>}
+      </div>
+
+      {/* Main content */}
+      {!activeDev2?(
+        <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12,color:'var(--text3)'}}>
+          <div style={{fontSize:32}}>📋</div>
+          <div style={{fontSize:14,color:'var(--text2)',fontWeight:600}}>{!activeNodeId?'Select a node to begin':'Select or create a deviation'}</div>
+        </div>
+      ):(
+        <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+          <div style={{flex:1,overflowY:'auto',padding:16,minWidth:0}}>
+            {/* Deviation header */}
+            <div className="card" style={{marginBottom:16}}>
+              <div style={{display:'flex',gap:10,alignItems:'flex-start',flexWrap:'wrap'}}>
+                <div style={{flex:1,minWidth:200}}>
+                  <div style={{fontSize:10,color:'var(--text3)',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.05em'}}>Deviation / Top Event</div>
+                  <div className="form-row form-row-3">
+                    <div className="form-group">
+                      <label>Guide Word</label>
+                      <select value={activeDev.guideWord||''} onChange={e=>updDev(activeDevId,d=>({...d,guideWord:e.target.value,deviation:e.target.value+' '+d.parameter}))}>
+                        {GUIDE_WORDS.map(g=><option key={g}>{g}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Parameter</label>
+                      <select value={activeDev.parameter||''} onChange={e=>updDev(activeDevId,d=>({...d,parameter:e.target.value,deviation:d.guideWord+' '+e.target.value}))}>
+                        {PARAMETERS.map(p=><option key={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Deviation Description</label>
+                      <input value={activeDev.deviation||''} onChange={e=>updDev(activeDevId,d=>({...d,deviation:e.target.value}))} placeholder="Describe the deviation…"/>
+                    </div>
+                  </div>
+                  <div className="form-row form-row-3">
+                    <div className="form-group"><label>Responsible</label><input value={activeDev.responsible||''} onChange={e=>updDev(activeDevId,d=>({...d,responsible:e.target.value}))} placeholder="Name"/></div>
+                    <div className="form-group"><label>Status</label>
+                      <select value={activeDev.status||'Open'} onChange={e=>updDev(activeDevId,d=>({...d,status:e.target.value}))}>
+                        <option>Open</option><option>Closed</option><option>In Progress</option><option>Deferred</option>
+                      </select>
+                    </div>
+                    <div className="form-group"><label>Remarks</label><input value={activeDev.remarks||''} onChange={e=>updDev(activeDevId,d=>({...d,remarks:e.target.value}))} placeholder="Notes…"/></div>
+                  </div>
+                </div>
+                <button onClick={()=>setShowSuggest(v=>!v)}
+                  style={{padding:'8px 14px',borderRadius:6,cursor:'pointer',fontSize:12,fontWeight:700,background:'#2d1f5e',color:'#c4b5fd',border:'1px solid #7c3aed88',flexShrink:0,marginTop:20}}>
+                  🧠 Suggest C&amp;C
+                </button>
+              </div>
+            </div>
+
+            {/* CAUSES → CONSEQUENCES & SAFEGUARDS */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+              <div style={{fontFamily:'var(--disp)',fontSize:12,fontWeight:700,color:'var(--text2)',textTransform:'uppercase',letterSpacing:'0.06em'}}>
+                CAUSES → CONSEQUENCES &amp; 🛡 SAFEGUARDS &amp; ✅ RECOMMENDATIONS
+              </div>
+              <button className="btn btn-primary" onClick={()=>addCause(activeDevId)}>+ Add Cause</button>
+            </div>
+            {nd&&nd.causes.map((cause,ci)=>(
+              <CauseCard key={cause.id} cause={cause} causeIdx={ci} devId={activeDevId} devIdx={0}
+                devSafeguards={devSafeguards} devRecs={devRecs}
+                onCauseUpdate={updCause} onCauseDelete={delCause}
+                onConAdd={addCon} onConUpdate={updCon} onConDelete={delCon}
+                onSgAdd={conSgAdd} onSgDel={conSgDel} onSgUpdate={conSgUpdate}
+                onConRecAdd={conRecAdd} onConRecEdit={conRecEdit} onConRecDel={conRecDel}
+                onConMitUpdate={conMitUpdate}
+                onSetRisk={causeRiskUpdate}
+                onRecAdd={causeRecAdd} onRecEdit={causeRecEdit} onRecDel={causeRecDel}/>
+            ))}
+            {nd&&nd.causes.length===0&&(
+              <div style={{textAlign:'center',padding:'30px 0',color:'var(--text3)',fontSize:13}}>
+                No causes defined. Click <strong style={{color:'var(--accent)'}}>+ Add Cause</strong> or use <strong style={{color:'#a78bfa'}}>🧠 Suggest C&amp;C</strong>.
+              </div>
+            )}
+            <div style={{marginTop:20}}>
+              <div style={{fontFamily:'var(--disp)',fontSize:12,fontWeight:700,color:'var(--text2)',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:10}}>
+                📋 Consolidated Recommendations Register
+              </div>
+              <NodeRecsPanel devs={deviations} nodeId={activeNodeId}/>
+            </div>
+          </div>
+          {showSuggest&&activeDev2&&(
+            <CCSuggestPanel node={activeNode} dev={activeDev} study={study} apiKey={apiKey} aiModel={aiModel}
+              onAdd={addCCsFromSuggest} onClose={()=>setShowSuggest(false)}/>
+          )}
+        </div>
+      )}
+    </div>
+    </>
+  );
+};
+
+// ── Guide Word × Parameter coverage matrix (IEC 61882 completeness check) ──
+const CoverageMatrix=({nodeDevs})=>{
+  const covered=new Set(nodeDevs.map(d=>((d.guideWord||'').trim()+'|'+(d.parameter||'').trim())));
+  const withCauses=new Set(nodeDevs.filter(d=>{try{return normalizeDev(d).causes.length>0;}catch{return false;}}).map(d=>((d.guideWord||'').trim()+'|'+(d.parameter||'').trim())));
+  const total=GUIDE_WORDS.length*PARAMETERS.length;
+  return(
+    <div className="card" style={{marginBottom:24}}>
+      <div style={{fontSize:13,fontWeight:700,color:'var(--text2)',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+        Guide Word × Parameter Coverage — Completeness Check
+      </div>
+      <div style={{fontSize:11,color:'var(--text3)',marginBottom:12,lineHeight:1.5}}>
+        IEC 61882 requires systematic examination of each meaningful guide word / parameter combination. Not every combination is physically credible — but blank cells should be a deliberate team decision, not an oversight. <span style={{color:'#f59e0b'}}>■ Examined (deviation raised)</span> · <span style={{color:'#22c55e'}}>■ Examined with causes recorded</span>
+      </div>
+      <div style={{overflowX:'auto'}}>
+        <div style={{display:'grid',gridTemplateColumns:'150px repeat('+GUIDE_WORDS.length+',minmax(64px,1fr))',gap:2,minWidth:760}}>
+          <div className="cov-cell" style={{background:'var(--bg-card2)',color:'var(--text2)',fontSize:8}}>PARAM \ GW</div>
+          {GUIDE_WORDS.map(g=>(
+            <div key={g} className="cov-cell" style={{background:'var(--bg-card2)',color:'var(--text2)',fontSize:8,padding:'2px'}}>{g}</div>
+          ))}
+          {PARAMETERS.map(p=>(
+            <React.Fragment key={p}>
+              <div className="cov-cell" style={{background:'var(--bg-card2)',color:'var(--accent)',fontSize:8,justifyContent:'flex-start',paddingLeft:6}}>{p}</div>
+              {GUIDE_WORDS.map(g=>{
+                const key=g+'|'+p;
+                const isCov=covered.has(key);
+                const hasCauses=withCauses.has(key);
+                return(
+                  <div key={g} className="cov-cell"
+                    style={{background:hasCauses?'#14532d':isCov?'#713f12':'var(--bg-card)',
+                      color:hasCauses?'#86efac':isCov?'#fde68a':'var(--text3)'}}
+                    title={g+' '+p+(hasCauses?' — examined, causes recorded':isCov?' — deviation raised, no causes yet':' — not examined')}>
+                    {hasCauses?'✓':isCov?'○':''}
+                  </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+      <div style={{fontSize:11,color:'var(--text3)',marginTop:10}}>
+        {covered.size} of {total} combinations raised · {withCauses.size} with causes recorded. Combinations judged not credible by the team can be left blank — record that decision in the study assumptions.
+      </div>
+    </div>
+  );
+};
+
+// RISK MATRIX OVERVIEW
+const MatrixView=({deviations,nodes,activeNodeId})=>{
+  const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
+  if(!activeNodeId||nodeDevs.length===0)return<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text3)',fontSize:14}}>Select a node with deviations to see risk distribution.</div>;
+  const allCauses=nodeDevs.flatMap(d=>normalizeDev(d).causes.map(c=>({...c,dev:d})));
+  const withRisk=allCauses.filter(c=>c.initialRisk);
+  const dist={1:0,2:0,3:0,4:0};
+  withRisk.forEach(c=>{if(c.initialRisk?.cat)dist[c.initialRisk.cat]=(dist[c.initialRisk.cat]||0)+1;});
+  return(
+    <div style={{flex:1,overflowY:'auto',padding:20}}>
+      <div style={{fontFamily:'var(--disp)',fontSize:15,fontWeight:700,color:'var(--accent)',marginBottom:16,letterSpacing:'0.06em',textTransform:'uppercase'}}>Corporate Risk Matrix 6×6 — Per-Cause Initial Risk Distribution</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:24}}>
+        {Object.entries(RDISP).map(([cat,d])=>(
+          <div key={cat} className={'card risk-'+cat} style={{textAlign:'center',padding:'16px 10px'}}>
+            <div style={{fontSize:28,fontWeight:700,color:d.color}}>{dist[cat]||0}</div>
+            <div style={{fontSize:12,color:d.color,fontWeight:600}}>{d.label}</div>
+            <div style={{fontSize:10,opacity:0.7,marginTop:2}}>Category {cat}</div>
+          </div>
+        ))}
+      </div>
+      <CoverageMatrix nodeDevs={nodeDevs}/>
+      <MatrixPicker sel={null} onPick={()=>{}} label="Corporate Risk Matrix 6×6"/>
+      <div style={{marginTop:24}}>
+        <div style={{fontSize:13,fontWeight:700,color:'var(--text2)',marginBottom:12,textTransform:'uppercase',letterSpacing:'0.05em'}}>All Assessed Causes</div>
+        <table className="tbl">
+          <thead><tr><th style={{width:80}}>Ref</th><th>Deviation</th><th>Cause</th><th style={{width:80}}>Initial Risk</th><th style={{width:80}}>Residual Risk</th></tr></thead>
+          <tbody>{allCauses.map((c,i)=>(
+            <tr key={i}>
+              <td style={{fontFamily:'var(--mono)',color:'var(--accent)',fontSize:10}}>C{i+1}</td>
+              <td style={{fontSize:11,color:'var(--text3)'}}>{c.dev.deviation||c.dev.guideWord}</td>
+              <td style={{fontSize:12,color:'var(--text1)'}}>{c.text}</td>
+              <td>{c.initialRisk?<RiskBadge cat={c.initialRisk.cat} small/>:<span style={{color:'var(--text3)',fontSize:10}}>—</span>}</td>
+              <td>{c.residualRisk?<RiskBadge cat={c.residualRisk.cat} small/>:<span style={{color:'var(--text3)',fontSize:10}}>—</span>}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// ACTIONS VIEW
+const ActionsView=({deviations,nodes,activeNodeId})=>{
+  const toRec=r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:'',status:'Open'}:{status:'Open',...r};
+  const [statusFilter,setStatusFilter]=useState('All');
+  const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
+  const allActions=[];
+  nodeDevs.forEach(dev=>{
+    const nd=normalizeDev(dev);
+    const devLabel=nd.deviation||(nd.guideWord+' '+nd.parameter);
+    nd.causes.forEach((c,ci)=>{
+      (c.recommendations||[]).map(toRec).forEach((r,ri)=>{
+        allActions.push({ref:'C'+(ci+1)+'-R'+(ri+1),deviation:devLabel,type:'Cause',context:c.text,text:r.text,owner:r.actionOwner,date:r.targetDate,status:r.status||'Open'});
+      });
+      c.consequences.forEach((cn,qi)=>{
+        (cn.recommendations||[]).map(toRec).forEach((r,ri)=>{
+          allActions.push({ref:'C'+(ci+1)+'.'+(qi+1)+'-R'+(ri+1),deviation:devLabel,type:'Consequence',context:cn.text,text:r.text,owner:r.actionOwner,date:r.targetDate,status:r.status||'Open'});
+        });
+      });
+    });
+  });
+  const counts={
+    Open:allActions.filter(a=>a.status==='Open').length,
+    'In Progress':allActions.filter(a=>a.status==='In Progress').length,
+    Closed:allActions.filter(a=>a.status==='Closed').length,
+    Rejected:allActions.filter(a=>a.status==='Rejected').length
+  };
+  const overdue=allActions.filter(a=>a.status!=='Closed'&&a.status!=='Rejected'&&a.date&&new Date(a.date)<new Date()).length;
+  const shown=statusFilter==='All'?allActions:allActions.filter(a=>a.status===statusFilter);
+  return(
+    <div style={{flex:1,overflowY:'auto',padding:20}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:8}}>
+        <div style={{fontFamily:'var(--disp)',fontSize:15,fontWeight:700,color:'var(--accent)',textTransform:'uppercase',letterSpacing:'0.06em'}}>Actions Register</div>
+        <div style={{fontSize:12,color:'var(--text3)',display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+          <span>{allActions.length} total</span>
+          <span style={{color:'#fde68a'}}>{counts.Open} open</span>
+          <span style={{color:'#93c5fd'}}>{counts['In Progress']} in progress</span>
+          <span style={{color:'#86efac'}}>{counts.Closed} closed</span>
+          {overdue>0&&<span style={{color:'#ef4444',fontWeight:700}}>⚠ {overdue} overdue</span>}
+        </div>
+      </div>
+      <div style={{display:'flex',gap:6,marginBottom:14,flexWrap:'wrap'}}>
+        {['All',...REC_STATUSES].map(s=>(
+          <button key={s} onClick={()=>setStatusFilter(s)}
+            style={{fontSize:11,padding:'4px 12px',borderRadius:12,cursor:'pointer',fontWeight:600,
+              background:statusFilter===s?'var(--accent)':'var(--bg-card2)',
+              color:statusFilter===s?'#000':'var(--text2)',
+              border:'1px solid '+(statusFilter===s?'var(--accent)':'var(--border)')}}>
+            {s}{s!=='All'&&' ('+counts[s]+')'}
+          </button>
+        ))}
+      </div>
+      {shown.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'var(--text3)'}}>{allActions.length===0?'No actions yet. Add recommendations in the Worksheet tab.':'No actions match this filter.'}</div>:(
+        <table className="tbl">
+          <thead><tr><th style={{width:80}}>Ref</th><th style={{width:90}}>Type</th><th>Deviation</th><th>Recommendation</th><th style={{width:110}}>Action Owner</th><th style={{width:100}}>Target Date</th><th style={{width:95}}>Status</th></tr></thead>
+          <tbody>{shown.map((a,i)=>(
+            <tr key={i}>
+              <td style={{fontFamily:'var(--mono)',color:'var(--accent)',fontSize:10}}>{a.ref}</td>
+              <td><span style={{fontSize:10,fontWeight:600,padding:'1px 6px',borderRadius:10,background:a.type==='Cause'?'#1e3a5f':'#1a0505',color:a.type==='Cause'?'#3b82f6':'#ef4444'}}>{a.type}</span></td>
+              <td style={{fontSize:11,color:'var(--text3)'}}>{a.deviation}</td>
+              <td style={{fontSize:12,color:'var(--text1)'}}>{a.text}</td>
+              <td style={{fontSize:11,color:'var(--text2)'}}>{a.owner||'—'}</td>
+              <td style={{fontFamily:'var(--mono)',fontSize:10,color:a.status!=='Closed'&&a.status!=='Rejected'&&a.date&&new Date(a.date)<new Date()?'#ef4444':'var(--text2)'}}>{a.date||'—'}</td>
+              <td><RecStatusChip status={a.status}/></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      )}
+    </div>
+  );
+};
+
+// REPORT VIEW
+const ReportView=({study,nodes,deviations,activeNodeId})=>{
+  const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
+  const activeNode=nodes.find(n=>n.id===activeNodeId);
+
+  const buildRows=()=>{
+    const rows=[];
+    nodeDevs.forEach(dev=>{
+      const nd=normalizeDev(dev);
+      const devLabel=nd.deviation||(nd.guideWord+' '+nd.parameter);
+      nd.causes.forEach((c,ci)=>{
+        const cons=c.consequences.length>0?c.consequences:[{id:'none',text:'',safeguards:[],recommendations:[],mitigationBarriers:[]}];
+        cons.forEach((con,qi)=>{
+          const sgs=(Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[{text:con.safeguard}]:[])).map(s=>typeof s==='string'?s:(s?.text||'')).filter(Boolean);
+          const mbs=(Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[]).filter(m=>m&&m.text);
+          const allRecs=[...(c.recommendations||[]).map(r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:'',status:'Open'}:{status:'Open',...r}),...(con.recommendations||[]).map(r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:'',status:'Open'}:{status:'Open',...r})];
+          rows.push({ref:'C'+(ci+1)+'.'+(qi+1),deviation:devLabel,causeRef:'C'+(ci+1),causeText:c.text,conText:con.text,safeguards:sgs,mitigation:mbs.map(m=>m.text),allRecs,initialRisk:c.initialRisk,residualRisk:c.residualRisk});
+        });
+      });
+    });
+    return rows;
+  };
+
+  const exportExcel=()=>{
+    if(typeof XLSX==='undefined'){alert('SheetJS not loaded.');return;}
+    const wb=XLSX.utils.book_new();
+    /* ── Cover / Study Info sheet (IEC 61882 record content) ── */
+    const cover=[
+      ['HAZOP STUDY RECORD'],
+      [],
+      ['Project',study.projectName||''],['Company / Client',study.company||''],
+      ['Facility / Unit',study.facility||''],['Location',study.location||''],
+      ['Document Ref.',study.docRef||''],['Study Date',study.date||''],['Revision',study.revision||'0'],
+      ['Methodology',study.methodology||''],['Recording Mode',study.recordingMode||'Full Recording'],
+      ['P&ID Revision Basis',study.pidRevision||''],
+      ['Risk Matrix','Corporate 6×6 — Severity S1–S6 × Likelihood A–F'],
+      ['Prepared By',study.preparedBy||''],['Approved By',study.approvedBy||''],
+      [],
+      ['Scope & Objectives',study.scope||''],
+      ['Assumptions & Exclusions',study.assumptions||''],
+      [],
+      ['TEAM MEMBERS'],['#','Name','Role','Discipline']
+    ];
+    (study.teamMembers||[]).forEach((m,i)=>cover.push([i+1,m.name,m.role,m.dept]));
+    cover.push([],['SESSION LOG'],['#','Date','Hours','Attendees','Nodes Covered']);
+    (study.sessions||[]).forEach((s,i)=>cover.push([i+1,s.date,s.duration||'',s.attendees||'',s.nodesCovered||'']));
+    const ws0=XLSX.utils.aoa_to_sheet(cover);
+    ws0['!cols']=[{wch:24},{wch:40},{wch:28},{wch:28},{wch:28}];
+    XLSX.utils.book_append_sheet(wb,ws0,'Study Info');
+    /* ── Worksheet sheet ── */
+    const wsData=[['HAZOP WORKSHEET — '+(study.projectName||'Project'),'','','','','','Initial Risk','','','','Residual Risk','',''],
+      ['Facility: '+(study.facility||'')+'  Date: '+(study.date||'')+'  Rev: '+(study.revision||'0'),'','','','','','Sev','Lik','Cat','','Sev','Lik','Cat'],
+      ['Ref','Node','Deviation','Cause','Consequence','Safeguards','Sev','Lik','Cat','Recommendations','Sev','Lik','Cat']];
+    buildRows().forEach(r=>{
+      wsData.push([r.ref,activeNode?.name||'',r.deviation,r.causeText,r.conText,r.safeguards.join(' | '),
+        r.initialRisk?'S'+r.initialRisk.s:'',r.initialRisk?r.initialRisk.l:'',r.initialRisk?RDISP[r.initialRisk.cat].label:'',
+        r.allRecs.map(x=>x.text).join(' | '),
+        r.residualRisk?'S'+r.residualRisk.s:'',r.residualRisk?r.residualRisk.l:'',r.residualRisk?RDISP[r.residualRisk.cat].label:'']);
+    });
+    const ws=XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols']=[{wch:8},{wch:18},{wch:22},{wch:30},{wch:30},{wch:28},{wch:5},{wch:5},{wch:8},{wch:35},{wch:5},{wch:5},{wch:8}];
+    XLSX.utils.book_append_sheet(wb,ws,'HAZOP Worksheet');
+    /* ── Recommendations sheet with status ── */
+    const recData=[['Ref','Deviation','Cause','Recommendation','Action Owner','Target Date','Status']];
+    buildRows().forEach(r=>r.allRecs.forEach(x=>recData.push([r.ref,r.deviation,r.causeText,x.text,x.actionOwner||'',x.targetDate||'',x.status||'Open'])));
+    const ws2=XLSX.utils.aoa_to_sheet(recData);
+    ws2['!cols']=[{wch:8},{wch:22},{wch:28},{wch:45},{wch:18},{wch:12},{wch:12}];
+    XLSX.utils.book_append_sheet(wb,ws2,'Recommendations');
+    const fname='HAZOP_'+((study.projectName||'study').replace(/\s+/g,'_'))+'_'+new Date().toISOString().split('T')[0]+'.xlsx';
+    XLSX.writeFile(wb,fname);
+  };
+
+  const rows=buildRows();
+  return(
+    <div style={{flex:1,overflowY:'auto',padding:20}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <div style={{fontFamily:'var(--disp)',fontSize:15,fontWeight:700,color:'var(--accent)',textTransform:'uppercase',letterSpacing:'0.06em'}}>HAZOP Report — {activeNode?.name||'Select Node'}</div>
+        {activeNodeId&&<button className="btn btn-secondary" style={{background:'#166534',color:'#86efac',border:'1px solid #22c55e55'}} onClick={exportExcel}>⬇ Export Excel (.xlsx)</button>}
+      </div>
+      {rows.length===0?<div style={{textAlign:'center',padding:'40px 0',color:'var(--text3)'}}>No data to report. Add causes and consequences in the Worksheet tab.</div>:(
+        <div style={{overflowX:'auto'}}>
+          <table className="tbl" style={{fontSize:11,minWidth:900}}>
+            <thead><tr>
+              <th style={{width:70}}>Ref</th><th style={{width:120}}>Deviation</th>
+              <th>Cause</th><th>Consequence</th><th>Safeguards</th>
+              <th style={{width:70}}>Init.</th><th style={{width:70}}>Resid.</th><th>Recommendations</th>
+            </tr></thead>
+            <tbody>{rows.map((r,i)=>(
+              <tr key={i}>
+                <td style={{fontFamily:'var(--mono)',color:'var(--accent)',fontSize:10}}>{r.ref}</td>
+                <td style={{fontSize:10,color:'var(--text3)'}}>{r.deviation}</td>
+                <td style={{color:'var(--text1)'}}>{r.causeText}</td>
+                <td style={{color:'var(--text2)'}}>{r.conText}</td>
+                <td style={{color:'var(--text3)',fontSize:10}}>{r.safeguards.map((sg,si)=><div key={si}>🛡 {sg}</div>)}</td>
+                <td>{r.initialRisk?<RiskBadge cat={r.initialRisk.cat} small/>:<span style={{color:'var(--text3)'}}>—</span>}</td>
+                <td>{r.residualRisk?<RiskBadge cat={r.residualRisk.cat} small/>:<span style={{color:'var(--text3)'}}>—</span>}</td>
+                <td style={{fontSize:10,color:'var(--text2)'}}>{r.allRecs.map((x,xi)=><div key={xi}>→ {x.text}{x.actionOwner?' ['+x.actionOwner+']':''}{x.status&&x.status!=='Open'?' ('+x.status+')':''}</div>)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BOW TIE SVG CANVAS — consequence-centric layout
+   Top Event = Consequence | Left = Cause + Prevention Barriers
+   Right = Mitigation Barriers | Bottom = Degradation Factors + CCDs
+   ═══════════════════════════════════════════════════════════════════════ */
+const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
+  if(!activeCon)return null;
+  const cause=activeCon.cause;
+  const prevBs=barriers.filter(b=>b.side==='prevention');
+  const mitBs=barriers.filter(b=>b.side==='mitigation');
+  const recBs=barriers.filter(b=>b.side==='recommendation');
+  const allDFs=barriers.flatMap(b=>(b.degradationFactors||[]).map((df,dfi)=>({b,df,dfi})));
+
+  // ── Layout ──────────────────────────────────────────────────────────
+  const VW=1200, BW=28, BH=82, BOX_H=84;
+  const CY=220;                              // main horizontal line Y
+  const TE_CX=VW/2, TE_RX=92, TE_RY=58;   // top event ellipse
+  const CAUSE_X=10, CAUSE_W=160;
+  const OUT_X=VW-170, OUT_W=155;
+  const PREV_START=CAUSE_X+CAUSE_W+28;
+  const PREV_END=TE_CX-TE_RX-18;
+  const MIT_START=TE_CX+TE_RX+18;
+  const MIT_END=OUT_X-18;
+  const REC_Y=CY+(recBs.length>0?160:0);   // recommendation row Y below main line
+  const CORE_H=Math.max(CY,REC_Y)+BOX_H/2+50;
+  const DF_ZONE=allDFs.length>0?30+allDFs.length*78:0;
+  const VH=CORE_H+DF_ZONE;
+  const RC='#f59e0b'; // amber for recommendations
+
+  const pBX=(bi,total)=>{
+    if(total===0)return(PREV_START+PREV_END)/2;
+    return Math.round(PREV_START+(PREV_END-PREV_START)/(total+1)*(bi+1));
+  };
+  const mBX=(bi,total)=>{
+    if(total===0)return(MIT_START+MIT_END)/2;
+    return Math.round(MIT_START+(MIT_END-MIT_START)/(total+1)*(bi+1));
+  };
+  const bCol=t=>(BARRIER_TYPES[t]||BARRIER_TYPES.Engineering).color;
+  const bBg=t=>(BARRIER_TYPES[t]||BARRIER_TYPES.Engineering).bg;
+  const T=(s,n)=>(s||'').substring(0,n)+((s||'').length>n?'…':'');
+
+  const PC='#f59e0b', MC='#ef4444';
+
+  return(
+    <svg viewBox={`0 0 ${VW} ${VH}`} style={{width:'100%',height:'auto',display:'block',userSelect:'none'}}
+      xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="sce-glow2"><feGaussianBlur stdDeviation="2.5" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+
+      {/* ── Column labels ── */}
+      <text x={(CAUSE_X+CAUSE_W+PREV_END)/2} y={16} textAnchor="middle"
+        fill={PC} fontSize={10} fontFamily="system-ui" fontWeight="700" opacity={0.8}>
+        Prevention Barriers (Safeguards)
+      </text>
+      <text x={(MIT_START+OUT_X+OUT_W)/2} y={16} textAnchor="middle"
+        fill={MC} fontSize={10} fontFamily="system-ui" fontWeight="700" opacity={0.8}>
+        Mitigation Barriers
+      </text>
+
+      {/* ── Main horizontal line ── */}
+      <line x1={CAUSE_X+CAUSE_W} y1={CY} x2={TE_CX-TE_RX} y2={CY}
+        stroke={PC} strokeWidth={2.5} opacity={0.7}/>
+      <line x1={TE_CX+TE_RX} y1={CY} x2={OUT_X} y2={CY}
+        stroke={MC} strokeWidth={2.5} opacity={0.7}/>
+
+      {/* ── Cause / Threat box ── */}
+      <rect x={CAUSE_X} y={CY-BOX_H/2} width={CAUSE_W} height={BOX_H} rx={6}
+        fill="#1a0b00" stroke={PC} strokeWidth={2.5}/>
+      <text x={CAUSE_X+8} y={CY-BOX_H/2+16} fill={PC} fontSize={9}
+        fontWeight="bold" fontFamily="system-ui">C{activeCon.ci+1} — Cause</text>
+      <text x={CAUSE_X+8} y={CY-BOX_H/2+30} fill="#fde68a" fontSize={8.5}
+        fontFamily="system-ui">{T(cause?.text,21)}</text>
+      {(cause?.text||'').length>21&&(
+        <text x={CAUSE_X+8} y={CY-BOX_H/2+43} fill="#fde68a" fontSize={8}
+          fontFamily="system-ui">{T((cause?.text||'').substring(21),21)}</text>
+      )}
+      {(cause?.text||'').length>42&&(
+        <text x={CAUSE_X+8} y={CY-BOX_H/2+55} fill="#fcd34d" fontSize={7.5}
+          fontFamily="system-ui">{T((cause?.text||'').substring(42),21)}…</text>
+      )}
+
+      {/* ── Prevention Barriers ── */}
+      {prevBs.length===0&&(
+        <text x={(PREV_START+PREV_END)/2} y={CY+4} textAnchor="middle"
+          fill="#f59e0b" fontSize={10} fontFamily="system-ui" opacity={0.4}
+          fontStyle="italic">no safeguards</text>
+      )}
+      {prevBs.map((b,bi)=>{
+        const bx=pBX(bi,prevBs.length);
+        const col=bCol(b.type), bg=bBg(b.type);
+        const hasDFs=(b.degradationFactors||[]).length>0;
+        // Line segment after this barrier
+        const nextX=bi<prevBs.length-1?pBX(bi+1,prevBs.length)-BW/2:TE_CX-TE_RX;
+        return(
+          <g key={b.id||bi}>
+            <line x1={bx+BW/2} y1={CY} x2={nextX} y2={CY}
+              stroke={PC} strokeWidth={2.5} opacity={0.7}/>
+            <rect x={bx-BW/2} y={CY-BH/2} width={BW} height={BH}
+              rx={4} fill={bg} stroke={col} strokeWidth={b.isSCE?3.5:2}
+              style={{cursor:'pointer'}} filter={b.isSCE?'url(#sce-glow2)':undefined}
+              onClick={()=>onBarrierClick(b)}/>
+            {b.isSCE&&(
+              <text x={bx} y={CY-BH/2-7} textAnchor="middle"
+                fontSize={12} fill="#ef4444" fontFamily="system-ui">★</text>
+            )}
+            {/* Tooltip-style type indicator */}
+            <text x={bx} y={CY+BH/2+11} textAnchor="middle"
+              fontSize={7} fill={col} fontFamily="system-ui" opacity={0.8}>
+              {(BARRIER_TYPES[b.type]||BARRIER_TYPES.Engineering).icon}
+            </text>
+            {hasDFs&&(
+              <line x1={bx} y1={CY+BH/2} x2={bx} y2={CORE_H+5}
+                stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5,3" opacity={0.5}/>
+            )}
+          </g>
+        );
+      })}
+
+      {/* ── Top Event (Consequence) ellipse ── */}
+      <ellipse cx={TE_CX} cy={CY} rx={TE_RX} ry={TE_RY}
+        fill="#78350f" stroke="#f59e0b" strokeWidth={3}/>
+      <text x={TE_CX} y={CY-20} textAnchor="middle" fill="#fde68a"
+        fontSize={8.5} fontWeight="800" fontFamily="system-ui" opacity={0.75}>TOP EVENT</text>
+      <text x={TE_CX} y={CY-7} textAnchor="middle" fill="#fff"
+        fontSize={9} fontFamily="system-ui">{T(activeCon.text,22)}</text>
+      {(activeCon.text||'').length>22&&(
+        <text x={TE_CX} y={CY+7} textAnchor="middle" fill="#fff"
+          fontSize={8.5} fontFamily="system-ui">{T((activeCon.text||'').substring(22),22)}</text>
+      )}
+      {(activeCon.text||'').length>44&&(
+        <text x={TE_CX} y={CY+20} textAnchor="middle" fill="#fde68a"
+          fontSize={8} fontFamily="system-ui">{T((activeCon.text||'').substring(44),22)}…</text>
+      )}
+
+      {/* ── Mitigation Barriers ── */}
+      {mitBs.length===0&&(
+        <text x={(MIT_START+OUT_X)/2} y={CY+4} textAnchor="middle"
+          fill={MC} fontSize={10} fontFamily="system-ui" opacity={0.4}
+          fontStyle="italic">no mitigation barriers</text>
+      )}
+      {mitBs.map((b,bi)=>{
+        const bx=mBX(bi,mitBs.length);
+        const col=bCol(b.type), bg=bBg(b.type);
+        const hasDFs=(b.degradationFactors||[]).length>0;
+        const nextX=bi<mitBs.length-1?mBX(bi+1,mitBs.length)-BW/2:OUT_X;
+        return(
+          <g key={b.id||bi}>
+            <line x1={bx+BW/2} y1={CY} x2={nextX} y2={CY}
+              stroke={MC} strokeWidth={2.5} opacity={0.7}/>
+            <rect x={bx-BW/2} y={CY-BH/2} width={BW} height={BH}
+              rx={4} fill={bg} stroke={col} strokeWidth={b.isSCE?3.5:2}
+              style={{cursor:'pointer'}} filter={b.isSCE?'url(#sce-glow2)':undefined}
+              onClick={()=>onBarrierClick(b)}/>
+            {b.isSCE&&(
+              <text x={bx} y={CY-BH/2-7} textAnchor="middle"
+                fontSize={12} fill="#ef4444" fontFamily="system-ui">★</text>
+            )}
+            <text x={bx} y={CY+BH/2+11} textAnchor="middle"
+              fontSize={7} fill={col} fontFamily="system-ui" opacity={0.8}>
+              {(BARRIER_TYPES[b.type]||BARRIER_TYPES.Engineering).icon}
+            </text>
+            {hasDFs&&(
+              <line x1={bx} y1={CY+BH/2} x2={bx} y2={CORE_H+5}
+                stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5,3" opacity={0.5}/>
+            )}
+          </g>
+        );
+      })}
+
+      {/* ── Outcome box (right) ── */}
+      <rect x={OUT_X} y={CY-BOX_H/2} width={OUT_W} height={BOX_H} rx={6}
+        fill="#0a1f0a" stroke={MC} strokeWidth={2}/>
+      <text x={OUT_X+OUT_W/2} y={CY-14} textAnchor="middle"
+        fill={MC} fontSize={9} fontWeight="bold" fontFamily="system-ui">Escalation / MAE</text>
+      <text x={OUT_X+OUT_W/2} y={CY+2} textAnchor="middle"
+        fill="#fca5a5" fontSize={8} fontFamily="system-ui">if mitigation fails</text>
+      <text x={OUT_X+OUT_W/2} y={CY+15} textAnchor="middle"
+        fill="#fca5a5" fontSize={8} fontFamily="system-ui">→ Major Accident Event</text>
+
+      {/* ══════════ Recommended Barriers Row ══════════ */}
+      {recBs.length>0&&(
+        <g>
+          {/* Separator + label */}
+          <line x1={CAUSE_X} y1={CY+BOX_H/2+30} x2={VW-CAUSE_X} y2={CY+BOX_H/2+30}
+            stroke="#334155" strokeWidth={1} strokeDasharray="8,5" opacity={0.4}/>
+          <text x={PREV_START} y={CY+BOX_H/2+50} fill={RC}
+            fontSize={9} fontFamily="system-ui" fontWeight="700" opacity={0.85}>
+            📋 Recommended / Proposed Barriers
+          </text>
+          {/* Dashed line from cause to TE at REC_Y */}
+          <line x1={CAUSE_X+CAUSE_W} y1={REC_Y} x2={TE_CX-TE_RX} y2={REC_Y}
+            stroke={RC} strokeWidth={2} strokeDasharray="7,4" opacity={0.55}/>
+          {/* Vertical connector from REC_Y to main TE */}
+          <line x1={TE_CX-TE_RX} y1={REC_Y} x2={TE_CX-TE_RX} y2={CY+TE_RY}
+            stroke={RC} strokeWidth={2} strokeDasharray="7,4" opacity={0.45}/>
+          {/* Cause connector at REC_Y */}
+          <line x1={CAUSE_X+CAUSE_W/2} y1={CY+BOX_H/2} x2={CAUSE_X+CAUSE_W/2} y2={REC_Y}
+            stroke={RC} strokeWidth={1.5} strokeDasharray="5,3" opacity={0.35}/>
+          {/* Recommendation barrier rectangles */}
+          {recBs.map((b,bi)=>{
+            const bx=Math.round(PREV_START+(PREV_END-PREV_START)/(recBs.length+1)*(bi+1));
+            const hasDFs=(b.degradationFactors||[]).length>0;
+            return(
+              <g key={b.id||bi} onClick={()=>onBarrierClick(b)} style={{cursor:'pointer'}}>
+                {/* Line between barriers */}
+                {bi<recBs.length-1&&(
+                  <line x1={bx+BW/2} y1={REC_Y}
+                    x2={Math.round(PREV_START+(PREV_END-PREV_START)/(recBs.length+1)*(bi+2))-BW/2} y2={REC_Y}
+                    stroke={RC} strokeWidth={2} strokeDasharray="7,4" opacity={0.55}/>
+                )}
+                {/* Amber dashed rectangle */}
+                <rect x={bx-BW/2} y={REC_Y-BH/2} width={BW} height={BH}
+                  rx={4} fill="#1a0b00" stroke={RC} strokeWidth={2}
+                  strokeDasharray="6,3" style={{cursor:'pointer'}}/>
+                {/* 📋 icon */}
+                <text x={bx} y={REC_Y+BH/2+11} textAnchor="middle"
+                  fontSize={8} fill={RC} fontFamily="system-ui" opacity={0.8}>📋</text>
+                {/* Action owner + date below */}
+                {b.actionOwner&&(
+                  <text x={bx} y={REC_Y+BH/2+23} textAnchor="middle"
+                    fontSize={7} fill={RC} fontFamily="system-ui" opacity={0.65}>
+                    {(b.actionOwner||'').substring(0,12)}
+                  </text>
+                )}
+                {/* DF drop line */}
+                {hasDFs&&(
+                  <line x1={bx} y1={REC_Y+BH/2} x2={bx} y2={CORE_H+8}
+                    stroke={RC} strokeWidth={1.5} strokeDasharray="4,3" opacity={0.4}/>
+                )}
+              </g>
+            );
+          })}
+        </g>
+      )}
+
+      {/* ── Degradation Factors + Controls zone ── */}
+      {allDFs.length>0&&(
+        <g>
+          <line x1={20} y1={CORE_H+8} x2={VW-20} y2={CORE_H+8}
+            stroke="#334155" strokeWidth={1} strokeDasharray="8,5" opacity={0.45}/>
+          <text x={VW/2} y={CORE_H+26} textAnchor="middle"
+            fill="#64748b" fontSize={9} fontFamily="system-ui" fontWeight="600">
+            Degradation Factors &amp; Controls (CCDs)
+          </text>
+          {allDFs.map(({b,df,dfi},idx)=>{
+            // Find X of this barrier in the canvas
+            let bx2=TE_CX;
+            if(b.side==='prevention'){
+              const bi2=prevBs.findIndex(pb=>pb.id===b.id);
+              if(bi2>=0)bx2=pBX(bi2,prevBs.length);
+            } else if(b.side==='recommendation'){
+              const bi2=recBs.findIndex(rb=>rb.id===b.id);
+              if(bi2>=0)bx2=Math.round(PREV_START+(PREV_END-PREV_START)/(recBs.length+1)*(bi2+1));
+            } else {
+              const bi2=mitBs.findIndex(mb=>mb.id===b.id);
+              if(bi2>=0)bx2=mBX(bi2,mitBs.length);
+            }
+            const isPrev=b.side!=='mitigation';
+            const DFY=CORE_H+36+idx*76;
+            const DFW=138, DFH=38, DCW=118, DCH=34;
+            const DCX=isPrev?bx2-DFW/2-DCW-14:bx2+DFW/2+14;
+            return(
+              <g key={b.id+'-df-'+dfi}>
+                {/* DF box */}
+                <rect x={bx2-DFW/2} y={DFY} width={DFW} height={DFH}
+                  rx={4} fill="#451a03" stroke="#f59e0b" strokeWidth={1.5}/>
+                <text x={bx2} y={DFY+13} textAnchor="middle"
+                  fill="#fde68a" fontSize={8.5} fontFamily="system-ui">{T(df.text,18)}</text>
+                {(df.text||'').length>18&&(
+                  <text x={bx2} y={DFY+26} textAnchor="middle"
+                    fill="#fde68a" fontSize={8} fontFamily="system-ui">
+                    {T((df.text||'').substring(18),18)}
+                  </text>
+                )}
+                {/* CCD boxes */}
+                {(df.controls||[]).map((dc,dci)=>{
+                  const DCOY=DFY+(dci*42);
+                  return(
+                    <g key={dci}>
+                      <line x1={isPrev?bx2-DFW/2:bx2+DFW/2} y1={DFY+DFH/2}
+                        x2={isPrev?DCX+DCW:DCX} y2={DCOY+DCH/2}
+                        stroke="#22c55e" strokeWidth={1.5} opacity={0.75}/>
+                      <rect x={DCX} y={DCOY} width={DCW} height={DCH}
+                        rx={4} fill="#052e16" stroke="#22c55e" strokeWidth={1.5}/>
+                      <text x={DCX+DCW/2} y={DCOY+13} textAnchor="middle"
+                        fill="#86efac" fontSize={8} fontFamily="system-ui">
+                        {T(dc.text||'',17)}
+                      </text>
+                      {(dc.text||'').length>17&&(
+                        <text x={DCX+DCW/2} y={DCOY+25} textAnchor="middle"
+                          fill="#86efac" fontSize={7.5} fontFamily="system-ui">
+                          {T((dc.text||'').substring(17),17)}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            );
+          })}
+        </g>
+      )}
+    </svg>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BOW TIE STUDIO — Consequence-centric view
+   Select Deviation → Select Consequence → See/Edit Bow Tie
+   ═══════════════════════════════════════════════════════════════════════ */
+const BowTieView=({state,setState,apiKey,aiModel})=>{
+  const {nodes,deviations}=state;
+  const bowties=state.bowties||{};
+  const [activeNodeId,setActiveNodeId]=useState(nodes[0]?.id||null);
+  const [activeDevId,setActiveDevId]=useState(null);
+  const [activeConKey,setActiveConKey]=useState(null); // 'ci-qi' format
+  const [editingBarrierId,setEditingBarrierId]=useState(null);
+  const [sceData,setSceData]=useState(null);
+  const [analyzing,setAnalyzing]=useState(false);
+  const [sceError,setSceError]=useState('');
+
+  const [lopcResults,setLopcResults]=useState({});   // {conId:{classification,category,reason,priority}}
+  const [lopcLoading,setLopcLoading]=useState(false);
+  const [lopcError,setLopcError]=useState('');
+
+  const activeNode=nodes.find(n=>n.id===activeNodeId);
+  const activeDev=deviations.find(d=>d.id===activeDevId);
+  const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
+  const nd=activeDev?normalizeDev(activeDev):null;
+
+  // All consequences across all causes for this deviation
+  const allCons=nd?nd.causes.flatMap((c,ci)=>
+    (c.consequences||[]).map((cn,qi)=>({...cn,ci,qi,cause:c}))
+  ):[];
+
+  // Parse active consequence
+  const [activeCi,activeQi]=activeConKey?activeConKey.split('-').map(Number):[null,null];
+  const activeCon=(activeCi!=null&&activeQi!=null&&nd)
+    ?{...(nd.causes[activeCi]?.consequences?.[activeQi]||{}),
+      ci:activeCi,qi:activeQi,cause:nd.causes[activeCi]}
+    :null;
+
+  // Build barriers for this consequence (safeguards=prev, mitigationBarriers=mit)
+  const buildConBarriers=(con)=>{
+    if(!con)return[];
+    const conKey=(con.cause?.id||'')+'-'+(con.id||'');
+    const stored=bowties[conKey]||{};
+    const bs=[];
+    // Prevention barriers — from safeguards
+    (Array.isArray(con.safeguards)?con.safeguards:[]).forEach((sg,si)=>{
+      const o=typeof sg==='string'?{id:'sg'+si,text:sg,degradationFactors:[]}:sg;
+      if(!o.text)return;
+      const id='prev-'+(o.id||si);
+      bs.push({id,text:o.text,side:'prevention',
+        type:'Engineering',isSCE:false,performanceStandard:'',scts:[],
+        degradationFactors:o.degradationFactors||[],...(stored[id]||{})});
+    });
+    // Mitigation barriers
+    (Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[]).forEach((mb,mi)=>{
+      if(!mb.text)return;
+      const id='mit-'+(mb.id||mi);
+      bs.push({id,text:mb.text,side:'mitigation',
+        type:mb.type||'Engineering',isSCE:false,performanceStandard:'',scts:[],
+        degradationFactors:mb.degradationFactors||[],...(stored[id]||{})});
+    });
+    // Recommendations as proposed barriers (shown in BowTie as amber/dashed)
+    (Array.isArray(con.recommendations)?con.recommendations:[]).forEach((r,ri)=>{
+      const rec=typeof r==='string'?{text:r,degradationFactors:[]}:r;
+      if(!rec.text)return;
+      const id='rec-'+(rec.id||ri);
+      bs.push({id,text:rec.text,side:'recommendation',type:'Recommendation',
+        isSCE:false,performanceStandard:'',scts:[],
+        degradationFactors:Array.isArray(rec.degradationFactors)?rec.degradationFactors:[],
+        actionOwner:rec.actionOwner||'',targetDate:rec.targetDate||'',...(stored[id]||{})});
+    });
+    return bs;
+  };
+
+  const barriers=buildConBarriers(activeCon);
+  const editingBarrier=barriers.find(b=>b.id===editingBarrierId)||null;
+  const sceBarriers=barriers.filter(b=>b.isSCE);
+
+  const updateBarrier=(updated)=>{
+    if(!activeCon)return;
+    const conKey=(activeCon.cause?.id||'')+'-'+(activeCon.id||'');
+    const matchText=(updated.text||'').trim().toLowerCase();
+    setState(s=>{
+      // ── Update BowTie enrichment for the current barrier ──
+      let newBowties={...s.bowties,[conKey]:{...(s.bowties[conKey]||{}),[updated.id]:updated}};
+
+      // ── Collect ALL fields that should sync to matching barriers ──
+      // isSCE, performanceStandard, scts — sync the full SCE package
+      // degradationFactors — sync DFs and controls
+      const syncFields={};
+      if(updated.degradationFactors!==undefined)syncFields.degradationFactors=updated.degradationFactors;
+      if(updated.isSCE!==undefined)syncFields.isSCE=updated.isSCE;
+      if(updated.performanceStandard!==undefined)syncFields.performanceStandard=updated.performanceStandard;
+      if(updated.scts!==undefined)syncFields.scts=updated.scts;
+      if(updated.type!==undefined)syncFields.type=updated.type;
+
+      // ── Sync to all barriers with same text across every consequence key ──
+      if(matchText&&Object.keys(syncFields).length>0){
+        Object.keys(newBowties).forEach(ck=>{
+          const ckData=newBowties[ck]||{};
+          const sync={};let changed=false;
+          Object.keys(ckData).forEach(bid=>{
+            const b=ckData[bid];
+            if(b&&b.id!==updated.id&&(b.text||'').trim().toLowerCase()===matchText){
+              sync[bid]={...b,...syncFields};changed=true;
+            }else{sync[bid]=b;}
+          });
+          if(changed)newBowties[ck]=sync;
+        });
+      }
+
+      // ── For recommendation barriers: write DFs back to HAZOP deviations data ──
+      // Keeps worksheet RecCard in sync with BowTie editor changes
+      let newDevs=s.deviations;
+      if(updated.side==='recommendation'&&updated.degradationFactors!==undefined&&matchText){
+        newDevs=(s.deviations||[]).map(dev=>({...dev,
+          causes:(dev.causes||[]).map(c=>({...c,
+            consequences:(c.consequences||[]).map(cn=>({...cn,
+              recommendations:(cn.recommendations||[]).map(r=>{
+                if((r.text||'').trim().toLowerCase()===matchText)
+                  return{...r,degradationFactors:updated.degradationFactors};
+                return r;
+              })
+            }))
+          }))
+        }));
+      }
+      return{...s,bowties:newBowties,deviations:newDevs};
+    });
+  };
+
+  // ── AI SCE/SCT Analysis ─────────────────────────────────────────────
+  const analyzeForSCE=async()=>{
+    if(!apiKey){setSceError('API key required — click "⚙ API" in the header.');return;}
+    if(!activeCon||barriers.length===0){setSceError('No barriers to analyse.');return;}
+    setAnalyzing(true);setSceError('');setSceData(null);
+    try{
+      const devLabel=activeDev.deviation||activeDev.guideWord+' '+activeDev.parameter;
+      const barrierList=barriers.map((b,i)=>(
+        '['+( i+1)+'] id='+b.id+' type='+b.type+' side='+b.side+': '+(b.text||'').substring(0,100)
+      )).join('\n');
+      const sys='You are a Process Safety Engineer. Identify SCEs and SCTs from bow tie barriers. Return only valid compact JSON.';
+      const schema='{"sces":[{"barrierId":"BARRIER_ID","sceId":"SCE-001","designation":"name","function":"safety function","maeScenario":"MAE","performanceStandard":"SIL 2 PFD 0.01","verificationScheme":"method","scts":[{"sctId":"SCT-001-01","task":"task","type":"Testing","frequency":"6-monthly","responsible":"role","competency":"cert","procedure":"MNT-001"}]}],"nonSCEBarriers":[{"barrierId":"BARRIER_ID","reason":"reason"}]}';
+      const usr='Consequence (Top Event): '+activeCon.text+
+        '\nCause: '+(activeCon.cause?.text||'')+
+        '\nContext: Node='+activeNode?.name+' | Deviation='+devLabel+
+        '\n\nBarriers ('+barriers.length+'):\n'+barrierList+
+        '\n\nReturn JSON matching this schema:\n'+schema+
+        '\n\nOnly barriers whose failure causes MAE qualify as SCEs. Each SCE needs 2-3 SCTs.';
+      const raw=await window.callAnthropicAPI(apiKey,aiModel||'claude-sonnet-4-6',sys,usr);
+      let parsed=null;
+      const clean=raw.replace(/```json|```/g,'').trim();
+      for(const attempt of[()=>JSON.parse(clean),()=>repairJSON(clean)]){
+        try{parsed=attempt();if(parsed)break;}catch{}
+      }
+      if(!parsed||!Array.isArray(parsed.sces))
+        throw new Error('Could not parse AI response.');
+      setSceData(parsed);
+      parsed.sces.forEach(sce=>{
+        const b=barriers.find(x=>x.id===sce.barrierId);
+        if(b){
+          const existingSCTs=Array.isArray(b.scts)?b.scts:[];
+          const aiSCTs=(sce.scts||[]).map(t=>({
+            id:uid(),task:t.task||'',type:t.type||'Testing',
+            frequency:t.frequency||'',responsible:t.responsible||'',
+            competency:t.competency||'',procedure:t.procedure||'',source:'AI'
+          }));
+          const merged=[...existingSCTs,...aiSCTs.filter(ai=>
+            !existingSCTs.some(m=>m.task&&ai.task&&
+              m.task.trim().toLowerCase()===ai.task.trim().toLowerCase())
+          )];
+          updateBarrier({...b,isSCE:true,
+            performanceStandard:b.performanceStandard||sce.performanceStandard||'',scts:merged});
+        }
+      });
+    }catch(e){setSceError(e.message);}
+    finally{setAnalyzing(false);}
+  };
+
+  /* ── AI: Identify LOPC / hazardous event consequences ── */
+  const analyzeLopc=async()=>{
+    if(!apiKey){setLopcError('API key required — click "⚙ API" in the header.');return;}
+    if(!nd||allCons.length===0){setLopcError('No consequences to analyse.');return;}
+    setLopcLoading(true);setLopcError('');
+    try{
+      const devLabel=activeDev.deviation||activeDev.guideWord+' '+activeDev.parameter;
+      const conList=allCons.map(cn=>
+        '[C'+(cn.ci+1)+'.'+(cn.qi+1)+'] Cause: '+(cn.cause?.text||'').substring(0,60)+
+        ' | Consequence: '+(cn.text||'').substring(0,80)
+      ).join('\n');
+      const sys='You are a Process Safety Engineer specialising in oil and gas hazard identification. Classify HAZOP consequences by LOPC or major hazard potential. Return only valid compact JSON.';
+      const usr='HAZOP Study: Node='+(activeNode?.name||'')+
+        ' | Fluid='+(activeNode?.fluid||'unspecified')+
+        ' | Deviation='+devLabel+
+        '\n\nConsequences:\n'+conList+
+        '\n\nClassify each as:'+
+        ' LOPC (Loss of Primary Containment: hydrocarbon release, fire, explosion, toxic cloud) |'+
+        ' MAE (Major Accident: overpressure rupture, structural collapse, BLEVE) |'+
+        ' HIGH (serious injury, major env or production loss) |'+
+        ' OPTIONAL (minor consequence, bow tie optional)'+
+        '\nCategories: fire_explosion | toxic_release | overpressure | structural | environmental | production | equipment'+
+        '\nJSON: {"results":[{"ref":"C1.1","classification":"LOPC","category":"fire_explosion","reason":"brief reason","priority":"CRITICAL"}]}';
+      const raw=await window.callAnthropicAPI(apiKey,aiModel||'claude-sonnet-4-6',sys,usr);
+      let parsed=null;
+      try{parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());}catch{parsed=repairJSON(raw);}
+      if(!parsed||!Array.isArray(parsed.results))throw new Error('Could not parse AI response.');
+      const mapped={};
+      parsed.results.forEach(r=>{
+        const cn=allCons.find(c=>'C'+(c.ci+1)+'.'+(c.qi+1)===r.ref);
+        if(cn)mapped[cn.id]={classification:r.classification||'OPTIONAL',category:r.category||'',reason:r.reason||'',priority:r.priority||''};
+      });
+      setLopcResults(prev=>({...prev,...mapped}));
+    }catch(e){setLopcError(e.message||'AI error.');}
+    finally{setLopcLoading(false);}
+  };
+
+  // ── Excel Export ────────────────────────────────────────────────────
+  const exportExcel=()=>{
+    if(typeof XLSX==='undefined'){alert('SheetJS not loaded.');return;}
+    const wb=XLSX.utils.book_new();
+    // Bow Tie Barriers sheet
+    const btRows=[['Node','Deviation','Consequence (Top Event)','Cause','Side','Barrier','Type','SCE?','Perf Standard','Degradation Factors','CCDs']];
+    barriers.forEach(b=>{
+      const dfs=(b.degradationFactors||[]).map(d=>d.text).join('; ');
+      const ccds=(b.degradationFactors||[]).flatMap(d=>(d.controls||[]).map(c=>c.text)).join('; ');
+      btRows.push([activeNode?.name||'',activeDev?.deviation||'',activeCon?.text||'',
+        activeCon?.cause?.text||'',b.side,b.text,b.type,b.isSCE?'YES':'',
+        b.performanceStandard||'',dfs,ccds]);
+    });
+    const ws1=XLSX.utils.aoa_to_sheet(btRows);
+    ws1['!cols']=[{wch:18},{wch:22},{wch:28},{wch:28},{wch:10},{wch:35},{wch:14},{wch:5},{wch:28},{wch:28},{wch:28}];
+    XLSX.utils.book_append_sheet(wb,ws1,'Bow Tie Barriers');
+    // SCE sheet
+    const sceRows=[['SCE ID','Barrier','Function','MAE Scenario','Perf Standard','Verification']];
+    if(sceData?.sces)sceData.sces.forEach(s=>sceRows.push([s.sceId,s.designation,s.function,s.maeScenario,s.performanceStandard,s.verificationScheme]));
+    barriers.filter(b=>b.isSCE).forEach(b=>{
+      if(!(sceData?.sces||[]).find(s=>s.barrierId===b.id))
+        sceRows.push(['SCE-M',b.text,'','','',b.performanceStandard||'']);
+    });
+    const ws2=XLSX.utils.aoa_to_sheet(sceRows);
+    ws2['!cols']=[{wch:10},{wch:25},{wch:30},{wch:30},{wch:28},{wch:25}];
+    XLSX.utils.book_append_sheet(wb,ws2,'SCE Register');
+    // SCT sheet
+    const sctRows=[['SCT ID','SCE ID','Barrier','Task','Type','Frequency','Responsible','Competency','Procedure','Source']];
+    barriers.filter(b=>b.isSCE&&Array.isArray(b.scts)&&b.scts.length>0).forEach((b,bi)=>{
+      b.scts.forEach((t,ti)=>sctRows.push([
+        `SCT-${bi+1}-${String(ti+1).padStart(2,'0')}`,`SCE-${bi+1}`,b.text,
+        t.task,t.type,t.frequency,t.responsible,t.competency,t.procedure,t.source||'Manual'
+      ]));
+    });
+    const ws3=XLSX.utils.aoa_to_sheet(sctRows);
+    ws3['!cols']=[{wch:12},{wch:10},{wch:20},{wch:35},{wch:14},{wch:12},{wch:20},{wch:22},{wch:18},{wch:8}];
+    XLSX.utils.book_append_sheet(wb,ws3,'SCT Register');
+    const fname='BowTie_'+((activeNode?.name||'').replace(/\s+/g,'_'))+'_'+((activeCon?.text||'con').substring(0,20).replace(/\s+/g,'_'))+'_'+new Date().toISOString().split('T')[0]+'.xlsx';
+    XLSX.writeFile(wb,fname);
+  };
+
+  return(
+    <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+      {/* ── Sidebar ── */}
+      <div className="sidebar" style={{width:230,display:'flex',flexDirection:'column',gap:0,overflow:'auto'}}>
+        <div className="sec-hdr" style={{flexDirection:'column',alignItems:'flex-start',gap:8}}>
+          <label style={{fontSize:11,color:'var(--text2)',fontWeight:600}}>Node</label>
+          <select value={activeNodeId||''} onChange={e=>{setActiveNodeId(e.target.value);setActiveDevId(null);setActiveConKey(null);setSceData(null);setLopcResults({});setLopcError('');}}
+            style={{fontSize:12,width:'100%'}}>
+            <option value="">— Select Node —</option>
+            {nodes.map(n=><option key={n.id} value={n.id}>{n.name||'Unnamed'}</option>)}
+          </select>
+
+          {activeNodeId&&(
+            <>
+              <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,marginTop:6}}>Deviation</label>
+              <div style={{display:'flex',flexDirection:'column',gap:3,width:'100%'}}>
+                {nodeDevs.map((d,di)=>(
+                  <button key={d.id} onClick={()=>{setActiveDevId(d.id);setActiveConKey(null);setSceData(null);setLopcResults({});setLopcError('');}}
+                    style={{textAlign:'left',padding:'6px 8px',borderRadius:5,cursor:'pointer',fontSize:11,
+                      background:activeDevId===d.id?'var(--accent-dim)':'var(--bg-card)',
+                      color:activeDevId===d.id?'var(--accent)':'var(--text2)',
+                      border:`1px solid ${activeDevId===d.id?'var(--accent)':'var(--border)'}`,
+                      fontWeight:activeDevId===d.id?700:400}}>
+                    <div style={{fontFamily:'var(--mono)',fontSize:8.5,color:'var(--text3)',marginBottom:2}}>D{di+1}</div>
+                    {d.deviation||d.guideWord+' '+d.parameter}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {activeDev&&allCons.length>0&&(
+            <>
+              {/* LOPC Analyse button */}
+              <button onClick={analyzeLopc} disabled={lopcLoading}
+                style={{marginTop:8,width:'100%',padding:'7px 10px',borderRadius:5,cursor:'pointer',
+                  fontWeight:700,fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',gap:6,
+                  background:lopcLoading?'var(--bg-card)':'#1a0b00',
+                  color:lopcLoading?'var(--text3)':'#fb923c',
+                  border:'1px solid #f5712244',opacity:lopcLoading?0.7:1}}>
+                {lopcLoading
+                  ?<><span style={{animation:'spin 1s linear infinite',display:'inline-block'}}>⟳</span> Analysing…</>
+                  :<>🔥 Identify LOPC / Hazardous Events</>}
+              </button>
+              {lopcError&&<div style={{fontSize:10,color:'#fca5a5',background:'#2d0a0a',padding:'5px 8px',borderRadius:4,marginTop:4}}>{lopcError}</div>}
+
+              {/* Consequence selector — colour-coded by LOPC classification */}
+              <label style={{fontSize:11,color:'#ef4444',fontWeight:700,marginTop:8,letterSpacing:'0.03em'}}>
+                Select Consequence (Top Event)
+              </label>
+              {Object.keys(lopcResults).length>0&&(
+                <div style={{fontSize:9,color:'var(--text3)',marginBottom:3,lineHeight:1.5}}>
+                  <span style={{color:'#ef4444',fontWeight:700}}>🔴 LOPC/MAE</span> = mandatory bow tie
+                  {' · '}<span style={{color:'#f59e0b'}}>⚠ HIGH</span> = recommended
+                  {' · '}<span style={{color:'var(--text3)'}}>⚪ Optional</span>
+                </div>
+              )}
+              <div style={{display:'flex',flexDirection:'column',gap:3,width:'100%'}}>
+                {allCons.map((cn,idx)=>{
+                  const key=cn.ci+'-'+cn.qi;
+                  const isActive=activeConKey===key;
+                  const lopc=lopcResults[cn.id];
+                  const cls=lopc?.classification||'';
+                  const isMandatory=cls==='LOPC'||cls==='MAE';
+                  const isHigh=cls==='HIGH';
+                  const isOptional=cls==='OPTIONAL';
+                  // colour scheme
+                  const borderCol=isActive?'#ef4444':isMandatory?'#f97316':isHigh?'#f59e0b44':isOptional?'#33415566':'var(--border)';
+                  const bgCol=isActive?'#2d0a0a':isMandatory?'#1c0800':isHigh?'#1a100000':'var(--bg-card)';
+                  const textCol=isActive?'#fca5a5':isMandatory?'#fb923c':isHigh?'#fcd34d':isOptional?'var(--text3)':'var(--text2)';
+                  return(
+                    <button key={key} onClick={()=>{setActiveConKey(key);setEditingBarrierId(null);setSceData(null);}}
+                      style={{textAlign:'left',padding:'6px 8px',borderRadius:5,cursor:'pointer',fontSize:11,
+                        background:bgCol,color:textCol,border:'1px solid '+borderCol,fontWeight:isActive||isMandatory?700:400,
+                        opacity:isOptional&&!isActive?0.65:1}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:2}}>
+                        <span style={{fontFamily:'var(--mono)',fontSize:8.5,color:isActive?'#ef4444':isMandatory?'#f97316':isHigh?'#f59e0b':'var(--text3)'}}>
+                          C{cn.ci+1}.{cn.qi+1}
+                        </span>
+                        {isMandatory&&<span style={{fontSize:8,fontWeight:800,color:'#ef4444',background:'#450a0a',padding:'1px 5px',borderRadius:3,letterSpacing:'0.04em'}}>{cls}</span>}
+                        {isHigh&&!isActive&&<span style={{fontSize:8,fontWeight:700,color:'#f59e0b'}}>⚠ HIGH</span>}
+                        {isOptional&&!isActive&&<span style={{fontSize:8,color:'var(--text3)'}}>⚪ opt</span>}
+                      </div>
+                      {(cn.text||'No text').substring(0,45)}{(cn.text||'').length>45?'…':''}
+                      {lopc?.category&&!isActive&&(
+                        <div style={{fontSize:8,color:isMandatory?'#f97316':isHigh?'#f59e0b':'var(--text3)',marginTop:2,opacity:0.8}}>
+                          {lopc.category.replace(/_/g,' ')}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {activeDev&&allCons.length===0&&(
+            <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',marginTop:8}}>
+              No consequences in this deviation. Add them in the Worksheet first.
+            </div>
+          )}
+        </div>
+
+        {activeCon&&(
+          <div style={{display:'flex',flexDirection:'column',gap:6,padding:'8px 12px',
+            borderTop:'1px solid var(--border)'}}>
+            <div style={{fontSize:10,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+              Bow Tie Summary
+            </div>
+            <div style={{fontSize:11,color:'var(--text2)',lineHeight:1.7}}>
+              Barriers: <strong style={{color:'var(--accent)'}}>{barriers.length}</strong><br/>
+              Prevention: <strong style={{color:'#22c55e'}}>{barriers.filter(b=>b.side==='prevention').length}</strong><br/>
+              Mitigation: <strong style={{color:'#ef4444'}}>{barriers.filter(b=>b.side==='mitigation').length}</strong><br/>
+              Recommendations: <strong style={{color:'#f59e0b'}}>{barriers.filter(b=>b.side==='recommendation').length}</strong><br/>
+              SCEs: <strong style={{color:'#ef4444'}}>{sceBarriers.length}</strong>
+            </div>
+            <div style={{fontSize:10,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginTop:4}}>
+              Barrier Legend
+            </div>
+            {Object.entries(BARRIER_TYPES).map(([k,v])=>(
+              <div key={k} style={{display:'flex',gap:6,alignItems:'center',fontSize:10}}>
+                <div style={{width:10,height:10,borderRadius:2,background:v.bg,border:`1px solid ${v.color}`,flexShrink:0}}/>
+                <span style={{color:v.color}}>{v.icon} {v.label}</span>
+              </div>
+            ))}
+            <div style={{display:'flex',gap:6,alignItems:'center',fontSize:10}}>
+              <div style={{width:10,height:10,borderRadius:2,background:'transparent',border:'2px solid #ef4444',flexShrink:0}}/>
+              <span style={{color:'#ef4444'}}>★ SCE</span>
+            </div>
+            <button onClick={analyzeForSCE} disabled={analyzing}
+              style={{marginTop:4,padding:'8px 10px',borderRadius:5,cursor:'pointer',fontWeight:700,fontSize:11,
+                background:'#2d1f5e',color:'#c4b5fd',border:'1px solid #7c3aed88',
+                display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+              {analyzing?<><span className="spin">⟳</span> Analysing…</>:<>✦ Analyse SCE / SCT</>}
+            </button>
+            {(sceData||barriers.length>0)&&(
+              <button onClick={exportExcel}
+                style={{padding:'7px 10px',borderRadius:5,cursor:'pointer',fontWeight:600,fontSize:11,
+                  background:'#166534',color:'#86efac',border:'1px solid #22c55e55',
+                  display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                ⬇ Export Excel
+              </button>
+            )}
+            {sceError&&(
+              <div style={{fontSize:10,color:'#fca5a5',background:'#2d0a0a',padding:'6px 8px',
+                borderRadius:4,border:'1px solid #7f1d1d'}}>{sceError}</div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Main Bow Tie Area ── */}
+      <div style={{flex:1,overflowY:'auto',overflowX:'auto',padding:16,minWidth:0}}>
+        {!activeCon&&(
+          <div style={{flex:1,overflowY:'auto',padding:20}}>
+            {(!activeDevId||allCons.length===0)?(
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:12,color:'var(--text3)'}}>
+                <div style={{fontSize:32}}>🎯</div>
+                <div style={{fontSize:14,fontWeight:600,color:'var(--text2)'}}>
+                  {!activeDevId?'Select a node and deviation':'Add causes and consequences in the Worksheet first.'}
+                </div>
+                <div style={{fontSize:12,textAlign:'center',maxWidth:400}}>
+                  {!activeDevId?'Each consequence becomes a Top Event. Select a deviation to see its consequences.':''}
+                </div>
+              </div>
+            ):(
+              <div>
+                {/* Instruction card */}
+                <div style={{marginBottom:16,padding:'12px 16px',background:'var(--bg-card)',
+                  borderRadius:8,border:'1px solid #f9731633'}}>
+                  <div style={{fontSize:13,fontWeight:700,color:'#fb923c',marginBottom:6}}>
+                    🔥 LOPC / Hazardous Event Screening
+                  </div>
+                  <div style={{fontSize:12,color:'var(--text2)',lineHeight:1.6}}>
+                    Click <strong style={{color:'#fb923c'}}>🔥 Identify LOPC / Hazardous Events</strong> in the sidebar to let AI classify which consequences require mandatory bow tie analysis (LOPC, MAE) versus optional ones.
+                  </div>
+                  {Object.keys(lopcResults).length===0&&(
+                    <div style={{marginTop:8,fontSize:11,color:'var(--text3)',fontStyle:'italic'}}>
+                      All {allCons.length} consequence{allCons.length!==1?'s':''} are currently unclassified — run the AI screening or select one directly from the sidebar.
+                    </div>
+                  )}
+                </div>
+
+                {/* LOPC summary grid — shown after AI screening */}
+                {Object.keys(lopcResults).length>0&&(
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:'var(--text2)',marginBottom:12,
+                      textTransform:'uppercase',letterSpacing:'0.05em'}}>
+                      Consequence Classification — {Object.keys(lopcResults).length} of {allCons.length} screened
+                    </div>
+                    {/* Summary counts */}
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:18}}>
+                      {[
+                        ['LOPC','#ef4444','#450a0a','Loss of Primary Containment'],
+                        ['MAE','#f97316','#431407','Major Accident Event'],
+                        ['HIGH','#f59e0b','#451a03','High Severity'],
+                        ['OPTIONAL','#64748b','#1e293b','Optional Analysis']
+                      ].map(([cls,col,bg,lbl])=>{
+                        const cnt=allCons.filter(cn=>(lopcResults[cn.id]?.classification||'')===cls).length;
+                        return(
+                          <div key={cls} style={{textAlign:'center',padding:'12px 8px',borderRadius:7,
+                            background:bg,border:'1px solid '+col+'66'}}>
+                            <div style={{fontSize:24,fontWeight:700,color:col}}>{cnt}</div>
+                            <div style={{fontSize:10,fontWeight:700,color:col}}>{cls}</div>
+                            <div style={{fontSize:9,color:'var(--text3)',marginTop:2}}>{lbl}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Consequence cards sorted by priority */}
+                    {['LOPC','MAE','HIGH','OPTIONAL'].map(cls=>{
+                      const group=allCons.filter(cn=>(lopcResults[cn.id]?.classification||'')===cls);
+                      if(group.length===0)return null;
+                      const col=cls==='LOPC'?'#ef4444':cls==='MAE'?'#f97316':cls==='HIGH'?'#f59e0b':'#64748b';
+                      const bg=cls==='LOPC'?'#450a0a':cls==='MAE'?'#431407':cls==='HIGH'?'#451a03':'#1e293b';
+                      return(
+                        <div key={cls} style={{marginBottom:16}}>
+                          <div style={{fontSize:11,fontWeight:700,color:col,textTransform:'uppercase',
+                            letterSpacing:'0.06em',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
+                            {cls==='LOPC'?'🔴':cls==='MAE'?'🟠':cls==='HIGH'?'⚠':'⚪'}
+                            {cls} — {cls==='LOPC'||cls==='MAE'?'MANDATORY bow tie analysis':'bow tie analysis '+(cls==='HIGH'?'recommended':'optional')}
+                          </div>
+                          {group.map(cn=>{
+                            const lopc=lopcResults[cn.id];
+                            return(
+                              <div key={cn.id}
+                                onClick={()=>{setActiveConKey(cn.ci+'-'+cn.qi);setEditingBarrierId(null);setSceData(null);}}
+                                style={{padding:'10px 14px',marginBottom:6,borderRadius:6,cursor:'pointer',
+                                  background:bg,border:'1px solid '+col+'55',
+                                  transition:'border-color 0.15s',userSelect:'none'}}
+                                onMouseEnter={e=>e.currentTarget.style.borderColor=col}
+                                onMouseLeave={e=>e.currentTarget.style.borderColor=col+'55'}>
+                                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:8}}>
+                                  <div style={{flex:1}}>
+                                    <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:4}}>
+                                      <span style={{fontFamily:'var(--mono)',fontSize:10,color:col,fontWeight:700,
+                                        background:bg,padding:'1px 6px',borderRadius:3,border:'1px solid '+col+'66'}}>
+                                        C{cn.ci+1}.{cn.qi+1}
+                                      </span>
+                                      {lopc.category&&(
+                                        <span style={{fontSize:9,color:col,opacity:0.8}}>
+                                          {lopc.category.replace(/_/g,' ')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{fontSize:12,fontWeight:600,color:'var(--text1)',lineHeight:1.4,marginBottom:4}}>
+                                      {cn.text}
+                                    </div>
+                                    {lopc.reason&&(
+                                      <div style={{fontSize:11,color:'var(--text3)',lineHeight:1.4,fontStyle:'italic'}}>
+                                        {lopc.reason}
+                                      </div>
+                                    )}
+                                    <div style={{fontSize:10,color:'var(--text3)',marginTop:4}}>
+                                      Cause: {cn.cause?.text?.substring(0,60)}{(cn.cause?.text||'').length>60?'…':''}
+                                    </div>
+                                  </div>
+                                  <div style={{fontSize:10,fontWeight:700,color:col,flexShrink:0,
+                                    padding:'3px 8px',borderRadius:4,border:'1px solid '+col+'55',background:'var(--bg-base)'}}>
+                                    Open →
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                    {/* Unscreened remainder */}
+                    {allCons.filter(cn=>!lopcResults[cn.id]).map(cn=>(
+                      <div key={cn.id} onClick={()=>{setActiveConKey(cn.ci+'-'+cn.qi);setEditingBarrierId(null);setSceData(null);}}
+                        style={{padding:'8px 12px',marginBottom:4,borderRadius:5,cursor:'pointer',
+                          background:'var(--bg-card)',border:'1px solid var(--border)',opacity:0.7}}>
+                        <span style={{fontFamily:'var(--mono)',fontSize:9,color:'var(--text3)',marginRight:8}}>C{cn.ci+1}.{cn.qi+1}</span>
+                        <span style={{fontSize:11,color:'var(--text2)'}}>{cn.text?.substring(0,60)}</span>
+                        <span style={{fontSize:9,color:'var(--text3)',marginLeft:6}}>(not screened)</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeCon&&(
+          <div>
+            {/* Consequence header */}
+            <div style={{marginBottom:14,padding:'10px 16px',background:'var(--bg-card)',
+              borderRadius:8,border:'1px solid #ef444455',display:'flex',gap:10,alignItems:'flex-start'}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:10,color:'#ef4444',fontWeight:700,textTransform:'uppercase',
+                  letterSpacing:'0.06em',marginBottom:3}}>
+                  Top Event — C{activeCon.ci+1}.{activeCon.qi+1}
+                </div>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--text1)',lineHeight:1.4}}>
+                  {activeCon.text||'No consequence text'}
+                </div>
+                <div style={{fontSize:11,color:'var(--text3)',marginTop:5}}>
+                  Cause: <span style={{color:'#f59e0b'}}>{activeCon.cause?.text?.substring(0,80)||'—'}</span>
+                </div>
+                <div style={{fontSize:10,color:'var(--text3)',marginTop:3}}>
+                  Deviation: {activeDev.deviation||activeDev.guideWord+' '+activeDev.parameter}
+                  {' · '}{activeNode?.name}
+                </div>
+              </div>
+              <div style={{display:'flex',gap:8,flexShrink:0,flexDirection:'column'}}>
+                {activeCon.cause?.initialRisk&&(
+                  <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11}}>
+                    <span style={{color:'var(--text3)'}}>Initial:</span>
+                    <RiskBadge cat={activeCon.cause.initialRisk.cat} small/>
+                    <span style={{fontFamily:'var(--mono)',color:'#f59e0b',fontSize:10}}>
+                      S{activeCon.cause.initialRisk.s}/{activeCon.cause.initialRisk.l}
+                    </span>
+                  </div>
+                )}
+                {activeCon.cause?.residualRisk&&(
+                  <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11}}>
+                    <span style={{color:'var(--text3)'}}>Residual:</span>
+                    <RiskBadge cat={activeCon.cause.residualRisk.cat} small/>
+                    <span style={{fontFamily:'var(--mono)',color:'#22c55e',fontSize:10}}>
+                      S{activeCon.cause.residualRisk.s}/{activeCon.cause.residualRisk.l}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SVG Bow Tie Canvas */}
+            <div style={{overflowX:'auto'}}>
+              <BowTieSVGCanvas
+                activeCon={activeCon} barriers={barriers}
+                onBarrierClick={b=>setEditingBarrierId(b.id)}/>
+            </div>
+
+            {/* SCE/SCT Results */}
+            {sceData&&(
+              <div style={{marginTop:20}}>
+                <div style={{fontFamily:'var(--disp)',fontSize:13,fontWeight:700,color:'#ef4444',
+                  textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:6}}>
+                  ★ SCE / SCT Analysis Results
+                </div>
+                <div style={{fontSize:11,color:'#fca5a5',marginBottom:10,padding:'6px 10px',
+                  background:'#2d0a0a',borderRadius:4,border:'1px solid #7f1d1d',lineHeight:1.5}}>
+                  ⚠ AI-generated first pass — validate all SCE designations and Performance Standards against engineering Design Basis and applicable regulations before use.
+                </div>
+                {sceData.sces.map((sce,si)=>(
+                  <div key={si} style={{marginBottom:14,background:'var(--bg-card)',borderRadius:8,
+                    border:'2px solid #ef444466',overflow:'hidden'}}>
+                    <div style={{padding:'9px 14px',background:'#2d0a0a',borderBottom:'1px solid #7f1d1d',
+                      display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10}}>
+                      <div>
+                        <div style={{fontFamily:'var(--mono)',fontSize:10,color:'#ef4444',fontWeight:700}}>{sce.sceId}</div>
+                        <div style={{fontSize:13,fontWeight:700,color:'#fca5a5',marginTop:2}}>{sce.designation}</div>
+                        <div style={{fontSize:11,color:'#fca5a5aa',marginTop:3}}>{sce.function}</div>
+                      </div>
+                      <div style={{textAlign:'right',fontSize:10,color:'#f59e0b',flexShrink:0}}>
+                        <div style={{fontWeight:600}}>{sce.performanceStandard}</div>
+                        <div style={{color:'var(--text3)',marginTop:2}}>{sce.maeScenario?.substring(0,50)}</div>
+                      </div>
+                    </div>
+                    <div style={{padding:'10px 14px'}}>
+                      <div style={{fontSize:10,color:'var(--text3)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:8}}>
+                        Safety Critical Tasks ({(sce.scts||[]).length})
+                      </div>
+                      <table className="tbl" style={{fontSize:11,width:'100%'}}>
+                        <thead><tr>
+                          <th style={{width:80}}>SCT ID</th><th>Task</th><th style={{width:55}}>Type</th>
+                          <th style={{width:80}}>Frequency</th><th style={{width:100}}>Responsible</th>
+                          <th style={{width:120}}>Competency</th><th style={{width:80}}>Procedure</th>
+                        </tr></thead>
+                        <tbody>
+                          {(sce.scts||[]).map((t,ti)=>(
+                            <tr key={ti}>
+                              <td style={{fontFamily:'var(--mono)',color:'var(--accent)',fontSize:10}}>{t.sctId}</td>
+                              <td style={{color:'var(--text1)'}}>{t.task}</td>
+                              <td style={{color:'var(--text3)',fontSize:10}}>{t.type}</td>
+                              <td style={{color:'#f59e0b',fontWeight:600}}>{t.frequency}</td>
+                              <td style={{color:'var(--text2)'}}>{t.responsible}</td>
+                              <td style={{color:'var(--text3)',fontSize:10}}>{t.competency}</td>
+                              <td style={{fontFamily:'var(--mono)',fontSize:10,color:'var(--text2)'}}>{t.procedure}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Barrier Editor Panel */}
+      {editingBarrier&&(
+        <BarrierEditorPanel
+          barrier={editingBarrier}
+          onUpdate={updateBarrier}
+          onClose={()=>setEditingBarrierId(null)}/>
+      )}
+    </div>
+  );
+};
+
+
+/* ── SCT_TYPES, SCTRow, BarrierEditorPanel ── */
+const SCT_TYPES=['Testing','Inspection','Maintenance','Calibration','Operational'];
+
+const SCTRow=({sct,idx,onChange,onDelete})=>(
+  <div style={{padding:'8px 10px',background:'#0d1a0d',borderRadius:6,border:'1px solid #22c55e33',marginBottom:6}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+      <span style={{fontFamily:'var(--mono)',fontSize:10,color:'#22c55e',fontWeight:700,background:'#052e16',padding:'2px 6px',borderRadius:3}}>SCT-{String(idx+1).padStart(2,'0')}</span>
+      <button onClick={onDelete} style={{fontSize:10,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'0 4px'}}>✕ Remove</button>
+    </div>
+    <div style={{display:'flex',flexDirection:'column',gap:5}}>
+      <div>
+        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Task Description</div>
+        <textarea value={sct.task||''} onChange={e=>onChange({task:e.target.value})} rows={2} placeholder="Describe the safety critical task…" style={{fontSize:11,resize:'vertical',width:'100%',lineHeight:1.4}}/>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Task Type</div>
+          <select value={sct.type||'Testing'} onChange={e=>onChange({type:e.target.value})} style={{width:'100%',fontSize:11,padding:'4px 6px'}}>
+            {SCT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Frequency</div>
+          <input value={sct.frequency||''} onChange={e=>onChange({frequency:e.target.value})} placeholder="e.g., 6-monthly" style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:5}}>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Responsible</div>
+          <input value={sct.responsible||''} onChange={e=>onChange({responsible:e.target.value})} placeholder="Role / discipline" style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+        </div>
+        <div>
+          <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Competency</div>
+          <input value={sct.competency||''} onChange={e=>onChange({competency:e.target.value})} placeholder="Required cert / qualification" style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+        </div>
+      </div>
+      <div>
+        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Procedure Reference</div>
+        <input value={sct.procedure||''} onChange={e=>onChange({procedure:e.target.value})} placeholder="e.g., MNT-ESDV-001" style={{width:'100%',fontSize:11,padding:'4px 6px'}}/>
+      </div>
+    </div>
+  </div>
+);
+
+const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
+  const [b,setB]=useState(barrier);
+  useEffect(()=>setB(barrier),[barrier?.id]);
+  const save=()=>{onUpdate(b);onClose();};
+  if(!b)return null;
+  const tc=BARRIER_TYPES[b.type]||BARRIER_TYPES.Engineering;
+  const scts=Array.isArray(b.scts)?b.scts:[];
+  const addSCT=()=>setB(prev=>({...prev,scts:[...(prev.scts||[]),{id:uid(),task:'',type:'Testing',frequency:'',responsible:'',competency:'',procedure:''}]}));
+  const delSCT=(i)=>setB(prev=>({...prev,scts:(prev.scts||[]).filter((_,j)=>j!==i)}));
+  const updSCT=(i,upd)=>setB(prev=>({...prev,scts:(prev.scts||[]).map((s,j)=>j===i?{...s,...upd}:s)}));
+  return(
+    <div style={{width:400,borderLeft:'1px solid var(--border)',background:'var(--bg-surface)',display:'flex',flexDirection:'column',overflow:'hidden',flexShrink:0}}>
+      <div style={{padding:'12px 16px',borderBottom:'1px solid var(--border)',background:'var(--bg-card)',flexShrink:0}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div style={{fontFamily:'var(--disp)',fontWeight:700,fontSize:13,color:tc.color,textTransform:'uppercase',letterSpacing:'0.06em'}}>Edit Barrier</div>
+          <button onClick={onClose} style={{width:24,height:24,borderRadius:4,cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',background:'transparent',color:'var(--text2)',border:'1px solid var(--border)'}}>✕</button>
+        </div>
+        <div style={{fontSize:11,color:'var(--text3)',marginTop:3}}>{b.side==='prevention'?'Prevention Barrier — Safeguard':b.side==='recommendation'?'Recommended / Proposed Barrier':'Mitigation Barrier — Consequence side'}</div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'14px 16px',display:'flex',flexDirection:'column',gap:14}}>
+        <div>
+          <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:4}}>Barrier Description</label>
+          <textarea value={b.text||''} onChange={e=>setB({...b,text:e.target.value})} rows={2} style={{fontSize:12,resize:'vertical',width:'100%',lineHeight:1.5}}/>
+        </div>
+        <div>
+          <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:6}}>Barrier Type</label>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+            {Object.entries(BARRIER_TYPES).map(([k,v])=>(
+              <button key={k} onClick={()=>setB({...b,type:k})}
+                style={{padding:'6px 10px',borderRadius:5,cursor:'pointer',fontSize:11,fontWeight:600,
+                  background:b.type===k?v.bg:'var(--bg-card)',color:b.type===k?v.color:'var(--text3)',
+                  border:'2px solid '+(b.type===k?v.color:'var(--border)'),
+                  textAlign:'left',display:'flex',gap:5,alignItems:'center'}}>
+                <span>{v.icon}</span><span>{v.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{padding:'10px 12px',borderRadius:6,border:'1px solid '+(b.isSCE?'#ef444466':'var(--border)'),
+          background:b.isSCE?'#1a0505':'var(--bg-card)',display:'flex',alignItems:'center',justifyContent:'space-between',
+          cursor:'pointer',transition:'all 0.2s'}} onClick={()=>setB({...b,isSCE:!b.isSCE})}>
+          <div>
+            <div style={{fontSize:12,fontWeight:700,color:b.isSCE?'#ef4444':'var(--text2)'}}>★ Safety Critical Element (SCE)</div>
+            <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>Barrier whose failure could substantially contribute to a Major Accident Event</div>
+          </div>
+          <div style={{width:28,height:16,borderRadius:8,background:b.isSCE?'#ef4444':'var(--border)',position:'relative',flexShrink:0}}>
+            <div style={{width:12,height:12,borderRadius:6,background:'#fff',position:'absolute',top:2,left:b.isSCE?14:2,transition:'all 0.2s'}}/>
+          </div>
+        </div>
+        {b.isSCE&&(
+          <div style={{borderLeft:'3px solid #ef4444',paddingLeft:10}}>
+            <label style={{fontSize:11,color:'#ef4444',fontWeight:600,display:'block',marginBottom:4}}>Performance Standard</label>
+            <textarea value={b.performanceStandard||''} onChange={e=>setB({...b,performanceStandard:e.target.value})}
+              rows={2} placeholder="e.g., SIL 2 — PFD at or below 0.01, proof test 6-monthly"
+              style={{fontSize:11,resize:'vertical',width:'100%',border:'1px solid #ef444466',lineHeight:1.5}}/>
+          </div>
+        )}
+        <div style={{borderLeft:'3px solid '+(b.isSCE?'#22c55e':'var(--border)'),paddingLeft:10}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+            <div>
+              <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em',color:b.isSCE?'#22c55e':'var(--text2)'}}>
+                Safety Critical Tasks (SCTs) <span style={{marginLeft:6,fontFamily:'var(--mono)',fontSize:10,fontWeight:400,color:'var(--text3)'}}>({scts.length})</span>
+              </div>
+              <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>
+                {b.isSCE?'Tasks that maintain this SCE performance standard':'Toggle SCE ON to formally designate — SCTs can be added now'}
+              </div>
+            </div>
+          </div>
+          {scts.length===0&&<div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',marginBottom:6,padding:'8px 10px',background:'var(--bg-card)',borderRadius:4,border:'1px solid var(--border)'}}>No SCTs yet — click <strong style={{color:'#22c55e',fontStyle:'normal'}}>+ Add</strong> below.</div>}
+          {scts.map((sct,i)=><SCTRow key={sct.id||i} sct={sct} idx={i} onChange={upd=>updSCT(i,upd)} onDelete={()=>delSCT(i)}/>)}
+          <button onClick={addSCT} style={{fontSize:11,padding:'5px 12px',borderRadius:4,cursor:'pointer',fontWeight:700,background:b.isSCE?'#052e16':'var(--bg-card)',color:b.isSCE?'#22c55e':'var(--text2)',border:'1px solid '+(b.isSCE?'#22c55e55':'var(--border)'),display:'flex',alignItems:'center',gap:5}}>
+            + Add Safety Critical Task
+          </button>
+        </div>
+        <div>
+          <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,display:'block',marginBottom:6}}>Degradation Factors &amp; Controls</label>
+          <DegradationEditor factors={b.degradationFactors||[]} onChange={df=>setB({...b,degradationFactors:df})}/>
+        </div>
+      </div>
+      <div style={{padding:'10px 16px',borderTop:'1px solid var(--border)',flexShrink:0,background:'var(--bg-card)',display:'flex',gap:8,justifyContent:'space-between',alignItems:'center'}}>
+        <div style={{fontSize:10,color:'var(--text3)'}}>{b.isSCE&&<span style={{color:'#ef4444'}}>★ SCE · {scts.length} SCT{scts.length!==1?'s':''}</span>}</div>
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={onClose} style={{fontSize:12,padding:'6px 14px',borderRadius:4,cursor:'pointer',background:'transparent',color:'var(--text2)',border:'1px solid var(--border)'}}>Cancel</button>
+          <button onClick={save} style={{fontSize:12,padding:'6px 16px',borderRadius:4,cursor:'pointer',background:'var(--accent)',color:'#000',fontWeight:700,border:'none'}}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ── Initial Study State ── */
+const INIT_STUDY={
+  projectName:'',company:'',facility:'',unit:'',location:'',docRef:'',
+  date:new Date().toISOString().split('T')[0],revision:'0',
+  methodology:'Guide Word HAZOP',recordingMode:'Full Recording',pidRevision:'',
+  preparedBy:'',approvedBy:'',scope:'',
+  processDescription:'',processControls:'',protectiveDevices:'',
+  assumptions:'',normalOperatingConditions:'',
+  documents:[],
+  teamMembers:[],
+  sessions:[]
+};
+
+/* ─── MAIN APP ───────────────────────────────────────── */
+const App=()=>{
+  const [study,setStudy]=useState(INIT_STUDY);
+  const [appState,setAppState]=useState({nodes:[],deviations:[],activeNodeId:null,activeDevId:null,bowties:{}});
+  const [view,setView]=useState('setup');
+  const [apiKey,setApiKey]=useState('');
+  const [aiModel,setAiModel]=useState('claude-sonnet-4-6');
+  const [showApiPanel,setShowApiPanel]=useState(false);
+  const [saveWarn,setSaveWarn]=useState('');
+  const {nodes,deviations,bowties}=appState;
+  const setNodes=fn=>setAppState(s=>({...s,nodes:typeof fn==='function'?fn(s.nodes):fn}));
+  const setDeviations=fn=>setAppState(s=>({...s,deviations:typeof fn==='function'?fn(s.deviations):fn}));
+  const setState=fn=>setAppState(fn);
+  const activeNodeId=appState.activeNodeId;
+  const setActiveNodeId=id=>setAppState(s=>({...s,activeNodeId:id}));
+
+  useEffect(()=>{
+    const saved=localStorage.getItem('hazop_study_data');
+    if(saved){try{const d=JSON.parse(saved);setStudy({...INIT_STUDY,...(d.study||{})});setAppState(s=>({...s,nodes:d.nodes||[],deviations:d.deviations||[],bowties:d.bowties||{}}));}catch(e){}}
+    const savedKey=localStorage.getItem('hazop_api_key');
+    if(savedKey)setApiKey(savedKey);
+    const savedModel=localStorage.getItem('hazop_ai_model');
+    if(savedModel)setAiModel(savedModel);
+  },[]);
+
+  useEffect(()=>{
+    // Persist study data EXCLUDING uploaded documents (base64 files would exceed the
+    // ~5 MB localStorage quota and silently break saving of the entire study).
+    const data={study:{...study,documents:[]},nodes,deviations,bowties:appState.bowties};
+    try{
+      localStorage.setItem('hazop_study_data',JSON.stringify(data));
+      if(saveWarn)setSaveWarn('');
+    }catch(e){
+      console.warn('localStorage save failed',e);
+      setSaveWarn('⚠ Browser storage is full — recent changes are NOT being saved. Export to Excel now and clear old data.');
+    }
+  },[study,nodes,deviations,appState.bowties]);
+
+  const clearAll=()=>{if(window.confirm('Clear all study data? This cannot be undone.')){setStudy(INIT_STUDY);setAppState({nodes:[],deviations:[],activeNodeId:null,activeDevId:null,bowties:{}});localStorage.removeItem('hazop_study_data');}};
+  const saveKey=()=>{localStorage.setItem('hazop_api_key',apiKey);localStorage.setItem('hazop_ai_model',aiModel);setShowApiPanel(false);};
+
+  const openCount=deviations.filter(d=>d.status==='Open').length;
+  const highCount=deviations.filter(d=>{try{const nd=normalizeDev(d);return nd.causes.some(c=>c.initialRisk&&[1,2].includes(c.initialRisk.cat));}catch{return false;}}).length;
+
+  return(
+    <div style={{height:'100vh',display:'flex',flexDirection:'column',overflow:'hidden',background:'var(--bg-base)'}}>
+      {/* Top bar */}
+      <div className="topbar">
+        <div style={{display:'flex',alignItems:'center',gap:12,minWidth:0}}>
+          <span className="logo">Risk2Safe <span style={{color:'var(--accent)'}}>HAZoP</span></span>
+          <span style={{fontSize:12,color:'var(--text3)',fontFamily:'var(--mono)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            {study.projectName||'Untitled Study'} · {study.company||'—'} · Rev {study.revision||'0'}
+          </span>
+        </div>
+        <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
+          {highCount>0&&<span className="badge badge-high">▲ {highCount} HIGH</span>}
+          {openCount>0&&<span className="badge badge-open">{openCount} OPEN</span>}
+          <button className="btn btn-ghost" onClick={()=>setShowApiPanel(v=>!v)} style={{fontSize:12}}>⚙ API</button>
+          <button className="btn btn-ghost" onClick={clearAll} style={{fontSize:12,color:'#ef4444'}}>↺ Reset</button>
+        </div>
+      </div>
+
+      {/* Storage warning */}
+      {saveWarn&&(
+        <div style={{padding:'6px 20px',background:'#450a0a',borderBottom:'1px solid #7f1d1d',color:'#fca5a5',fontSize:12,fontWeight:600,flexShrink:0}}>
+          {saveWarn}
+        </div>
+      )}
+
+      {/* API Panel */}
+      {showApiPanel&&(
+        <div style={{padding:'10px 20px',background:'var(--bg-card)',borderBottom:'1px solid var(--border)',display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+          <div style={{fontSize:11,color:'var(--text2)',fontWeight:600}}>Anthropic API Key:</div>
+          <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-..." style={{fontFamily:'var(--mono)',fontSize:11,width:320,padding:'5px 8px'}}/>
+          <div style={{fontSize:11,color:'var(--text2)',fontWeight:600}}>Model:</div>
+          <select value={aiModel} onChange={e=>setAiModel(e.target.value)} style={{fontSize:11,padding:'5px 8px'}}>
+            <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (recommended)</option>
+            <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fast)</option>
+            <option value="claude-opus-4-8">Claude Opus 4.8 (most capable)</option>
+          </select>
+          <button className="btn btn-primary" onClick={saveKey} style={{fontSize:11,padding:'5px 14px'}}>✓ Save</button>
+          <div style={{fontSize:10,color:'var(--text3)'}}>Key stored in browser localStorage. Not sent to any server except Anthropic.</div>
+        </div>
+      )}
+
+      {/* Navigation */}
+      <div className="nav">
+        {[
+          {id:'setup',label:'Study Setup'},
+          {id:'nodes',label:'Nodes',badge:nodes.length},
+          {id:'worksheet',label:'Worksheet',badge:deviations.length},
+          {id:'matrix',label:'Risk Matrix'},
+          {id:'actions',label:'Actions'},
+          {id:'report',label:'Report'},
+          {id:'bowtie',label:'🎯 Bow Tie'},
+        ].map(tab=>(
+          <button key={tab.id} className={'nav-btn'+(view===tab.id?' active':'')} onClick={()=>setView(tab.id)}>
+            {tab.label}
+            {tab.badge!=null&&tab.badge>0&&<span className="nav-count">{tab.badge}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Node selector bar (shown on matrix / actions / report) */}
+      {['matrix','actions','report'].includes(view)&&nodes.length>0&&(
+        <div style={{padding:'6px 16px',background:'var(--bg-card)',borderBottom:'1px solid var(--border)',display:'flex',gap:12,alignItems:'center'}}>
+          <span style={{fontSize:11,color:'var(--text2)',fontWeight:600,flexShrink:0}}>Active Node:</span>
+          <select value={activeNodeId||''} onChange={e=>setActiveNodeId(e.target.value)} style={{fontSize:12,padding:'4px 8px',minWidth:200,width:'auto'}}>
+            <option value="">— Select Node —</option>
+            {nodes.map(n=><option key={n.id} value={n.id}>{n.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      {/* Main content area */}
+      <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+        {view==='setup'&&<SetupView study={study} setStudy={setStudy}/>}
+        {view==='nodes'&&<NodesView nodes={nodes} setNodes={setNodes} deviations={deviations} setDeviations={setDeviations}/>}
+        {view==='worksheet'&&<WorksheetView nodes={nodes} deviations={deviations} setDeviations={setDeviations} apiKey={apiKey} aiModel={aiModel} study={study}/>}
+        {view==='matrix'&&<MatrixView deviations={deviations} nodes={nodes} activeNodeId={activeNodeId}/>}
+        {view==='actions'&&<ActionsView deviations={deviations} nodes={nodes} activeNodeId={activeNodeId}/>}
+        {view==='report'&&<ReportView study={study} nodes={nodes} deviations={deviations} activeNodeId={activeNodeId}/>}
+        {view==='bowtie'&&<BowTieView state={{...appState,bowties:appState.bowties||{}}} setState={setState} apiKey={apiKey} aiModel={aiModel}/>}
+      </div>
+    </div>
+  );
+};
+
+const root=ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App/>);
+</script>
+</body>
+</html>
