@@ -229,6 +229,13 @@ const requireKey=()=>{
   return true;
 };
 
+/* ── R2S-ENH: cause-level ALARP helper — CAT 1/2 initial risk demands recommendations ── */
+const causeRecCount=(cause)=>
+  (Array.isArray(cause.recommendations)?cause.recommendations.length:0)+
+  (cause.consequences||[]).reduce((a,cn)=>a+((cn.recommendations||[]).length),0);
+const causeNotAlarp=(cause)=>
+  !!(cause.initialRisk&&cause.initialRisk.cat&&cause.initialRisk.cat<=2&&causeRecCount(cause)===0);
+
 /* ─── COMPONENTS ─────────────────────────────────────── */
 const RiskBadge=({cat,small})=>{
   if(!cat)return<span className="badge badge-none" style={{fontSize:small?10:12}}>—</span>;
@@ -556,12 +563,77 @@ const SetupView=({study,setStudy})=>{
 };
 
 // ── NODE MANAGER ─────────────────────────────────────────────────────
-const NodesView=({nodes,setNodes,deviations,setDeviations})=>{
+const NodesView=({nodes,setNodes,deviations,setDeviations,apiKey,aiModel,study})=>{
   const [form,setForm]=useState({name:'',type:'Pipe',description:'',designIntent:'',fluid:'',conditions:''});
   const add=()=>{if(!form.name.trim())return;setNodes(n=>[...n,{...form,id:uid()}]);setForm({name:'',type:'Pipe',description:'',designIntent:'',fluid:'',conditions:''});};
   const del=id=>{if(!window.confirm('Delete this node and all its deviations?'))return;setNodes(n=>n.filter(x=>x.id!==id));setDeviations(d=>d.filter(x=>x.nodeId!==id));};
+
+  /* ── R2S-ENH: AI pipeline — extract nodes & generate deviations ── */
+  const [aiBusy,setAiBusy]=useState('');
+  const [aiErr,setAiErr]=useState('');
+  const aiCall=async(sys,usr)=>{
+    if(!apiKey||!apiKey.trim().startsWith('sk-ant')){alert('Set your Anthropic API key first — click "⚙ API" in the header.');throw new Error('no-key');}
+    const raw=await window.callAnthropicAPI(apiKey,aiModel||'claude-sonnet-4-6',sys,usr);
+    return repairJSON(raw);
+  };
+  const extractNodesAI=async()=>{
+    if(!(study?.processDescription||'').trim()){alert('Enter the Process Description in Study Setup first — the AI reads it to identify nodes.');return;}
+    setAiBusy('extract');setAiErr('');
+    try{
+      const parsed=await aiCall(
+        'You are a senior HAZOP facilitator. Identify study nodes from the process information. Return only valid compact JSON.',
+        'PROCESS DESCRIPTION:\n'+study.processDescription+
+        (study.normalOperatingConditions?'\n\nOPERATING CONDITIONS:\n'+study.normalOperatingConditions:'')+
+        (study.processControls?'\n\nPROCESS CONTROLS:\n'+study.processControls:'')+
+        (study.protectiveDevices?'\n\nPROTECTIVE DEVICES:\n'+study.protectiveDevices:'')+
+        '\n\nIdentify up to 6 HAZOP nodes covering the full flow path. Node types: Pipe, Vessel, Pump, Compressor, Heat Exchanger, Reactor, Storage Tank, Control Loop, Utility, Other.'+
+        '\nJSON: {"nodes":[{"name":"Node-1: ...","type":"Vessel","fluid":"...","conditions":"design/operating conditions & trip set points","designIntent":"...","description":"boundary from ... to ..., equipment & instrument tags included"}]}');
+      const newN=(parsed.nodes||[]).map(n=>({id:uid(),name:n.name||'',type:n.type||'Other',fluid:n.fluid||'',conditions:n.conditions||'',designIntent:n.designIntent||'',description:n.description||''}));
+      if(newN.length===0)throw new Error('No nodes returned — refine the process description and retry.');
+      setNodes(prev=>[...prev,...newN]);
+    }catch(e){if(e.message!=='no-key')setAiErr(e.message||'AI extraction failed.');}
+    setAiBusy('');
+  };
+  const genDevsAI=async(nd)=>{
+    setAiBusy('dev-'+nd.id);setAiErr('');
+    try{
+      const parsed=await aiCall(
+        'You are a HAZOP facilitator working to IEC 61882. Propose deviations using ONLY the given guide words and parameters. Return only valid compact JSON.',
+        'Node: '+nd.name+' | Type: '+nd.type+' | Fluid: '+(nd.fluid||'')+' | Conditions: '+(nd.conditions||'')+
+        '\nDesign intent: '+(nd.designIntent||'')+'\nBoundary / equipment: '+(nd.description||'')+
+        '\n\nGuide words (use EXACTLY these strings): '+GUIDE_WORDS.join(', ')+
+        '\nParameters (use EXACTLY these strings): '+PARAMETERS.join(', ')+
+        '\n\nPropose 8-12 credible deviations for this node, ordered by parameter.'+
+        '\nJSON: {"deviations":[{"guideWord":"NO / NONE","parameter":"FLOW","deviation":"No/less flow from ... to ..."}]}');
+      const stubs=(parsed.deviations||[]).map(d=>({id:uid(),nodeId:nd.id,
+        guideWord:GUIDE_WORDS.includes(d.guideWord)?d.guideWord:'NO / NONE',
+        parameter:PARAMETERS.includes(d.parameter)?d.parameter:'FLOW',
+        deviation:d.deviation||((d.guideWord||'')+' '+(d.parameter||'')),
+        status:'Open',priority:'',dueDate:'',responsible:'',remarks:'',causes:[]}));
+      if(stubs.length===0)throw new Error('No deviations returned — try again.');
+      setDeviations(prev=>[...prev,...stubs]);
+    }catch(e){if(e.message!=='no-key')setAiErr(e.message||'Deviation generation failed.');}
+    setAiBusy('');
+  };
+
   return(
     <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:16,overflowY:'auto'}}>
+      {/* ── R2S-ENH: AI node extraction card ── */}
+      <div className="card" style={{border:'1px solid #7c3aed55'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
+          <div>
+            <div style={{fontSize:14,fontFamily:'var(--disp)',fontWeight:700,color:'#c4b5fd',textTransform:'uppercase',letterSpacing:'0.06em'}}>✦ AI Node Extraction</div>
+            <div style={{fontSize:11,color:'var(--text3)',marginTop:3,maxWidth:560,lineHeight:1.5}}>
+              Reads the Process Description, Operating Conditions, Controls and Protective Devices from Study Setup and proposes nodes with equipment tags, fluid and design intent. Review and edit each node before generating deviations — AI does not replace team judgement.
+            </div>
+          </div>
+          <button className="btn btn-ai" disabled={aiBusy==='extract'} onClick={extractNodesAI}>
+            {aiBusy==='extract'?<><span className="spin">⟳</span> Extracting…</>:<>✦ Extract Nodes from Process Description</>}
+          </button>
+        </div>
+        {aiErr&&<div style={{marginTop:8,fontSize:11,color:'#fca5a5',background:'#2d0a0a',padding:'6px 10px',borderRadius:4}}>{aiErr}</div>}
+      </div>
+
       <div className="card">
         <div style={{fontSize:14,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',marginBottom:14,textTransform:'uppercase',letterSpacing:'0.06em'}}>Add Study Node / Section</div>
         <div className="form-row form-row-2">
@@ -593,7 +665,12 @@ const NodesView=({nodes,setNodes,deviations,setDeviations})=>{
                   <strong style={{fontSize:14,color:'var(--text1)'}}>{nd.name}</strong>
                   <span style={{marginLeft:10,fontSize:11,color:'var(--accent)',background:'var(--accent-dim)',padding:'2px 7px',borderRadius:10}}>{nd.type}</span>
                 </div>
-                <button className="btn btn-ghost btn-sm" style={{color:'var(--red)'}} onClick={()=>del(nd.id)}>✕ Delete</button>
+                <div style={{display:'flex',gap:6,flexShrink:0}}>
+                  <button className="btn btn-ai btn-sm" disabled={aiBusy==='dev-'+nd.id} onClick={()=>genDevsAI(nd)}>
+                    {aiBusy==='dev-'+nd.id?<><span className="spin">⟳</span> Generating…</>:<>✦ Generate Deviations</>}
+                  </button>
+                  <button className="btn btn-ghost btn-sm" style={{color:'var(--red)'}} onClick={()=>del(nd.id)}>✕ Delete</button>
+                </div>
               </div>
               {nd.fluid&&<div style={{fontSize:12,color:'var(--text2)',marginBottom:3}}><strong>Fluid:</strong> {nd.fluid}{nd.conditions&&' · '+nd.conditions}</div>}
               {nd.designIntent&&<div style={{fontSize:12,color:'var(--text3)',marginBottom:3}}>{nd.designIntent.substring(0,120)}</div>}
@@ -1239,6 +1316,22 @@ const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConA
               causeText={cause.text}/>
           ))}
           <button onClick={()=>onConAdd(devId,cause.id)} style={{fontSize:11,padding:'6px 12px',borderRadius:4,cursor:'pointer',background:'#1a0505',color:'#fca5a5',border:'1px dashed #ef444466',fontWeight:600,alignSelf:'flex-start'}}>+ Add Consequence</button>
+
+          {/* ── R2S-ENH: ALARP gate — CAT 1/2 initial risk requires recommendations ── */}
+          {(()=>{
+            const cat=cause.initialRisk&&cause.initialRisk.cat;
+            const recCount=causeRecCount(cause);
+            if(cat&&cat<=2&&recCount===0)return(
+              <div style={{display:'flex',alignItems:'center',gap:8,padding:'7px 12px',borderRadius:5,background:'#450a0a',border:'1px solid #ef4444',color:'#fca5a5',fontSize:11,fontWeight:700}}>
+                ⚠ Initial risk {RDISP[cat].cat} ({RDISP[cat].label}) — NOT ALARP. Recommendations are required before this cause can be closed. {RDISP[cat].sign}
+              </div>);
+            if(cat&&cat<=2&&recCount>0&&!cause.residualRisk)return(
+              <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',borderRadius:5,background:'#1c1400',border:'1px solid #f59e0b66',color:'#fde68a',fontSize:11}}>
+                {recCount} recommendation(s) recorded — set the Residual Risk to demonstrate ALARP.
+              </div>);
+            return null;
+          })()}
+
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:4}}>
             <div><div style={{fontSize:10,color:'var(--text2)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:8}}>Initial Risk</div>
               <MiniMatrixPicker sel={cause.initialRisk} onPick={r=>onSetRisk(devId,cause.id,'initialRisk',r)} label=""/>
@@ -1507,6 +1600,47 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
     updDev(activeDevId,d=>({...d,causes:[...(d.causes||[]),...newCauses]}));
   };
 
+  /* ── R2S-ENH: one-click auto-populate — C&C + safeguards + initial risk for every empty deviation ── */
+  const [autoBusy,setAutoBusy]=useState(false);
+  const [autoMsg,setAutoMsg]=useState('');
+  const autoPopulateNode=async()=>{
+    if(!apiKey||!apiKey.trim().startsWith('sk-ant')){alert('Set your Anthropic API key first — click "⚙ API" in the header.');return;}
+    const targets=deviations.filter(d=>d.nodeId===activeNodeId&&normalizeDev(d).causes.length===0);
+    if(targets.length===0){alert('All deviations in this node already have causes — nothing to populate.');return;}
+    setAutoBusy(true);
+    for(let i=0;i<targets.length;i++){
+      const dev=targets[i];
+      const devLabel=dev.deviation||(dev.guideWord+' '+dev.parameter);
+      setAutoMsg('Developing '+(i+1)+'/'+targets.length+': '+devLabel);
+      try{
+        const sys='You are a HAZOP facilitator with deep oil & gas process safety expertise. Return only valid compact JSON.';
+        const usr='Node: '+(activeNode?.name||'')+' | Type: '+(activeNode?.type||'')+' | Fluid: '+(activeNode?.fluid||'')+' | Conditions: '+(activeNode?.conditions||'')+
+          '\nDesign intent: '+(activeNode?.designIntent||'')+
+          (study?.processDescription?'\nProcess description: '+study.processDescription.substring(0,800):'')+
+          (study?.protectiveDevices?'\nProtective devices: '+study.protectiveDevices.substring(0,400):'')+
+          '\nDeviation: '+devLabel+
+          '\n\nGenerate 3-5 credible causes. For each cause: 1-3 consequences (developed to the ultimate credible outcome), each consequence with 1-3 REAL safeguards (tagged trips, PSVs, alarms, procedures), and an initial risk for the cause CREDITING those safeguards.'+
+          '\nSeverity S (1-6): '+Object.entries(SNAMES).map(([k,v])=>k+'='+v).join(', ')+
+          '\nLikelihood L (A-F): '+Object.entries(LNAMES).map(([k,v])=>k+'='+v).join(', ')+
+          '\nJSON: {"causes":[{"text":"...","initialRisk":{"s":3,"l":"C"},"consequences":[{"text":"...","safeguards":["..."]}]}]}';
+        const raw=await window.callAnthropicAPI(apiKey,aiModel||'claude-sonnet-4-6',sys,usr);
+        const parsed=repairJSON(raw);
+        const newCauses=(parsed.causes||[]).map(ca=>{
+          const s=Math.min(6,Math.max(1,parseInt(ca.initialRisk?.s)||3));
+          const l=['A','B','C','D','E','F'].includes(ca.initialRisk?.l)?ca.initialRisk.l:'C';
+          return{id:uid(),text:ca.text||'',recommendations:[],
+            initialRisk:{s,l,cat:getRisk(s,l)},residualRisk:null,
+            consequences:(ca.consequences||[]).map(cn=>({id:uid(),
+              text:typeof cn==='string'?cn:(cn.text||''),
+              safeguards:(cn.safeguards||[]).map(sg=>({id:uid(),text:typeof sg==='string'?sg:(sg.text||''),degradationFactors:[]})),
+              recommendations:[],mitigationBarriers:[]}))};
+        });
+        if(newCauses.length>0)updDev(dev.id,d=>({...d,causes:[...(d.causes||[]),...newCauses]}));
+      }catch(e){setAutoMsg('Stopped at '+devLabel+': '+(e.message||'AI error')+' — completed items are kept. Run again to continue.');setAutoBusy(false);return;}
+    }
+    setAutoMsg('');setAutoBusy(false);
+  };
+
   return(
     <>
     <div className="main" style={{display:'flex',flex:1,overflow:'hidden'}}>
@@ -1519,6 +1653,13 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
             {nodes.map(n=><option key={n.id} value={n.id}>{n.name||'Unnamed'}</option>)}
           </select>
           {activeNodeId&&<button className="btn btn-primary" style={{marginTop:8,width:'100%',fontSize:12,justifyContent:'center'}} onClick={addDev}>+ Add Deviation</button>}
+          {/* ── R2S-ENH: auto-populate button ── */}
+          {activeNodeId&&nodeDevs.length>0&&(
+            <button className="btn btn-ai" style={{marginTop:6,width:'100%',fontSize:11,justifyContent:'center'}} disabled={autoBusy} onClick={autoPopulateNode}>
+              {autoBusy?<><span className="spin">⟳</span> Populating…</>:<>⚡ Auto-populate C&amp;C + Risk (AI)</>}
+            </button>
+          )}
+          {autoMsg&&<div style={{marginTop:6,fontSize:10,color:'#93c5fd',background:'#0a1428',padding:'5px 8px',borderRadius:4,lineHeight:1.4}}>{autoMsg}</div>}
         </div>
         {activeNodeId&&nodeDevs.map((d,i)=>{
           const isActive=d.id===activeDevId;
@@ -1698,6 +1839,15 @@ const MatrixView=({deviations,nodes,activeNodeId})=>{
           </div>
         ))}
       </div>
+      {/* ── R2S-ENH: study-level ALARP gate banner ── */}
+      {(()=>{
+        const notAlarp=allCauses.filter(causeNotAlarp).length;
+        return notAlarp>0?(
+          <div style={{marginBottom:20,padding:'10px 14px',borderRadius:6,background:'#450a0a',border:'1px solid #ef4444',color:'#fca5a5',fontSize:12,fontWeight:700}}>
+            ⚠ ALARP GATE: {notAlarp} HIGH-risk cause{notAlarp!==1?'s':''} (CAT 1/2) without recommendations — risk reduction is mandatory before study close-out. Open the Worksheet to add recommendations.
+          </div>
+        ):null;
+      })()}
       <CoverageMatrix nodeDevs={nodeDevs}/>
       <MatrixPicker sel={null} onPick={()=>{}} label="Corporate Risk Matrix 6×6"/>
       <div style={{marginTop:24}}>
@@ -3054,6 +3204,29 @@ const App=()=>{
   const clearAll=()=>{if(window.confirm('Clear all study data? This cannot be undone.')){setStudy(INIT_STUDY);setAppState({nodes:[],deviations:[],activeNodeId:null,activeDevId:null,bowties:{}});localStorage.removeItem('hazop_study_data');}};
   const saveKey=()=>{localStorage.setItem('hazop_api_key',apiKey);localStorage.setItem('hazop_ai_model',aiModel);setShowApiPanel(false);};
 
+  /* ── R2S-ENH: portable project file save / load ── */
+  const projFileRef=useRef(null);
+  const exportProject=()=>{
+    const data={app:'Risk2Safe-HAZoP',version:2,study:{...study,documents:[]},nodes,deviations,bowties:appState.bowties};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=((study.docRef||study.projectName||'HAZOP_study').replace(/\s+/g,'_'))+'_Rev'+(study.revision||'0')+'.hazop.json';
+    a.click();
+  };
+  const importProject=e=>{
+    const f=e.target.files&&e.target.files[0];if(!f)return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      try{
+        const d=JSON.parse(rd.result);
+        setStudy({...INIT_STUDY,...(d.study||{})});
+        setAppState(s=>({...s,nodes:d.nodes||[],deviations:d.deviations||[],bowties:d.bowties||{},activeNodeId:null,activeDevId:null}));
+      }catch(err){alert('Could not read file — expected a .hazop.json exported from this app.');}
+    };
+    rd.readAsText(f);e.target.value='';
+  };
+
   const openCount=deviations.filter(d=>d.status==='Open').length;
   const highCount=deviations.filter(d=>{try{const nd=normalizeDev(d);return nd.causes.some(c=>c.initialRisk&&[1,2].includes(c.initialRisk.cat));}catch{return false;}}).length;
 
@@ -3070,6 +3243,10 @@ const App=()=>{
         <div style={{display:'flex',gap:8,alignItems:'center',flexShrink:0}}>
           {highCount>0&&<span className="badge badge-high">▲ {highCount} HIGH</span>}
           {openCount>0&&<span className="badge badge-open">{openCount} OPEN</span>}
+          {/* ── R2S-ENH: project save / open ── */}
+          <button className="btn btn-ghost" onClick={exportProject} style={{fontSize:12}}>💾 Save</button>
+          <button className="btn btn-ghost" onClick={()=>projFileRef.current&&projFileRef.current.click()} style={{fontSize:12}}>📂 Open</button>
+          <input ref={projFileRef} type="file" accept=".json" style={{display:'none'}} onChange={importProject}/>
           <button className="btn btn-ghost" onClick={()=>setShowApiPanel(v=>!v)} style={{fontSize:12}}>⚙ API</button>
           <button className="btn btn-ghost" onClick={clearAll} style={{fontSize:12,color:'#ef4444'}}>↺ Reset</button>
         </div>
@@ -3130,7 +3307,7 @@ const App=()=>{
       {/* Main content area */}
       <div style={{flex:1,display:'flex',overflow:'hidden'}}>
         {view==='setup'&&<SetupView study={study} setStudy={setStudy}/>}
-        {view==='nodes'&&<NodesView nodes={nodes} setNodes={setNodes} deviations={deviations} setDeviations={setDeviations}/>}
+        {view==='nodes'&&<NodesView nodes={nodes} setNodes={setNodes} deviations={deviations} setDeviations={setDeviations} apiKey={apiKey} aiModel={aiModel} study={study}/>}
         {view==='worksheet'&&<WorksheetView nodes={nodes} deviations={deviations} setDeviations={setDeviations} apiKey={apiKey} aiModel={aiModel} study={study}/>}
         {view==='matrix'&&<MatrixView deviations={deviations} nodes={nodes} activeNodeId={activeNodeId}/>}
         {view==='actions'&&<ActionsView deviations={deviations} nodes={nodes} activeNodeId={activeNodeId}/>}
