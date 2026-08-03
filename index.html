@@ -175,7 +175,6 @@ label{font-size:12px;color:var(--text2);display:block;margin-bottom:4px;font-wei
 <div id="root"></div>
 <script type="text/babel">
 const {useState,useCallback,useRef,useEffect,useMemo}=React;
-
 /* ─── CONSTANTS ─────────────────────────────────────── */
 const GUIDE_WORDS=['NO / NONE','MORE','LESS','AS WELL AS','PART OF','REVERSE','OTHER THAN','EARLY','LATE'];
 const PARAMETERS=['FLOW','PRESSURE','TEMPERATURE','LEVEL','COMPOSITION','CONCENTRATION','PHASE','VISCOSITY','REACTION RATE','AGITATION / MIXING','SEQUENCE','SIGNAL / CONTROL','UTILITY / SERVICE','TIME'];
@@ -184,7 +183,6 @@ const SNAMES={1:'Notable',2:'Minor',3:'Serious',4:'Major',5:'Catastrophic',6:'Di
 const SDESC={1:'Slight injuries, short-term effects, near miss',2:'Minor injuries, reversible effects, first aid',3:'Serious injuries, RIDDOR reportable, LTI',4:'Single fatality or permanent total disability',5:'Multiple fatalities (2-10), major asset damage',6:'Multiple fatalities (>10), catastrophic damage, business continuity impact'};
 const LNAMES={A:'Term',B:'Rare',C:'Unlikely',D:'Possible',E:'Likely',F:'Almost Certain'};
 const LDESC={A:"Hasn't happened in industry in last 50 years (10⁻⁶ - 10⁻⁵ /yr)",B:'Could happen in industry next 20-30 years (10⁻⁵ - 10⁻⁴ /yr)',C:'Could be incurred within a 5-10 year time frame (10⁻⁴ - 10⁻³ /yr)',D:'Could be incurred within 5 year Strategic Planning period (10⁻³ - 10⁻² /yr)',E:'Could be incurred more than once per year budget period (10⁻² - 10⁻¹ /yr)',F:'Could be incurred more than once on site (10⁻¹ - 1 /yr)'};
-
 /* Full severity impact table */
 const SDETAIL={
   6:{people:'Multiple fatalities (>10) / Widespread permanent disabilities',asset:'>= $1 Billion / Catastrophic asset loss',env:'Catastrophic irreversible environmental damage, exceeding all limits, persistent contamination',rep:'Prolonged international impact on company and industry; potential licence revocation'},
@@ -194,7 +192,6 @@ const SDETAIL={
   2:{people:'Minor injuries (first aid / RIDDOR near miss) / Temporary health effects',asset:'$100K to <$1M / Minor asset damage, short-term production impact',env:'Minor, recoverable environmental effects within site boundary',rep:'Limited local media impact; minor regulatory notification or warning'},
   1:{people:'Slight injuries / Near miss / Short-term health effects / No lost time',asset:'< $100K / Negligible damage, minimal operational impact',env:'Slight, contained environmental effects within fence area; no off-site impact',rep:'No public concern; slight internal or regulatory notice only'}
 };
-
 /* Full likelihood table */
 const LDETAIL={
   F:{qualitative:'Frequent / Almost Certain',frequency:'10⁻¹ to 1 per year',hseLikelihood:'Has occurred more than once on the site',ermCriteria:'Could be incurred more than once on the site next year'},
@@ -204,7 +201,6 @@ const LDETAIL={
   B:{qualitative:'Improbable / Rare',frequency:'10⁻⁵ to 10⁻⁴ per year',hseLikelihood:'Has occurred in world-wide industry but not in the Group',ermCriteria:'Could happen somewhere in industry in the next 20-30 years'},
   A:{qualitative:'Incredible / Term',frequency:'10⁻⁶ to 10⁻⁵ per year',hseLikelihood:'Has not occurred in world-wide industry in the last 50 years',ermCriteria:"Hasn't happened in industry in last 50 years"}
 };
-
 // Corporate 6×6 Risk Matrix — Category 1=HIGH-RED, 2=HIGH-ORG, 3=MEDIUM, 4=LOW
 const RMATRIX={
   6:{A:2,B:2,C:1,D:1,E:1,F:1},
@@ -220,7 +216,6 @@ const RDISP={
   3:{label:'MEDIUM',cat:'CAT 3',cls:'risk-3',badge:'badge-med',txt:'#fde68a',color:'#fde68a',sign:'Dept Manager / VP sign-off. Monitor & control.'},
   4:{label:'LOW',cat:'CAT 4',cls:'risk-4',badge:'badge-lo',txt:'#86efac',color:'#86efac',sign:'Line Manager sign-off. Monitor current controls.'}
 };
-
 const getRisk=(s,l)=>s&&l?RMATRIX[s]?.[l]||null:null;
 const uid=()=>Math.random().toString(36).slice(2,9);
 const today=()=>new Date().toISOString().split('T')[0];
@@ -228,21 +223,73 @@ const requireKey=()=>{
   if(!window._R2S?.key){alert('Anthropic API key not set. Click "⚙ API" in the header and enter your key (starts with sk-ant-...).');return false;}
   return true;
 };
-
 /* ── R2S-ENH: cause-level ALARP helper — CAT 1/2 initial risk demands recommendations ── */
 const causeRecCount=(cause)=>
   (Array.isArray(cause.recommendations)?cause.recommendations.length:0)+
   (cause.consequences||[]).reduce((a,cn)=>a+((cn.recommendations||[]).length),0);
 const causeNotAlarp=(cause)=>
   !!(cause.initialRisk&&cause.initialRisk.cat&&cause.initialRisk.cat<=2&&causeRecCount(cause)===0);
-
+/* ═══════════════════════════════════════════════════════════════════════
+   R2S-SCTA: Safety Critical Task Analysis constants
+   Per EI "Guidance on human factors safety critical task analysis" (2011)
+   ═══════════════════════════════════════════════════════════════════════ */
+const SCT_CATEGORIES=['Operations','Maintenance & Testing','Emergency Response','Control / Mitigation','Barrier Assurance'];
+const SCT_ROLES=['Field Operator','Control Room Operator','Supervisor','Fitter / Mechanical Technician','Instrument Technician','Lab Technician','Emergency Response Team','Contractor','Other'];
+/* EI Table 3 / Table A.4 — human failure identification guidewords */
+const HF_GUIDEWORDS=[
+  {group:'Action',color:'#f59e0b',items:[
+    ['A1','Operation too long / too short'],['A2','Operation mistimed'],['A3','Operation in wrong direction'],
+    ['A4','Operation too little / too much'],['A5','Operation too fast / too slow'],['A6','Misalign'],
+    ['A7','Right operation on wrong object'],['A8','Wrong operation on right object'],['A9','Operation omitted'],
+    ['A10','Operation incomplete'],['A11','Operation too early / too late'],['A12','Operation in wrong order'],['A13','Misplacement']]},
+  {group:'Checking',color:'#22c55e',items:[
+    ['C1','Check omitted'],['C2','Check incomplete'],['C3','Right check on wrong object'],
+    ['C4','Wrong check on right object'],['C5','Check too early / too late']]},
+  {group:'Information Retrieval',color:'#3b82f6',items:[
+    ['R1','Information not obtained'],['R2','Wrong information obtained'],['R3','Information retrieval incomplete'],
+    ['R4','Information incorrectly interpreted'],['R5','Information not available / accessible']]},
+  {group:'Communication',color:'#8b5cf6',items:[
+    ['I1','Information not communicated'],['I2','Wrong information communicated'],
+    ['I3','Information communication incomplete'],['I4','Information communication unclear']]},
+  {group:'Selection / Decision',color:'#ec4899',items:[
+    ['S1','Selection / decision omitted'],['S2','Wrong selection / decision made']]},
+  {group:'Planning',color:'#14b8a6',items:[
+    ['P1','Plan omitted'],['P2','Plan incorrect'],['P3','Plan incomplete']]},
+  {group:'Diagnosis',color:'#f97316',items:[
+    ['D1','Diagnosis not made'],['D2','Diagnosis not correct'],['D3','Diagnosis too early / too late']]},
+  {group:'Violations',color:'#ef4444',items:[
+    ['V1','Deliberate action — situational / optimising (best intentions)'],['V2','Deliberate action — shortcut to benefit self']]}
+];
+const HF_GW_LOOKUP={};
+HF_GUIDEWORDS.forEach(g=>g.items.forEach(([c,t])=>{HF_GW_LOOKUP[c]={text:t,group:g.group,color:g.color};}));
+const FAILURE_TYPES=['Slip','Lapse','Mistake','Violation'];
+/* EI Tables A.1 / A.2 — performance influencing factors (PIFs) */
+const PIF_LIST={
+  'Job / Task':['Procedures & job aids','Time available / time pressure','Task complexity','HMI / displays & controls','Tools & equipment','Access / workspace layout','Task frequency & familiarity','Workload / concurrent tasks'],
+  'Environment':['Noise','Lighting','Weather / temperature','Distractions in work area','PPE constraints'],
+  'Organisation':['Training & competency','Supervision','Communication & shift handover','Clarity of responsibility','Change management','Staffing levels','Safety culture / conflicting priorities'],
+  'People':['Fatigue / shift patterns','Stress','Multi-tasking','Capabilities / experience','Motivation / morale']
+};
+/* EI Step 6 hierarchy of risk controls (HSE Core Topic 3) */
+const SM_HIERARCHY=[
+  {tier:'1',label:'Eliminate hazard',color:'#22c55e'},
+  {tier:'2',label:'Remove human contribution (automation)',color:'#3b82f6'},
+  {tier:'3',label:'Engineered barrier (prevent / mitigate consequence)',color:'#8b5cf6'},
+  {tier:'4',label:'Assure performance (interlock / forcing function)',color:'#f59e0b'},
+  {tier:'5',label:'Optimise PIFs (procedures, training, supervision, access)',color:'#94a3b8'}
+];
+/* EI Figure 2 — consequence of human failure × level of human involvement → SCTA priority */
+const SCT_CONS_DESC={H:'A human failure could result directly in realisation of a MAH',M:'A human failure could escalate to a MAH if other barriers fail',L:'A human failure should not lead directly or indirectly to a MAH'};
+const SCT_INV_DESC={H:'Extensive human interactions with safety critical equipment / processes',M:'Mixture of human tasks and automated processes',L:'Totally automated process (but do not overlook maintenance of it)'};
+const SCT_PRIORITY={H:{H:'High',M:'High',L:'Medium'},M:{H:'High',M:'Medium',L:'Low'},L:{H:'Medium',M:'Low',L:'Low'}};
+const SCT_PRIO_STYLE={High:{color:'#fca5a5',bg:'#7f1d1d'},Medium:{color:'#fde68a',bg:'#713f12'},Low:{color:'#86efac',bg:'#14532d'}};
+const sctPriority=(cons,inv)=>cons&&inv?(SCT_PRIORITY[cons]?.[inv]||null):null;
 /* ─── COMPONENTS ─────────────────────────────────────── */
 const RiskBadge=({cat,small})=>{
   if(!cat)return<span className="badge badge-none" style={{fontSize:small?10:12}}>—</span>;
   const d=RDISP[cat];
   return<span className={`badge ${d.badge}`} style={{fontSize:small?10:12}}>{d.label} · {d.cat}</span>;
 };
-
 const MatrixPicker=({sel,onPick,label})=>{
   const rows=[6,5,4,3,2,1];
   const cols=['A','B','C','D','E','F'];
@@ -290,9 +337,7 @@ const MatrixPicker=({sel,onPick,label})=>{
     </div>
   );
 };
-
 /* ─── VIEWS ──────────────────────────────────────────── */
-
 // SETUP VIEW
 const SetupView=({study,setStudy})=>{
   const upd=(k,v)=>setStudy(s=>({...s,[k]:v}));
@@ -303,7 +348,6 @@ const SetupView=({study,setStudy})=>{
     setNewMember({name:'',role:'',dept:''});
   };
   const delMember=id=>setStudy(s=>({...s,teamMembers:s.teamMembers.filter(m=>m.id!==id)}));
-
   /* ── Session log (IEC 61882: record of sessions & attendance) ── */
   const sessions=Array.isArray(study.sessions)?study.sessions:[];
   const [newSession,setNewSession]=useState({date:today(),duration:'',attendees:'',nodesCovered:'',notes:''});
@@ -313,7 +357,6 @@ const SetupView=({study,setStudy})=>{
     setNewSession({date:today(),duration:'',attendees:'',nodesCovered:'',notes:''});
   };
   const delSession=id=>setStudy(s=>({...s,sessions:(s.sessions||[]).filter(x=>x.id!==id)}));
-
   /* ── Document upload helpers ── */
   const docs=Array.isArray(study.documents)?study.documents:[];
   const fmtSize=b=>b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(1)+' MB';
@@ -332,10 +375,8 @@ const SetupView=({study,setStudy})=>{
     a.href=doc.data;a.download=doc.name;a.click();
   };
   const delDoc=id=>upd('documents',docs.filter(d=>d.id!==id));
-
   return(
     <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:20,minHeight:0,overflowY:'auto'}}>
-
       {/* ── Project Details ── */}
       <div className="card">
         <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',letterSpacing:'0.06em',marginBottom:16,textTransform:'uppercase'}}>Study & Project Details</div>
@@ -381,14 +422,12 @@ const SetupView=({study,setStudy})=>{
           <input value="Corporate Risk Matrix 6×6 — Severity S1–S6 × Likelihood A–F" readOnly style={{color:'var(--text2)',background:'var(--bg-surface)'}}/>
         </div>
       </div>
-
       {/* ── Process Technical Details ── */}
       <div className="card">
         <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',letterSpacing:'0.06em',marginBottom:4,textTransform:'uppercase'}}>Process Technical Details</div>
         <div style={{fontSize:12,color:'var(--text3)',marginBottom:16,lineHeight:1.5}}>
           These fields provide essential process context for AI-assisted cause/consequence generation and are included in the HAZOP report.
         </div>
-
         <div className="form-group">
           <label style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{background:'#1e3a5f',color:'#3b82f6',borderRadius:4,padding:'2px 7px',fontSize:10,fontWeight:700}}>1</span>
@@ -398,7 +437,6 @@ const SetupView=({study,setStudy})=>{
             placeholder="Describe the process: what material is handled, the process objective, flow path, operating phases, and any batch or continuous nature of the operation.&#10;&#10;Example: Crude oil from the wellhead is pre-heated in E-101 before entering the three-phase separator V-101. Gas is routed to the compression system, oil to export via pump P-101, and produced water to the treatment unit."
             style={{minHeight:120,lineHeight:1.6}}/>
         </div>
-
         <div className="form-group" style={{marginTop:12}}>
           <label style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{background:'#1e3a5f',color:'#3b82f6',borderRadius:4,padding:'2px 7px',fontSize:10,fontWeight:700}}>2</span>
@@ -408,7 +446,6 @@ const SetupView=({study,setStudy})=>{
             placeholder="State the design and normal operating parameters: pressure, temperature, flow rates, fluid composition, and any significant seasonal or load variations.&#10;&#10;Example: Operating pressure: 8.5 barg. Temperature: 45–65°C. Flow: 5,000 BPD crude. H₂S: 200 ppm. CO₂: 3 mol%."
             style={{minHeight:100,lineHeight:1.6}}/>
         </div>
-
         <div className="form-group" style={{marginTop:12}}>
           <label style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{background:'#1a3324',color:'#22c55e',borderRadius:4,padding:'2px 7px',fontSize:10,fontWeight:700}}>3</span>
@@ -418,7 +455,6 @@ const SetupView=({study,setStudy})=>{
             placeholder="Describe the control philosophy and key control loops: BPCS loops, interlock logic (ESD/F&G), DCS control strategies, and alarm management tiers.&#10;&#10;Example: BPCS controls separator level via LV-101. High-high level initiates ESD via SIS logic solver (SIL 2). F&G system triggers deluge on confirmed gas/fire detection."
             style={{minHeight:100,lineHeight:1.6}}/>
         </div>
-
         <div className="form-group" style={{marginTop:12}}>
           <label style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{background:'#1a3324',color:'#22c55e',borderRadius:4,padding:'2px 7px',fontSize:10,fontWeight:700}}>4</span>
@@ -428,7 +464,6 @@ const SetupView=({study,setStudy})=>{
             placeholder="List the independent protection layers and safety devices: PSVs, BDVs, check valves, ESD valves, rupture discs, deluge systems, F&G detectors, etc.&#10;&#10;Example: PSV-101 set at 12 barg on V-101. ESDV-102 on crude outlet. Flame detector FD-201 coverage of pump area. HIPPS on import riser rated SIL 3."
             style={{minHeight:100,lineHeight:1.6}}/>
         </div>
-
         <div className="form-group" style={{marginTop:12}}>
           <label style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{background:'#2d1f5e',color:'#a78bfa',borderRadius:4,padding:'2px 7px',fontSize:10,fontWeight:700}}>5</span>
@@ -439,14 +474,30 @@ const SetupView=({study,setStudy})=>{
             style={{minHeight:100,lineHeight:1.6}}/>
         </div>
       </div>
-
+      {/* ── R2S-SCTA: SCTA scope & definition (EI SCTA §2.3 — define what counts as an SCT) ── */}
+      <div className="card" style={{border:'1px solid #f59e0b44'}}>
+        <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'#fbbf24',letterSpacing:'0.06em',marginBottom:4,textTransform:'uppercase'}}>👤 Safety Critical Task Analysis (SCTA) Scope</div>
+        <div style={{fontSize:12,color:'var(--text3)',marginBottom:14,lineHeight:1.5}}>
+          Per EI <em>Guidance on human factors safety critical task analysis</em> (2011) §2.3, the team must define what counts as a Safety Critical Task before identification begins — not all tasks are safety critical. Flag human-task causes in the Worksheet (👤 toggle on each cause) and manage the resulting SCT register in the <strong style={{color:'#fbbf24'}}>SCTA</strong> tab.
+        </div>
+        <div className="form-group">
+          <label>SCT Definition &amp; Scope Agreed by Team</label>
+          <textarea value={study.sctDefinition||''} onChange={e=>upd('sctDefinition',e.target.value)}
+            placeholder="Define what this study treats as a Safety Critical Task, e.g.:&#10;A task is safety critical if human failure during the task could initiate, escalate, or fail to control/mitigate a Major Accident Hazard. Scope covers routine operations, maintenance interventions, barrier testing/reinstatement, shift handover and emergency response. Supporting tasks (standards approval, scheduling) are excluded from this phase."
+            style={{minHeight:90,lineHeight:1.6}}/>
+        </div>
+        <div className="form-group" style={{marginTop:10}}>
+          <label>Human Factors / Operations Representation on Team</label>
+          <input value={study.hfRepresentative||''} onChange={e=>upd('hfRepresentative',e.target.value)}
+            placeholder="Name / role of the HF specialist or experienced operations representative supporting the SCTA (EI §2.6.1 group-based approach)"/>
+        </div>
+      </div>
       {/* ── Reference Documents & P&ID Upload ── */}
       <div className="card">
         <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',letterSpacing:'0.06em',marginBottom:4,textTransform:'uppercase'}}>Reference Documents</div>
         <div style={{fontSize:12,color:'var(--text3)',marginBottom:16,lineHeight:1.5}}>
           Upload P&IDs, PFDs, datasheets, and other reference documents (max 15 MB each). <strong style={{color:'var(--accent2)'}}>Documents are held for this browser session only and are not saved after refresh</strong> — record the P&amp;ID revision basis above so the study record stays traceable.
         </div>
-
         {/* Upload button */}
         <div style={{display:'flex',gap:10,alignItems:'center',marginBottom:14,flexWrap:'wrap'}}>
           <label style={{display:'inline-flex',alignItems:'center',gap:8,padding:'9px 18px',borderRadius:6,
@@ -460,7 +511,6 @@ const SetupView=({study,setStudy})=>{
             Accepted: PDF, images, DWG, DXF, Office files · Max 15 MB per file
           </div>
         </div>
-
         {/* Document list */}
         {docs.length===0?(
           <div style={{textAlign:'center',padding:'28px 0',color:'var(--text3)',fontSize:12,
@@ -499,7 +549,6 @@ const SetupView=({study,setStudy})=>{
           </div>
         )}
       </div>
-
       {/* ── HAZOP Team ── */}
       <div className="card">
         <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',letterSpacing:'0.06em',marginBottom:16,textTransform:'uppercase'}}>HAZOP Team Members</div>
@@ -527,7 +576,6 @@ const SetupView=({study,setStudy})=>{
           </table>
         }
       </div>
-
       {/* ── Session & Attendance Log (IEC 61882 record requirement) ── */}
       <div className="card">
         <div style={{fontSize:15,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',letterSpacing:'0.06em',marginBottom:4,textTransform:'uppercase'}}>Session &amp; Attendance Log</div>
@@ -561,13 +609,11 @@ const SetupView=({study,setStudy})=>{
     </div>
   );
 };
-
 // ── NODE MANAGER ─────────────────────────────────────────────────────
 const NodesView=({nodes,setNodes,deviations,setDeviations,apiKey,aiModel,study})=>{
   const [form,setForm]=useState({name:'',type:'Pipe',description:'',designIntent:'',fluid:'',conditions:''});
   const add=()=>{if(!form.name.trim())return;setNodes(n=>[...n,{...form,id:uid()}]);setForm({name:'',type:'Pipe',description:'',designIntent:'',fluid:'',conditions:''});};
   const del=id=>{if(!window.confirm('Delete this node and all its deviations?'))return;setNodes(n=>n.filter(x=>x.id!==id));setDeviations(d=>d.filter(x=>x.nodeId!==id));};
-
   /* ── R2S-ENH: AI pipeline — extract nodes & generate deviations ── */
   const [aiBusy,setAiBusy]=useState('');
   const [aiErr,setAiErr]=useState('');
@@ -615,7 +661,6 @@ const NodesView=({nodes,setNodes,deviations,setDeviations,apiKey,aiModel,study})
     }catch(e){if(e.message!=='no-key')setAiErr(e.message||'Deviation generation failed.');}
     setAiBusy('');
   };
-
   return(
     <div className="scrollable" style={{flex:1,padding:20,display:'flex',flexDirection:'column',gap:16,overflowY:'auto'}}>
       {/* ── R2S-ENH: AI node extraction card ── */}
@@ -633,7 +678,6 @@ const NodesView=({nodes,setNodes,deviations,setDeviations,apiKey,aiModel,study})
         </div>
         {aiErr&&<div style={{marginTop:8,fontSize:11,color:'#fca5a5',background:'#2d0a0a',padding:'6px 10px',borderRadius:4}}>{aiErr}</div>}
       </div>
-
       <div className="card">
         <div style={{fontSize:14,fontFamily:'var(--disp)',fontWeight:700,color:'var(--accent)',marginBottom:14,textTransform:'uppercase',letterSpacing:'0.06em'}}>Add Study Node / Section</div>
         <div className="form-row form-row-2">
@@ -682,7 +726,6 @@ const NodesView=({nodes,setNodes,deviations,setDeviations,apiKey,aiModel,study})
     </div>
   );
 };
-
 // ── DATA NORMALIZATION ────────────────────────────────────────────────
 const normalizeRec=r=>typeof r==='string'?{id:uid(),text:r,actionOwner:'',targetDate:'',status:'Open',degradationFactors:[]}:{id:uid(),text:'',actionOwner:'',targetDate:'',status:'Open',degradationFactors:[],...r};
 const normalizeDev=dev=>{
@@ -721,7 +764,6 @@ const normalizeDev=dev=>{
   }
   return{...old,causes:newCauses};
 };
-
 /* ── JSON repair utility ── */
 const repairJSON=(raw)=>{
   let s=(raw||'').replace(/```json|```/g,'').trim();
@@ -737,10 +779,8 @@ const repairJSON=(raw)=>{
   for(let i=0;i<braces;i++)s+='}';
   try{return JSON.parse(s);}catch(e){throw new Error('Could not parse AI response. Try again.');}
 };
-
 /* ── Global AI context (set by WorksheetView) ── */
 window._R2S={key:'',model:'claude-sonnet-4-6',nodeName:'',deviation:'',fluid:''};
-
 /* ── AI suggest degradation factors + controls ── */
 const suggestDFsAI=async(barrierText,existingDFs)=>{
   const ctx=window._R2S||{};
@@ -761,7 +801,6 @@ const suggestDFsAI=async(barrierText,existingDFs)=>{
     }));
   }catch(e){alert('AI suggestion failed: '+(e.message||'unknown error'));return[];}
 };
-
 /* ── AI suggest recommendations (cause + consequence context) ── */
 const suggestRecsAI=async(causeText,conText,sgTexts,existingRecs)=>{
   const ctx=window._R2S||{};
@@ -785,7 +824,6 @@ const suggestRecsAI=async(causeText,conText,sgTexts,existingRecs)=>{
     }));
   }catch(e){alert('AI suggestion failed: '+(e.message||'unknown error'));return[];}
 };
-
 /* ── Barrier types (shared HAZOP + BowTie) ── */
 const BARRIER_TYPES={
   Engineering:  {label:'Engineering',  color:'#3b82f6',bg:'#1e3a5f',icon:'⚙'},
@@ -793,7 +831,6 @@ const BARRIER_TYPES={
   Administrative:{label:'Administrative',color:'#f59e0b',bg:'#451a03',icon:'📋'},
   PPE:          {label:'PPE',          color:'#22c55e',bg:'#064e3b',icon:'🦺'},
 };
-
 /* ── Degradation Factor + Control editor ── */
 const DegradationEditor=({factors,onChange})=>{
   const addFactor=()=>onChange([...factors,{id:uid(),text:'',controls:[]}]);
@@ -832,7 +869,6 @@ const DegradationEditor=({factors,onChange})=>{
     </div>
   );
 };
-
 /* ── SafeguardCard — prevention barrier with DFs + AI suggest ── */
 const SafeguardCard=({sg,onUpdate,onDelete})=>{
   const sgObj=typeof sg==='string'?{id:uid(),text:sg,degradationFactors:[]}:sg;
@@ -864,7 +900,6 @@ const SafeguardCard=({sg,onUpdate,onDelete})=>{
     </div>
   );
 };
-
 /* ── MitBarrierCard — mitigation barrier with type, DFs + AI suggest ── */
 const MitBarrierCard=({mb,onUpdate,onDelete})=>{
   const tc=BARRIER_TYPES[mb.type]||BARRIER_TYPES.Engineering;
@@ -901,7 +936,6 @@ const MitBarrierCard=({mb,onUpdate,onDelete})=>{
     </div>
   );
 };
-
 /* ── MitBarrierSection — editable list of mitigation barriers ── */
 const MitBarrierSection=({barriers,onChange})=>{
   const add=()=>onChange([...barriers,{id:uid(),text:'',type:'Engineering',degradationFactors:[]}]);
@@ -923,7 +957,6 @@ const MitBarrierSection=({barriers,onChange})=>{
     </div>
   );
 };
-
 /* ── MiniMatrixPicker — compact 6×6 for worksheet ── */
 const MiniMatrixPicker=({sel,onPick,label})=>{
   const [showLegend,setShowLegend]=useState(false);
@@ -979,7 +1012,6 @@ const MiniMatrixPicker=({sel,onPick,label})=>{
     </div>
   );
 };
-
 /* ── Recommendation status chip ── */
 const REC_STATUS_STYLE={
   'Open':{color:'#fde68a',bg:'#713f12'},
@@ -991,7 +1023,6 @@ const RecStatusChip=({status})=>{
   const s=REC_STATUS_STYLE[status||'Open']||REC_STATUS_STYLE.Open;
   return<span style={{fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,background:s.bg,color:s.color,letterSpacing:'0.03em'}}>{status||'Open'}</span>;
 };
-
 /* ── RecCard — recommendation with status, DFs + AI suggest (consequence-level) ── */
 const RecCard=({rec,onUpdate,onDelete})=>{
   const [editMode,setEditMode]=useState(false);
@@ -1063,7 +1094,6 @@ const RecCard=({rec,onUpdate,onDelete})=>{
     </div>
   );
 };
-
 const RecEntry=({rec,onEdit,onDel})=>{
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState(rec);
@@ -1099,7 +1129,6 @@ const RecEntry=({rec,onEdit,onDel})=>{
     </div>
   );
 };
-
 const RecList=({recs,label,emptyMsg,color,onAdd,onEdit,onDel})=>{
   const [draft,setDraft]=useState({text:'',actionOwner:'',targetDate:'',status:'Open'});
   const [adding,setAdding]=useState(false);
@@ -1130,7 +1159,6 @@ const RecList=({recs,label,emptyMsg,color,onAdd,onEdit,onDel})=>{
     </div>
   );
 };
-
 /* ── InlineEdit ── */
 const InlineEdit=({value,onChange,placeholder,multiline,style,textStyle})=>{
   const [edit,setEdit]=useState(false);
@@ -1149,7 +1177,6 @@ const InlineEdit=({value,onChange,placeholder,multiline,style,textStyle})=>{
     </div>
   );
 };
-
 // ── Consequence block ─────────────────────────────────────────────────
 const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,onSgDel,onSgUpdate,onRecAdd,onRecEdit,onRecDel,onMitUpdate,devSafeguards,devRecs,causeText})=>{
   const safeguards=Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[{id:'sg0',text:con.safeguard,degradationFactors:[]}]:[]);
@@ -1165,7 +1192,6 @@ const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,
     setRecsAiLoading(false);
   };
   const conSgUpdateRef=(devId,cid,conId,sgId,updated)=>{if(onSgUpdate)onSgUpdate(devId,cid,conId,sgId,updated);};
-
   // Safeguards from other consequences (for picker), excluding ones already added here
   const existingSgTexts=new Set(safeguards.map(s=>(s.text||'').trim().toLowerCase()));
   const pickerSgs=(devSafeguards||[]).filter(s=>s.text&&!existingSgTexts.has(s.text.trim().toLowerCase()));
@@ -1174,7 +1200,6 @@ const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,
   const pickerRecs=(devRecs||[]).filter(r=>r.text&&!existingRecTexts.has(r.text.trim().toLowerCase()));
   // Detect shared safeguards (same text in other consequences)
   const sharedSgTexts=new Set((devSafeguards||[]).map(s=>(s.text||'').trim().toLowerCase()).filter(Boolean));
-
   return(
     <div style={{marginBottom:8,borderRadius:8,overflow:'hidden',border:'1px solid #ef444444',background:'var(--bg-surface)'}}>
       <div style={{display:'flex',gap:8,padding:'8px 12px',background:'#1a0505',alignItems:'flex-start',borderBottom:'1px solid #7f1d1d'}}>
@@ -1184,7 +1209,6 @@ const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,
           style={{flex:1,fontSize:12,resize:'vertical',background:'transparent',border:'none',color:'var(--text1)',outline:'none',padding:0,lineHeight:1.5}}/>
         <button onClick={()=>onDelete(devId,cid,con.id)} style={{width:20,height:20,borderRadius:3,cursor:'pointer',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',background:'transparent',color:'#ef4444',border:'1px solid #ef444455',flexShrink:0,marginTop:1}}>✕</button>
       </div>
-
       {/* ── Safeguards section ── */}
       <div style={{padding:'8px 12px',background:'#071408',borderBottom:'1px solid #1a3324'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
@@ -1231,7 +1255,6 @@ const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,
           );
         })}
       </div>
-
       {/* ── Recommendations section ── */}
       <div style={{padding:'8px 12px',background:'#030b1a'}}>
         {pickerRecs.length>0&&(
@@ -1286,7 +1309,6 @@ const ConBlock=({con,conIdx,causeIdx,devIdx,devId,cid,onUpdate,onDelete,onSgAdd,
     </div>
   );
 };
-
 // ── Cause card ────────────────────────────────────────────────────────
 const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConAdd,onConUpdate,onConDelete,onSgAdd,onSgDel,onSgUpdate,onConRecAdd,onConRecEdit,onConRecDel,onSetRisk,onRecAdd,onRecEdit,onRecDel,onConMitUpdate,devSafeguards,devRecs})=>{
   const [open,setOpen]=useState(true);
@@ -1300,6 +1322,10 @@ const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConA
             placeholder="Describe the cause…" multiline
             textStyle={{fontSize:12,color:'var(--text1)'}}/>
         </div>
+        {cause.humanTask&&cause.humanTask.enabled&&(
+          <span style={{fontSize:9,fontWeight:800,color:'#fbbf24',background:'#451a03',padding:'2px 6px',borderRadius:3,flexShrink:0,marginTop:2,letterSpacing:'0.04em'}}
+            title="Flagged as a Safety Critical Task — analysed in the SCTA tab">👤 SCT</span>
+        )}
         <span style={{color:'var(--text3)',fontSize:12,flexShrink:0,marginTop:2}}>{open?'▾':'▸'}</span>
         <button onClick={e=>{e.stopPropagation();onCauseDelete(devId,cause.id);}} style={{width:20,height:20,borderRadius:3,cursor:'pointer',fontSize:11,display:'flex',alignItems:'center',justifyContent:'center',background:'transparent',color:'#ef4444',border:'1px solid #ef444455',flexShrink:0}} title="Delete cause">✕</button>
       </div>
@@ -1316,7 +1342,6 @@ const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConA
               causeText={cause.text}/>
           ))}
           <button onClick={()=>onConAdd(devId,cause.id)} style={{fontSize:11,padding:'6px 12px',borderRadius:4,cursor:'pointer',background:'#1a0505',color:'#fca5a5',border:'1px dashed #ef444466',fontWeight:600,alignSelf:'flex-start'}}>+ Add Consequence</button>
-
           {/* ── R2S-ENH: ALARP gate — CAT 1/2 initial risk requires recommendations ── */}
           {(()=>{
             const cat=cause.initialRisk&&cause.initialRisk.cat;
@@ -1331,7 +1356,6 @@ const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConA
               </div>);
             return null;
           })()}
-
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:4}}>
             <div><div style={{fontSize:10,color:'var(--text2)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:8}}>Initial Risk</div>
               <MiniMatrixPicker sel={cause.initialRisk} onPick={r=>onSetRisk(devId,cause.id,'initialRisk',r)} label=""/>
@@ -1347,12 +1371,64 @@ const CauseCard=({cause,causeIdx,devId,devIdx,onCauseUpdate,onCauseDelete,onConA
               onEdit={(i,u)=>onRecEdit(devId,cause.id,i,u)}
               onDel={i=>onRecDel(devId,cause.id,i)}/>
           </div>
+          {/* ── R2S-SCTA: human task tagging — EI SCTA Step 2 (identify SCTs from HAZOP causes) ── */}
+          {(()=>{
+            const ht=cause.humanTask||{};
+            const updHT=p=>onCauseUpdate(devId,cause.id,{humanTask:{enabled:false,taskName:'',category:'Operations',role:'',procedureRef:'',...ht,...p}});
+            return(
+              <div style={{borderRadius:6,border:'1px solid '+(ht.enabled?'#f59e0b77':'var(--border)'),background:ht.enabled?'#150c00':'var(--bg-card)',overflow:'hidden'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,padding:'7px 10px',cursor:'pointer',userSelect:'none'}}
+                  onClick={()=>updHT({enabled:!ht.enabled})}>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:700,color:ht.enabled?'#fbbf24':'var(--text2)'}}>👤 Human Task Involved — flag for SCTA</div>
+                    <div style={{fontSize:9,color:'var(--text3)',marginTop:1}}>EI SCTA Step 2: a human operational / maintenance / response task contributes to this cause. Flagged causes build the SCT Register in the SCTA tab.</div>
+                  </div>
+                  <div style={{width:28,height:16,borderRadius:8,background:ht.enabled?'#f59e0b':'var(--border)',position:'relative',flexShrink:0}}>
+                    <div style={{width:12,height:12,borderRadius:6,background:'#fff',position:'absolute',top:2,left:ht.enabled?14:2,transition:'all 0.2s'}}/>
+                  </div>
+                </div>
+                {ht.enabled&&(
+                  <div style={{padding:'8px 10px',borderTop:'1px solid #f59e0b33',display:'flex',flexDirection:'column',gap:6}}>
+                    <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:6}}>
+                      <div>
+                        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Task (verb-first)</div>
+                        <input value={ht.taskName||''} onChange={e=>updHT({taskName:e.target.value})}
+                          placeholder="e.g. Isolate and depressurise pump P-101 for maintenance" style={{fontSize:11,padding:'4px 7px'}}/>
+                      </div>
+                      <div>
+                        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Task Category</div>
+                        <select value={ht.category||'Operations'} onChange={e=>updHT({category:e.target.value})} style={{fontSize:11,padding:'4px 7px'}}>
+                          {SCT_CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                      <div>
+                        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Role / Job</div>
+                        <select value={ht.role||''} onChange={e=>updHT({role:e.target.value})} style={{fontSize:11,padding:'4px 7px'}}>
+                          <option value="">— select role —</option>
+                          {SCT_ROLES.map(r=><option key={r}>{r}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Procedure Ref.</div>
+                        <input value={ht.procedureRef||''} onChange={e=>updHT({procedureRef:e.target.value})}
+                          placeholder="e.g. OPS-101, PTW required" style={{fontSize:11,padding:'4px 7px'}}/>
+                      </div>
+                    </div>
+                    <div style={{fontSize:9,color:'#fbbf24',background:'#451a0355',padding:'4px 8px',borderRadius:3}}>
+                      ➜ Open the <strong>SCTA</strong> tab to screen criticality (EI Fig 2) and run the Human HAZOP analysis on this task.
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
   );
 };
-
 // ── NodeRecsPanel ─────────────────────────────────────────────────────
 const NodeRecsPanel=({devs,nodeId})=>{
   const allRecs=[];
@@ -1387,7 +1463,6 @@ const NodeRecsPanel=({devs,nodeId})=>{
     </table>
   );
 };
-
 // ── CCSuggestPanel — AI C&C suggestions ──────────────────────────────
 const CCSuggestPanel=({node,dev,study,apiKey,aiModel,onAdd,onClose})=>{
   const [loading,setLoading]=useState(true);
@@ -1471,18 +1546,15 @@ const CCSuggestPanel=({node,dev,study,apiKey,aiModel,onAdd,onClose})=>{
     </div>
   );
 };
-
 // ── WorksheetView ──────────────────────────────────────────────────────
 const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
   const [activeNodeId,setActiveNodeId]=useState(nodes[0]?.id||null);
   const [activeDevId,setActiveDevId]=useState(null);
   const [showSuggest,setShowSuggest]=useState(false);
-
   const activeNode=nodes.find(n=>n.id===activeNodeId);
   const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
   const activeDev=deviations.find(d=>d.id===activeDevId);
   const nd=activeDev?normalizeDev(activeDev):null;
-
   // Set global context for AI suggest in child components
   window._R2S={
     key:apiKey||'',
@@ -1491,11 +1563,9 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
     deviation:activeDev?.deviation||((activeDev?.guideWord||'')+' '+(activeDev?.parameter||'')),
     fluid:activeNode?.fluid||''
   };
-
   const activeDev2=useMemo(()=>{
     return activeDev?normalizeDev(activeDev):null;
   },[activeDev]);
-
   // CRUD helpers
   const updDev=(devId,fn)=>setDeviations(ds=>ds.map(d=>d.id===devId?fn(d):d));
   const addCause=(devId)=>updDev(devId,d=>({...d,causes:[...(d.causes||[]),{id:uid(),text:'',recommendations:[],initialRisk:null,residualRisk:null,consequences:[]}]}));
@@ -1564,7 +1634,6 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
   const causeRecAdd=(devId,cid,rec)=>updDev(devId,d=>({...d,causes:(d.causes||[]).map(c=>c.id===cid?{...c,recommendations:[...(c.recommendations||[]),{id:uid(),status:'Open',...rec}]}:c)}));
   const causeRecEdit=(devId,cid,i,updated)=>updDev(devId,d=>({...d,causes:(d.causes||[]).map(c=>c.id===cid?{...c,recommendations:(c.recommendations||[]).map((r,j)=>j===i?{...r,...updated}:r)}:c)}));
   const causeRecDel=(devId,cid,i)=>updDev(devId,d=>({...d,causes:(d.causes||[]).map(c=>c.id===cid?{...c,recommendations:(c.recommendations||[]).filter((_,j)=>j!==i)}:c)}));
-
   // Unique safeguards & recs across all consequences in active deviation (for pickers)
   const devSafeguards=useMemo(()=>{
     if(!nd)return[];
@@ -1588,7 +1657,6 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
     }));
     return[...seen.values()];
   },[activeDev]);
-
   const addCCsFromSuggest=(causesArr)=>{
     if(!activeDevId)return;
     const newCauses=(causesArr||[]).map(ca=>({
@@ -1599,7 +1667,6 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
     }));
     updDev(activeDevId,d=>({...d,causes:[...(d.causes||[]),...newCauses]}));
   };
-
   /* ── R2S-ENH: one-click auto-populate — C&C + safeguards + initial risk for every empty deviation ── */
   const [autoBusy,setAutoBusy]=useState(false);
   const [autoMsg,setAutoMsg]=useState('');
@@ -1640,7 +1707,6 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
     }
     setAutoMsg('');setAutoBusy(false);
   };
-
   return(
     <>
     <div className="main" style={{display:'flex',flex:1,overflow:'hidden'}}>
@@ -1682,7 +1748,6 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
         })}
         {activeNodeId&&nodeDevs.length===0&&<div style={{padding:'16px 12px',color:'var(--text3)',fontSize:12,textAlign:'center'}}>No deviations yet. Click + Add Deviation to start.</div>}
       </div>
-
       {/* Main content */}
       {!activeDev2?(
         <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12,color:'var(--text3)'}}>
@@ -1731,7 +1796,6 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
                 </button>
               </div>
             </div>
-
             {/* CAUSES → CONSEQUENCES & SAFEGUARDS */}
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
               <div style={{fontFamily:'var(--disp)',fontSize:12,fontWeight:700,color:'var(--text2)',textTransform:'uppercase',letterSpacing:'0.06em'}}>
@@ -1772,7 +1836,6 @@ const WorksheetView=({nodes,deviations,setDeviations,apiKey,aiModel,study})=>{
     </>
   );
 };
-
 // ── Guide Word × Parameter coverage matrix (IEC 61882 completeness check) ──
 const CoverageMatrix=({nodeDevs})=>{
   const covered=new Set(nodeDevs.map(d=>((d.guideWord||'').trim()+'|'+(d.parameter||'').trim())));
@@ -1818,7 +1881,6 @@ const CoverageMatrix=({nodeDevs})=>{
     </div>
   );
 };
-
 // RISK MATRIX OVERVIEW
 const MatrixView=({deviations,nodes,activeNodeId})=>{
   const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
@@ -1868,7 +1930,6 @@ const MatrixView=({deviations,nodes,activeNodeId})=>{
     </div>
   );
 };
-
 // ACTIONS VIEW
 const ActionsView=({deviations,nodes,activeNodeId})=>{
   const toRec=r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:'',status:'Open'}:{status:'Open',...r};
@@ -1939,12 +2000,10 @@ const ActionsView=({deviations,nodes,activeNodeId})=>{
     </div>
   );
 };
-
 // REPORT VIEW
 const ReportView=({study,nodes,deviations,activeNodeId})=>{
   const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
   const activeNode=nodes.find(n=>n.id===activeNodeId);
-
   const buildRows=()=>{
     const rows=[];
     nodeDevs.forEach(dev=>{
@@ -1956,13 +2015,12 @@ const ReportView=({study,nodes,deviations,activeNodeId})=>{
           const sgs=(Array.isArray(con.safeguards)?con.safeguards:(con.safeguard?[{text:con.safeguard}]:[])).map(s=>typeof s==='string'?s:(s?.text||'')).filter(Boolean);
           const mbs=(Array.isArray(con.mitigationBarriers)?con.mitigationBarriers:[]).filter(m=>m&&m.text);
           const allRecs=[...(c.recommendations||[]).map(r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:'',status:'Open'}:{status:'Open',...r}),...(con.recommendations||[]).map(r=>typeof r==='string'?{text:r,actionOwner:'',targetDate:'',status:'Open'}:{status:'Open',...r})];
-          rows.push({ref:'C'+(ci+1)+'.'+(qi+1),deviation:devLabel,causeRef:'C'+(ci+1),causeText:c.text,conText:con.text,safeguards:sgs,mitigation:mbs.map(m=>m.text),allRecs,initialRisk:c.initialRisk,residualRisk:c.residualRisk});
+          rows.push({ref:'C'+(ci+1)+'.'+(qi+1),deviation:devLabel,causeRef:'C'+(ci+1),causeText:c.text,conText:con.text,safeguards:sgs,mitigation:mbs.map(m=>m.text),allRecs,initialRisk:c.initialRisk,residualRisk:c.residualRisk,humanTask:c.humanTask});
         });
       });
     });
     return rows;
   };
-
   const exportExcel=()=>{
     if(typeof XLSX==='undefined'){alert('SheetJS not loaded.');return;}
     const wb=XLSX.utils.book_new();
@@ -1980,6 +2038,8 @@ const ReportView=({study,nodes,deviations,activeNodeId})=>{
       [],
       ['Scope & Objectives',study.scope||''],
       ['Assumptions & Exclusions',study.assumptions||''],
+      ['SCT Definition & Scope (SCTA)',study.sctDefinition||''],
+      ['HF / Operations Representative',study.hfRepresentative||''],
       [],
       ['TEAM MEMBERS'],['#','Name','Role','Discipline']
     ];
@@ -1990,17 +2050,18 @@ const ReportView=({study,nodes,deviations,activeNodeId})=>{
     ws0['!cols']=[{wch:24},{wch:40},{wch:28},{wch:28},{wch:28}];
     XLSX.utils.book_append_sheet(wb,ws0,'Study Info');
     /* ── Worksheet sheet ── */
-    const wsData=[['HAZOP WORKSHEET — '+(study.projectName||'Project'),'','','','','','Initial Risk','','','','Residual Risk','',''],
-      ['Facility: '+(study.facility||'')+'  Date: '+(study.date||'')+'  Rev: '+(study.revision||'0'),'','','','','','Sev','Lik','Cat','','Sev','Lik','Cat'],
-      ['Ref','Node','Deviation','Cause','Consequence','Safeguards','Sev','Lik','Cat','Recommendations','Sev','Lik','Cat']];
+    const wsData=[['HAZOP WORKSHEET — '+(study.projectName||'Project'),'','','','','','Initial Risk','','','','Residual Risk','','',''],
+      ['Facility: '+(study.facility||'')+'  Date: '+(study.date||'')+'  Rev: '+(study.revision||'0'),'','','','','','Sev','Lik','Cat','','Sev','Lik','Cat',''],
+      ['Ref','Node','Deviation','Cause','Consequence','Safeguards','Sev','Lik','Cat','Recommendations','Sev','Lik','Cat','SCT Flag']];
     buildRows().forEach(r=>{
       wsData.push([r.ref,activeNode?.name||'',r.deviation,r.causeText,r.conText,r.safeguards.join(' | '),
         r.initialRisk?'S'+r.initialRisk.s:'',r.initialRisk?r.initialRisk.l:'',r.initialRisk?RDISP[r.initialRisk.cat].label:'',
         r.allRecs.map(x=>x.text).join(' | '),
-        r.residualRisk?'S'+r.residualRisk.s:'',r.residualRisk?r.residualRisk.l:'',r.residualRisk?RDISP[r.residualRisk.cat].label:'']);
+        r.residualRisk?'S'+r.residualRisk.s:'',r.residualRisk?r.residualRisk.l:'',r.residualRisk?RDISP[r.residualRisk.cat].label:'',
+        r.humanTask&&r.humanTask.enabled?'SCT — '+(r.humanTask.taskName||''):'']);
     });
     const ws=XLSX.utils.aoa_to_sheet(wsData);
-    ws['!cols']=[{wch:8},{wch:18},{wch:22},{wch:30},{wch:30},{wch:28},{wch:5},{wch:5},{wch:8},{wch:35},{wch:5},{wch:5},{wch:8}];
+    ws['!cols']=[{wch:8},{wch:18},{wch:22},{wch:30},{wch:30},{wch:28},{wch:5},{wch:5},{wch:8},{wch:35},{wch:5},{wch:5},{wch:8},{wch:30}];
     XLSX.utils.book_append_sheet(wb,ws,'HAZOP Worksheet');
     /* ── Recommendations sheet with status ── */
     const recData=[['Ref','Deviation','Cause','Recommendation','Action Owner','Target Date','Status']];
@@ -2011,7 +2072,6 @@ const ReportView=({study,nodes,deviations,activeNodeId})=>{
     const fname='HAZOP_'+((study.projectName||'study').replace(/\s+/g,'_'))+'_'+new Date().toISOString().split('T')[0]+'.xlsx';
     XLSX.writeFile(wb,fname);
   };
-
   const rows=buildRows();
   return(
     <div style={{flex:1,overflowY:'auto',padding:20}}>
@@ -2031,7 +2091,7 @@ const ReportView=({study,nodes,deviations,activeNodeId})=>{
               <tr key={i}>
                 <td style={{fontFamily:'var(--mono)',color:'var(--accent)',fontSize:10}}>{r.ref}</td>
                 <td style={{fontSize:10,color:'var(--text3)'}}>{r.deviation}</td>
-                <td style={{color:'var(--text1)'}}>{r.causeText}</td>
+                <td style={{color:'var(--text1)'}}>{r.causeText}{r.humanTask&&r.humanTask.enabled&&<div style={{marginTop:3}}><span style={{fontSize:9,fontWeight:800,color:'#fbbf24',background:'#451a03',padding:'1px 5px',borderRadius:3}}>👤 SCT</span></div>}</td>
                 <td style={{color:'var(--text2)'}}>{r.conText}</td>
                 <td style={{color:'var(--text3)',fontSize:10}}>{r.safeguards.map((sg,si)=><div key={si}>🛡 {sg}</div>)}</td>
                 <td>{r.initialRisk?<RiskBadge cat={r.initialRisk.cat} small/>:<span style={{color:'var(--text3)'}}>—</span>}</td>
@@ -2045,7 +2105,6 @@ const ReportView=({study,nodes,deviations,activeNodeId})=>{
     </div>
   );
 };
-
 /* ═══════════════════════════════════════════════════════════════════════
    BOW TIE SVG CANVAS — consequence-centric layout
    Top Event = Consequence | Left = Cause + Prevention Barriers
@@ -2058,7 +2117,6 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
   const mitBs=barriers.filter(b=>b.side==='mitigation');
   const recBs=barriers.filter(b=>b.side==='recommendation');
   const allDFs=barriers.flatMap(b=>(b.degradationFactors||[]).map((df,dfi)=>({b,df,dfi})));
-
   // ── Layout ──────────────────────────────────────────────────────────
   const VW=1200, BW=28, BH=82, BOX_H=84;
   const CY=220;                              // main horizontal line Y
@@ -2074,7 +2132,6 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
   const DF_ZONE=allDFs.length>0?30+allDFs.length*78:0;
   const VH=CORE_H+DF_ZONE;
   const RC='#f59e0b'; // amber for recommendations
-
   const pBX=(bi,total)=>{
     if(total===0)return(PREV_START+PREV_END)/2;
     return Math.round(PREV_START+(PREV_END-PREV_START)/(total+1)*(bi+1));
@@ -2086,9 +2143,7 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
   const bCol=t=>(BARRIER_TYPES[t]||BARRIER_TYPES.Engineering).color;
   const bBg=t=>(BARRIER_TYPES[t]||BARRIER_TYPES.Engineering).bg;
   const T=(s,n)=>(s||'').substring(0,n)+((s||'').length>n?'…':'');
-
   const PC='#f59e0b', MC='#ef4444';
-
   return(
     <svg viewBox={`0 0 ${VW} ${VH}`} style={{width:'100%',height:'auto',display:'block',userSelect:'none'}}
       xmlns="http://www.w3.org/2000/svg">
@@ -2096,7 +2151,6 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
         <filter id="sce-glow2"><feGaussianBlur stdDeviation="2.5" result="b"/>
           <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
-
       {/* ── Column labels ── */}
       <text x={(CAUSE_X+CAUSE_W+PREV_END)/2} y={16} textAnchor="middle"
         fill={PC} fontSize={10} fontFamily="system-ui" fontWeight="700" opacity={0.8}>
@@ -2106,13 +2160,11 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
         fill={MC} fontSize={10} fontFamily="system-ui" fontWeight="700" opacity={0.8}>
         Mitigation Barriers
       </text>
-
       {/* ── Main horizontal line ── */}
       <line x1={CAUSE_X+CAUSE_W} y1={CY} x2={TE_CX-TE_RX} y2={CY}
         stroke={PC} strokeWidth={2.5} opacity={0.7}/>
       <line x1={TE_CX+TE_RX} y1={CY} x2={OUT_X} y2={CY}
         stroke={MC} strokeWidth={2.5} opacity={0.7}/>
-
       {/* ── Cause / Threat box ── */}
       <rect x={CAUSE_X} y={CY-BOX_H/2} width={CAUSE_W} height={BOX_H} rx={6}
         fill="#1a0b00" stroke={PC} strokeWidth={2.5}/>
@@ -2128,7 +2180,6 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
         <text x={CAUSE_X+8} y={CY-BOX_H/2+55} fill="#fcd34d" fontSize={7.5}
           fontFamily="system-ui">{T((cause?.text||'').substring(42),21)}…</text>
       )}
-
       {/* ── Prevention Barriers ── */}
       {prevBs.length===0&&(
         <text x={(PREV_START+PREV_END)/2} y={CY+4} textAnchor="middle"
@@ -2165,7 +2216,6 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
           </g>
         );
       })}
-
       {/* ── Top Event (Consequence) ellipse ── */}
       <ellipse cx={TE_CX} cy={CY} rx={TE_RX} ry={TE_RY}
         fill="#78350f" stroke="#f59e0b" strokeWidth={3}/>
@@ -2181,7 +2231,6 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
         <text x={TE_CX} y={CY+20} textAnchor="middle" fill="#fde68a"
           fontSize={8} fontFamily="system-ui">{T((activeCon.text||'').substring(44),22)}…</text>
       )}
-
       {/* ── Mitigation Barriers ── */}
       {mitBs.length===0&&(
         <text x={(MIT_START+OUT_X)/2} y={CY+4} textAnchor="middle"
@@ -2216,7 +2265,6 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
           </g>
         );
       })}
-
       {/* ── Outcome box (right) ── */}
       <rect x={OUT_X} y={CY-BOX_H/2} width={OUT_W} height={BOX_H} rx={6}
         fill="#0a1f0a" stroke={MC} strokeWidth={2}/>
@@ -2226,7 +2274,6 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
         fill="#fca5a5" fontSize={8} fontFamily="system-ui">if mitigation fails</text>
       <text x={OUT_X+OUT_W/2} y={CY+15} textAnchor="middle"
         fill="#fca5a5" fontSize={8} fontFamily="system-ui">→ Major Accident Event</text>
-
       {/* ══════════ Recommended Barriers Row ══════════ */}
       {recBs.length>0&&(
         <g>
@@ -2282,7 +2329,6 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
           })}
         </g>
       )}
-
       {/* ── Degradation Factors + Controls zone ── */}
       {allDFs.length>0&&(
         <g>
@@ -2353,7 +2399,6 @@ const BowTieSVGCanvas=({activeCon,barriers,onBarrierClick})=>{
     </svg>
   );
 };
-
 /* ═══════════════════════════════════════════════════════════════════════
    BOW TIE STUDIO — Consequence-centric view
    Select Deviation → Select Consequence → See/Edit Bow Tie
@@ -2368,28 +2413,23 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
   const [sceData,setSceData]=useState(null);
   const [analyzing,setAnalyzing]=useState(false);
   const [sceError,setSceError]=useState('');
-
   const [lopcResults,setLopcResults]=useState({});   // {conId:{classification,category,reason,priority}}
   const [lopcLoading,setLopcLoading]=useState(false);
   const [lopcError,setLopcError]=useState('');
-
   const activeNode=nodes.find(n=>n.id===activeNodeId);
   const activeDev=deviations.find(d=>d.id===activeDevId);
   const nodeDevs=deviations.filter(d=>d.nodeId===activeNodeId);
   const nd=activeDev?normalizeDev(activeDev):null;
-
   // All consequences across all causes for this deviation
   const allCons=nd?nd.causes.flatMap((c,ci)=>
     (c.consequences||[]).map((cn,qi)=>({...cn,ci,qi,cause:c}))
   ):[];
-
   // Parse active consequence
   const [activeCi,activeQi]=activeConKey?activeConKey.split('-').map(Number):[null,null];
   const activeCon=(activeCi!=null&&activeQi!=null&&nd)
     ?{...(nd.causes[activeCi]?.consequences?.[activeQi]||{}),
       ci:activeCi,qi:activeQi,cause:nd.causes[activeCi]}
     :null;
-
   // Build barriers for this consequence (safeguards=prev, mitigationBarriers=mit)
   const buildConBarriers=(con)=>{
     if(!con)return[];
@@ -2425,11 +2465,9 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
     });
     return bs;
   };
-
   const barriers=buildConBarriers(activeCon);
   const editingBarrier=barriers.find(b=>b.id===editingBarrierId)||null;
   const sceBarriers=barriers.filter(b=>b.isSCE);
-
   const updateBarrier=(updated)=>{
     if(!activeCon)return;
     const conKey=(activeCon.cause?.id||'')+'-'+(activeCon.id||'');
@@ -2437,7 +2475,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
     setState(s=>{
       // ── Update BowTie enrichment for the current barrier ──
       let newBowties={...s.bowties,[conKey]:{...(s.bowties[conKey]||{}),[updated.id]:updated}};
-
       // ── Collect ALL fields that should sync to matching barriers ──
       // isSCE, performanceStandard, scts — sync the full SCE package
       // degradationFactors — sync DFs and controls
@@ -2447,7 +2484,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
       if(updated.performanceStandard!==undefined)syncFields.performanceStandard=updated.performanceStandard;
       if(updated.scts!==undefined)syncFields.scts=updated.scts;
       if(updated.type!==undefined)syncFields.type=updated.type;
-
       // ── Sync to all barriers with same text across every consequence key ──
       if(matchText&&Object.keys(syncFields).length>0){
         Object.keys(newBowties).forEach(ck=>{
@@ -2462,7 +2498,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
           if(changed)newBowties[ck]=sync;
         });
       }
-
       // ── For recommendation barriers: write DFs back to HAZOP deviations data ──
       // Keeps worksheet RecCard in sync with BowTie editor changes
       let newDevs=s.deviations;
@@ -2482,7 +2517,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
       return{...s,bowties:newBowties,deviations:newDevs};
     });
   };
-
   // ── AI SCE/SCT Analysis ─────────────────────────────────────────────
   const analyzeForSCE=async()=>{
     if(!apiKey){setSceError('API key required — click "⚙ API" in the header.');return;}
@@ -2530,7 +2564,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
     }catch(e){setSceError(e.message);}
     finally{setAnalyzing(false);}
   };
-
   /* ── AI: Identify LOPC / hazardous event consequences ── */
   const analyzeLopc=async()=>{
     if(!apiKey){setLopcError('API key required — click "⚙ API" in the header.');return;}
@@ -2567,7 +2600,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
     }catch(e){setLopcError(e.message||'AI error.');}
     finally{setLopcLoading(false);}
   };
-
   // ── Excel Export ────────────────────────────────────────────────────
   const exportExcel=()=>{
     if(typeof XLSX==='undefined'){alert('SheetJS not loaded.');return;}
@@ -2608,7 +2640,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
     const fname='BowTie_'+((activeNode?.name||'').replace(/\s+/g,'_'))+'_'+((activeCon?.text||'con').substring(0,20).replace(/\s+/g,'_'))+'_'+new Date().toISOString().split('T')[0]+'.xlsx';
     XLSX.writeFile(wb,fname);
   };
-
   return(
     <div style={{flex:1,display:'flex',overflow:'hidden'}}>
       {/* ── Sidebar ── */}
@@ -2620,7 +2651,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
             <option value="">— Select Node —</option>
             {nodes.map(n=><option key={n.id} value={n.id}>{n.name||'Unnamed'}</option>)}
           </select>
-
           {activeNodeId&&(
             <>
               <label style={{fontSize:11,color:'var(--text2)',fontWeight:600,marginTop:6}}>Deviation</label>
@@ -2639,7 +2669,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
               </div>
             </>
           )}
-
           {activeDev&&allCons.length>0&&(
             <>
               {/* LOPC Analyse button */}
@@ -2654,7 +2683,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
                   :<>🔥 Identify LOPC / Hazardous Events</>}
               </button>
               {lopcError&&<div style={{fontSize:10,color:'#fca5a5',background:'#2d0a0a',padding:'5px 8px',borderRadius:4,marginTop:4}}>{lopcError}</div>}
-
               {/* Consequence selector — colour-coded by LOPC classification */}
               <label style={{fontSize:11,color:'#ef4444',fontWeight:700,marginTop:8,letterSpacing:'0.03em'}}>
                 Select Consequence (Top Event)
@@ -2704,14 +2732,12 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
               </div>
             </>
           )}
-
           {activeDev&&allCons.length===0&&(
             <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic',marginTop:8}}>
               No consequences in this deviation. Add them in the Worksheet first.
             </div>
           )}
         </div>
-
         {activeCon&&(
           <div style={{display:'flex',flexDirection:'column',gap:6,padding:'8px 12px',
             borderTop:'1px solid var(--border)'}}>
@@ -2759,7 +2785,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
           </div>
         )}
       </div>
-
       {/* ── Main Bow Tie Area ── */}
       <div style={{flex:1,overflowY:'auto',overflowX:'auto',padding:16,minWidth:0}}>
         {!activeCon&&(
@@ -2791,7 +2816,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
                     </div>
                   )}
                 </div>
-
                 {/* LOPC summary grid — shown after AI screening */}
                 {Object.keys(lopcResults).length>0&&(
                   <div>
@@ -2818,7 +2842,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
                         );
                       })}
                     </div>
-
                     {/* Consequence cards sorted by priority */}
                     {['LOPC','MAE','HIGH','OPTIONAL'].map(cls=>{
                       const group=allCons.filter(cn=>(lopcResults[cn.id]?.classification||'')===cls);
@@ -2894,7 +2917,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
             )}
           </div>
         )}
-
         {activeCon&&(
           <div>
             {/* Consequence header */}
@@ -2937,14 +2959,12 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
                 )}
               </div>
             </div>
-
             {/* SVG Bow Tie Canvas */}
             <div style={{overflowX:'auto'}}>
               <BowTieSVGCanvas
                 activeCon={activeCon} barriers={barriers}
                 onBarrierClick={b=>setEditingBarrierId(b.id)}/>
             </div>
-
             {/* SCE/SCT Results */}
             {sceData&&(
               <div style={{marginTop:20}}>
@@ -3003,7 +3023,6 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
           </div>
         )}
       </div>
-
       {/* Barrier Editor Panel */}
       {editingBarrier&&(
         <BarrierEditorPanel
@@ -3014,11 +3033,8 @@ const BowTieView=({state,setState,apiKey,aiModel})=>{
     </div>
   );
 };
-
-
 /* ── SCT_TYPES, SCTRow, BarrierEditorPanel ── */
 const SCT_TYPES=['Testing','Inspection','Maintenance','Calibration','Operational'];
-
 const SCTRow=({sct,idx,onChange,onDelete})=>(
   <div style={{padding:'8px 10px',background:'#0d1a0d',borderRadius:6,border:'1px solid #22c55e33',marginBottom:6}}>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
@@ -3059,7 +3075,6 @@ const SCTRow=({sct,idx,onChange,onDelete})=>(
     </div>
   </div>
 );
-
 const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
   const [b,setB]=useState(barrier);
   useEffect(()=>setB(barrier),[barrier?.id]);
@@ -3149,7 +3164,622 @@ const BarrierEditorPanel=({barrier,onUpdate,onClose})=>{
     </div>
   );
 };
-
+/* ═══════════════════════════════════════════════════════════════════════
+   R2S-SCTA: SAFETY CRITICAL TASK ANALYSIS MODULE
+   Implements the EI 7-step SCTA process on top of the HAZOP study:
+   Step 1  Main hazards        → the HAZOP nodes / deviations themselves
+   Step 2  Identify SCTs       → 👤-flagged causes + admin barriers + SCE SCTs
+   Step 2b Criticality screen  → EI Figure 2 (consequence × involvement)
+   Step 3-4 Understand/represent → verb-first task step editor
+   Step 5  Human failures+PIFs → guideword analysis (EI Table 3 / A.4) + PIFs
+   Step 6  Safety measures     → hierarchy of controls + failure-type matching
+   Step 7  Review              → register completeness banner + Excel record
+   ═══════════════════════════════════════════════════════════════════════ */
+const SctPrioBadge=({prio})=>{
+  if(!prio)return<span className="badge badge-none" style={{fontSize:10}}>not screened</span>;
+  const s=SCT_PRIO_STYLE[prio];
+  return<span style={{fontSize:10,fontWeight:800,padding:'2px 8px',borderRadius:10,background:s.bg,color:s.color,letterSpacing:'0.04em'}}>{prio.toUpperCase()}</span>;
+};
+/* ── PIF chip multi-select ── */
+const PIFSelector=({selected,onChange})=>{
+  const [open,setOpen]=useState(false);
+  const sel=Array.isArray(selected)?selected:[];
+  const toggle=p=>onChange(sel.includes(p)?sel.filter(x=>x!==p):[...sel,p]);
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+        <span style={{fontSize:9,color:'#14b8a6',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>PIFs ({sel.length})</span>
+        {sel.map(p=>(
+          <span key={p} onClick={()=>toggle(p)} title="Click to remove"
+            style={{fontSize:9,padding:'1px 7px',borderRadius:8,background:'#042f2e',color:'#5eead4',border:'1px solid #14b8a644',cursor:'pointer'}}>
+            {p} ✕
+          </span>
+        ))}
+        <button onClick={()=>setOpen(v=>!v)}
+          style={{fontSize:9,padding:'1px 7px',borderRadius:8,cursor:'pointer',background:'transparent',color:'#14b8a6',border:'1px dashed #14b8a666',fontWeight:600}}>
+          {open?'▲ close':'+ add PIF'}
+        </button>
+      </div>
+      {open&&(
+        <div style={{marginTop:6,padding:'8px 10px',background:'var(--bg-card)',borderRadius:5,border:'1px solid #14b8a633'}}>
+          {Object.entries(PIF_LIST).map(([grp,items])=>(
+            <div key={grp} style={{marginBottom:6}}>
+              <div style={{fontSize:9,fontWeight:700,color:'var(--text2)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>{grp}</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                {items.map(p=>{
+                  const on=sel.includes(p);
+                  return(
+                    <span key={p} onClick={()=>toggle(p)}
+                      style={{fontSize:9,padding:'2px 8px',borderRadius:8,cursor:'pointer',userSelect:'none',
+                        background:on?'#042f2e':'var(--bg-card2)',color:on?'#5eead4':'var(--text3)',
+                        border:'1px solid '+(on?'#14b8a6':'var(--border)')}}>
+                      {on?'✓ ':''}{p}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+/* ── Guideword picker (grouped) ── */
+const GWSelect=({value,onChange})=>(
+  <select value={value||''} onChange={e=>onChange(e.target.value)}
+    style={{fontSize:10,padding:'3px 5px',width:'100%',fontFamily:'var(--mono)'}}>
+    <option value="">— guideword —</option>
+    {HF_GUIDEWORDS.map(g=>(
+      <optgroup key={g.group} label={g.group}>
+        {g.items.map(([c,t])=><option key={c} value={c}>{c} — {t}</option>)}
+      </optgroup>
+    ))}
+  </select>
+);
+/* ── One human failure entry within a task step ── */
+const HFailureCard=({fail,onUpdate,onDelete,aiSuggestMeasures,aiBusy})=>{
+  const gw=fail.code?HF_GW_LOOKUP[fail.code]:null;
+  const measures=Array.isArray(fail.measures)?fail.measures:[];
+  const updMeasure=(i,p)=>onUpdate({measures:measures.map((m,j)=>j===i?{...m,...p}:m)});
+  const addMeasure=()=>onUpdate({measures:[...measures,{id:uid(),text:'',tier:'5',actionOwner:'',targetDate:'',status:'Open'}]});
+  const delMeasure=i=>onUpdate({measures:measures.filter((_,j)=>j!==i)});
+  return(
+    <div style={{marginBottom:8,borderRadius:6,overflow:'hidden',border:'1px solid '+((gw?.color||'#475569')+'55'),background:'var(--bg-surface)'}}>
+      {/* header: guideword + type + delete */}
+      <div style={{display:'flex',gap:6,padding:'6px 10px',background:'var(--bg-card)',alignItems:'center',borderBottom:'1px solid var(--border)'}}>
+        <span style={{fontFamily:'var(--mono)',fontSize:10,fontWeight:800,color:gw?.color||'var(--text3)',background:'var(--bg-card2)',padding:'2px 7px',borderRadius:3,flexShrink:0,border:'1px solid '+((gw?.color||'#475569')+'44')}}
+          title={gw?gw.group+': '+gw.text:''}>{fail.code||'—'}</span>
+        <div style={{width:170,flexShrink:0}}><GWSelect value={fail.code} onChange={c=>onUpdate({code:c})}/></div>
+        <select value={fail.failureType||''} onChange={e=>onUpdate({failureType:e.target.value})}
+          title="EI failure taxonomy — drives which safety measures are effective (Table 4)"
+          style={{fontSize:10,padding:'3px 5px',width:100,flexShrink:0}}>
+          <option value="">— type —</option>
+          {FAILURE_TYPES.map(t=><option key={t}>{t}</option>)}
+        </select>
+        <div style={{flex:1}}/>
+        <button onClick={onDelete} style={{fontSize:10,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'2px 4px',flexShrink:0}}>✕</button>
+      </div>
+      <div style={{padding:'8px 10px',display:'flex',flexDirection:'column',gap:6}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+          <div>
+            <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Human Failure Description</div>
+            <textarea value={fail.text||''} onChange={e=>onUpdate({text:e.target.value})} rows={2}
+              placeholder="e.g. Operator omits to close drain valve after sampling" style={{fontSize:11,lineHeight:1.4}}/>
+          </div>
+          <div>
+            <div style={{fontSize:9,color:'#ef4444',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>MAH Consequence (if no recovery)</div>
+            <textarea value={fail.consequence||''} onChange={e=>onUpdate({consequence:e.target.value})} rows={2}
+              placeholder="Ultimate credible outcome if the failure is not recovered" style={{fontSize:11,lineHeight:1.4}}/>
+          </div>
+        </div>
+        <div>
+          <div style={{fontSize:9,color:'#22c55e',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>Existing Safety Measures &amp; Recovery Potential</div>
+          <textarea value={fail.recovery||''} onChange={e=>onUpdate({recovery:e.target.value})} rows={2}
+            placeholder="Current safeguards, alarms, checks, second-person verification — and how the failure could be detected and recovered" style={{fontSize:11,lineHeight:1.4}}/>
+        </div>
+        <PIFSelector selected={fail.pifs} onChange={p=>onUpdate({pifs:p})}/>
+        {/* Additional safety measures (Step 6) */}
+        <div style={{borderTop:'1px dashed var(--border)',paddingTop:6}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
+            <span style={{fontSize:9,color:'#3b82f6',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+              ✅ Additional Safety Measures ({measures.length}) — hierarchy of controls
+            </span>
+            <div style={{display:'flex',gap:5}}>
+              <button onClick={()=>aiSuggestMeasures(fail)} disabled={aiBusy}
+                style={{fontSize:9,padding:'2px 8px',borderRadius:3,cursor:'pointer',background:'transparent',color:'#a78bfa',border:'1px solid #a78bfa44',fontWeight:600,opacity:aiBusy?0.5:1}}>
+                {aiBusy?'⟳…':'✦ AI Suggest'}
+              </button>
+              <button onClick={addMeasure}
+                style={{fontSize:9,padding:'2px 8px',borderRadius:3,cursor:'pointer',background:'transparent',color:'#3b82f6',border:'1px solid #3b82f644',fontWeight:600}}>+ Add</button>
+            </div>
+          </div>
+          {measures.length===0&&(
+            <div style={{fontSize:10,color:'var(--text3)',fontStyle:'italic'}}>
+              None yet. EI hierarchy: eliminate → automate → engineered barrier → interlock/forcing function → optimise PIFs. Note: training does not fix slips/lapses; distraction-reduction does not fix violations (Table 4).
+            </div>
+          )}
+          {measures.map((m,mi)=>{
+            const tier=SM_HIERARCHY.find(t=>t.tier===(m.tier||'5'))||SM_HIERARCHY[4];
+            return(
+              <div key={m.id||mi} style={{display:'flex',gap:5,alignItems:'flex-start',marginBottom:4,padding:'5px 7px',background:'var(--bg-card)',borderRadius:4,border:'1px solid var(--border)'}}>
+                <select value={m.tier||'5'} onChange={e=>updMeasure(mi,{tier:e.target.value})}
+                  title={tier.label} style={{fontSize:9,padding:'2px 3px',width:44,flexShrink:0,color:tier.color,fontWeight:700}}>
+                  {SM_HIERARCHY.map(t=><option key={t.tier} value={t.tier}>T{t.tier}</option>)}
+                </select>
+                <div style={{flex:1,minWidth:0}}>
+                  <textarea value={m.text||''} onChange={e=>updMeasure(mi,{text:e.target.value})} rows={1}
+                    placeholder="Additional safety measure…" style={{fontSize:10,width:'100%',minHeight:26,lineHeight:1.4,padding:'3px 6px'}}/>
+                  <div style={{display:'flex',gap:4,marginTop:3,flexWrap:'wrap',alignItems:'center'}}>
+                    <span style={{fontSize:8,color:tier.color}}>{tier.label}</span>
+                    <input value={m.actionOwner||''} onChange={e=>updMeasure(mi,{actionOwner:e.target.value})}
+                      placeholder="Owner" style={{fontSize:9,padding:'2px 5px',width:110}}/>
+                    <input type="date" value={m.targetDate||''} onChange={e=>updMeasure(mi,{targetDate:e.target.value})}
+                      style={{fontSize:9,padding:'2px 5px',width:112}}/>
+                    <select value={m.status||'Open'} onChange={e=>updMeasure(mi,{status:e.target.value})} style={{fontSize:9,padding:'2px 5px',width:92}}>
+                      {REC_STATUSES.map(s=><option key={s}>{s}</option>)}
+                    </select>
+                    <RecStatusChip status={m.status}/>
+                  </div>
+                </div>
+                <button onClick={()=>delMeasure(mi)} style={{fontSize:9,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'2px 3px',flexShrink:0}}>✕</button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+/* ── SCTAView — main tab ── */
+const SCTAView=({nodes,deviations,scta,setScta,bowties,apiKey,aiModel,study})=>{
+  const tasksManual=Array.isArray(scta.tasks)?scta.tasks:[];
+  const analysis=scta.analysis||{};
+  const [activeTaskId,setActiveTaskId]=useState(null);
+  const [aiBusy,setAiBusy]=useState('');
+  const [aiErr,setAiErr]=useState('');
+  const [newTask,setNewTask]=useState({taskName:'',category:'Operations',role:'',procedureRef:''});
+  /* ── Derive SCT register (EI Step 2) ── */
+  const causeTasks=[];
+  deviations.forEach(dev=>{
+    let nd;try{nd=normalizeDev(dev);}catch{return;}
+    const node=nodes.find(n=>n.id===dev.nodeId);
+    (nd.causes||[]).forEach(c=>{
+      if(c.humanTask&&c.humanTask.enabled)causeTasks.push({
+        id:c.id,source:'HAZOP Cause',editable:true,
+        taskName:c.humanTask.taskName||(c.text||'(unnamed task)'),
+        category:c.humanTask.category||'Operations',role:c.humanTask.role||'',
+        procedureRef:c.humanTask.procedureRef||'',
+        context:(node?.name||'?')+' · '+(nd.deviation||((nd.guideWord||'')+' '+(nd.parameter||''))),
+        causeText:c.text||'',initialRisk:c.initialRisk||null});
+    });
+  });
+  /* SCE barrier-assurance SCTs from Bow Tie (read-only rows) */
+  const sceTasks=[];
+  const seenSce=new Set();
+  Object.values(bowties||{}).forEach(conMap=>Object.values(conMap||{}).forEach(b=>{
+    if(b&&b.isSCE&&Array.isArray(b.scts))b.scts.forEach(t=>{
+      const key=((t.task||'')+'|'+(b.text||'')).toLowerCase();
+      if(t.task&&!seenSce.has(key)){
+        seenSce.add(key);
+        sceTasks.push({id:'sce-'+(t.id||uid()),source:'SCE (Bow Tie)',editable:false,
+          taskName:t.task,category:'Barrier Assurance',role:t.responsible||'',
+          procedureRef:t.procedure||'',context:'SCE: '+(b.text||'').substring(0,60)});
+      }
+    });
+  }));
+  const register=[
+    ...causeTasks,
+    ...tasksManual.map(t=>({...t,editable:true,source:t.source||'Manual'})),
+    ...sceTasks
+  ];
+  /* Administrative / human-performed barrier candidates for promotion */
+  const promoted=new Set(tasksManual.map(t=>(t.linkedText||t.taskName||'').trim().toLowerCase()));
+  const candMap=new Map();
+  const HUMAN_RE=/operator|manual|procedur|checklist|permit|round|watch|respon|handover|sampl|inspect|admin/i;
+  deviations.forEach(dev=>{
+    let nd;try{nd=normalizeDev(dev);}catch{return;}
+    const node=nodes.find(n=>n.id===dev.nodeId);
+    (nd.causes||[]).forEach(c=>(c.consequences||[]).forEach(cn=>{
+      (cn.safeguards||[]).forEach(sg=>{
+        const t=(sg.text||'').trim();
+        if(t&&HUMAN_RE.test(t)&&!candMap.has(t.toLowerCase())&&!promoted.has(t.toLowerCase()))
+          candMap.set(t.toLowerCase(),{text:t,kind:'Safeguard (prevention)',context:node?.name||''});
+      });
+      (cn.mitigationBarriers||[]).forEach(mb=>{
+        const t=(mb.text||'').trim();
+        if(t&&(mb.type==='Administrative'||HUMAN_RE.test(t))&&!candMap.has(t.toLowerCase())&&!promoted.has(t.toLowerCase()))
+          candMap.set(t.toLowerCase(),{text:t,kind:'Mitigation barrier'+(mb.type==='Administrative'?' (Administrative)':''),context:node?.name||''});
+      });
+    }));
+  });
+  const candidates=[...candMap.values()];
+  /* Register stats */
+  const screened=register.filter(r=>{const a=analysis[r.id];return a&&a.cons&&a.inv;});
+  const highPrio=register.filter(r=>{const a=analysis[r.id];return a&&sctPriority(a.cons,a.inv)==='High';});
+  const analysed=register.filter(r=>{const a=analysis[r.id];return a&&(a.steps||[]).some(st=>(st.failures||[]).length>0);});
+  const highNotAnalysed=highPrio.filter(r=>{const a=analysis[r.id];return!(a&&(a.steps||[]).some(st=>(st.failures||[]).length>0));});
+  /* ── analysis state helpers ── */
+  const updAnalysis=(taskId,fn)=>setScta(s=>{
+    const a=s.analysis||{};
+    const cur=a[taskId]||{cons:'',inv:'',steps:[],notes:''};
+    return{...s,analysis:{...a,[taskId]:fn(cur)}};
+  });
+  const setCrit=(taskId,field,val)=>updAnalysis(taskId,a=>({...a,[field]:a[field]===val?'':val}));
+  const addStep=(taskId)=>updAnalysis(taskId,a=>({...a,steps:[...(a.steps||[]),{id:uid(),text:'',failures:[]}]}));
+  const updStep=(taskId,stepId,p)=>updAnalysis(taskId,a=>({...a,steps:(a.steps||[]).map(st=>st.id===stepId?{...st,...p}:st)}));
+  const delStep=(taskId,stepId)=>updAnalysis(taskId,a=>({...a,steps:(a.steps||[]).filter(st=>st.id!==stepId)}));
+  const addFail=(taskId,stepId,f)=>updAnalysis(taskId,a=>({...a,steps:(a.steps||[]).map(st=>st.id===stepId?{...st,failures:[...(st.failures||[]),{id:uid(),code:'',text:'',failureType:'',consequence:'',recovery:'',pifs:[],measures:[],...(f||{})}]}:st)}));
+  const updFail=(taskId,stepId,failId,p)=>updAnalysis(taskId,a=>({...a,steps:(a.steps||[]).map(st=>st.id===stepId?{...st,failures:(st.failures||[]).map(f=>f.id===failId?{...f,...p}:f)}:st)}));
+  const delFail=(taskId,stepId,failId)=>updAnalysis(taskId,a=>({...a,steps:(a.steps||[]).map(st=>st.id===stepId?{...st,failures:(st.failures||[]).filter(f=>f.id!==failId)}:st)}));
+  /* manual / promoted tasks */
+  const addManualTask=(t)=>setScta(s=>({...s,tasks:[...(Array.isArray(s.tasks)?s.tasks:[]),t]}));
+  const delManualTask=(id)=>setScta(s=>{
+    const na={...(s.analysis||{})};delete na[id];
+    return{...s,tasks:(s.tasks||[]).filter(t=>t.id!==id),analysis:na};
+  });
+  const promoteCandidate=(cand)=>addManualTask({id:uid(),source:'Barrier (Admin)',taskName:cand.text,category:'Control / Mitigation',role:'',procedureRef:'',linkedText:cand.text,context:cand.context});
+  /* ── AI helpers ── */
+  const aiCall=async(sys,usr)=>{
+    if(!apiKey||!apiKey.trim().startsWith('sk-ant')){alert('Set your Anthropic API key first — click "⚙ API" in the header.');throw new Error('no-key');}
+    const raw=await window.callAnthropicAPI(apiKey,aiModel||'claude-sonnet-4-6',sys,usr);
+    return repairJSON(raw);
+  };
+  const activeTask=register.find(r=>r.id===activeTaskId)||null;
+  const activeA=activeTask?(analysis[activeTask.id]||{cons:'',inv:'',steps:[],notes:''}):null;
+  const taskCtx=(t)=>'Task: '+t.taskName+' | Category: '+t.category+' | Role: '+(t.role||'unspecified')+
+    (t.procedureRef?' | Procedure: '+t.procedureRef:'')+
+    (t.causeText?'\nLinked HAZOP cause: '+t.causeText:'')+
+    (t.context?'\nContext: '+t.context:'')+
+    (study?.processDescription?'\nProcess description: '+study.processDescription.substring(0,600):'')+
+    (study?.sctDefinition?'\nSCT scope definition: '+study.sctDefinition.substring(0,300):'');
+  const aiSuggestSteps=async()=>{
+    if(!activeTask)return;
+    setAiBusy('steps');setAiErr('');
+    try{
+      const parsed=await aiCall(
+        'You are a human factors engineer performing safety critical task analysis per Energy Institute guidance. Represent tasks as verb-first steps (EI SCTA Step 4). Return only valid compact JSON.',
+        taskCtx(activeTask)+
+        '\n\nBreak this safety critical task into 5-9 sequential sub-task steps. Every step MUST start with a verb. Focus on steps with MAH significance (isolations, line-ups, checks, communications, reinstatement); merge trivial steps.'+
+        '\nJSON: {"steps":["Verb-first step 1","Verb-first step 2"]}');
+      const steps=(parsed.steps||[]).filter(s=>typeof s==='string'&&s.trim());
+      if(steps.length===0)throw new Error('No steps returned — try again.');
+      updAnalysis(activeTask.id,a=>({...a,steps:[...(a.steps||[]),...steps.map(s=>({id:uid(),text:s,failures:[]}))]}));
+    }catch(e){if(e.message!=='no-key')setAiErr(e.message||'AI step suggestion failed.');}
+    setAiBusy('');
+  };
+  const aiSuggestFailures=async(step)=>{
+    if(!activeTask)return;
+    setAiBusy('fail-'+step.id);setAiErr('');
+    try{
+      const gwList=HF_GUIDEWORDS.map(g=>g.group+': '+g.items.map(([c,t])=>c+'='+t).join('; ')).join('\n');
+      const existing=(step.failures||[]).map(f=>f.code+' '+f.text).filter(Boolean).join(' | ');
+      const parsed=await aiCall(
+        'You are a human factors engineer applying human failure guidewords (EI SCTA Step 5 / HSE Core Topic 3). Return only valid compact JSON.',
+        taskCtx(activeTask)+
+        '\nTask step under analysis: "'+step.text+'"'+
+        (existing?'\nAlready identified: '+existing:'')+
+        '\n\nGuideword codes (use EXACTLY these codes):\n'+gwList+
+        '\n\nIdentify the 2-4 MOST credible human failures for this step (not every guideword — select the credible subset). For each: guideword code, failure description, failure type (Slip/Lapse/Mistake/Violation), MAH consequence assuming no recovery, existing measures & recovery potential, and 2-4 relevant PIFs chosen from: '+Object.values(PIF_LIST).flat().join(', ')+'.'+
+        '\nJSON: {"failures":[{"code":"A9","text":"...","failureType":"Lapse","consequence":"...","recovery":"...","pifs":["Time available / time pressure"]}]}');
+      const valid=Object.values(PIF_LIST).flat();
+      const fails=(parsed.failures||[]).map(f=>({
+        id:uid(),code:HF_GW_LOOKUP[f.code]?f.code:'',text:f.text||'',
+        failureType:FAILURE_TYPES.includes(f.failureType)?f.failureType:'',
+        consequence:f.consequence||'',recovery:f.recovery||'',
+        pifs:(Array.isArray(f.pifs)?f.pifs:[]).filter(p=>valid.includes(p)),measures:[]}));
+      if(fails.length===0)throw new Error('No failures returned — try again.');
+      fails.forEach(f=>addFail(activeTask.id,step.id,f));
+    }catch(e){if(e.message!=='no-key')setAiErr(e.message||'AI failure identification failed.');}
+    setAiBusy('');
+  };
+  const aiSuggestMeasures=async(stepId,fail)=>{
+    if(!activeTask)return;
+    setAiBusy('meas-'+fail.id);setAiErr('');
+    try{
+      const parsed=await aiCall(
+        'You are a human factors engineer determining safety measures for human failures (EI SCTA Step 6 / HSE hierarchy of risk controls). Return only valid compact JSON.',
+        taskCtx(activeTask)+
+        '\nHuman failure: ['+(fail.code||'?')+'] '+(fail.text||'')+
+        '\nFailure type: '+(fail.failureType||'unclassified')+
+        '\nConsequence: '+(fail.consequence||'')+
+        '\nExisting measures/recovery: '+(fail.recovery||'none stated')+
+        '\nRelevant PIFs: '+((fail.pifs||[]).join(', ')||'none stated')+
+        '\n\nPropose 2-4 additional safety measures. STRICT RULES:'+
+        '\n1. Apply the hierarchy in order — tier 1 eliminate hazard, tier 2 remove human contribution (automation), tier 3 engineered barrier, tier 4 assure performance (interlocks / forcing functions / key systems), tier 5 optimise PIFs (procedures, job aids, supervision, access, workload). Prefer the highest reasonably practicable tier.'+
+        '\n2. Match measures to failure type (EI Table 4): training/procedures DO NOT fix Slips or Lapses (use forcing functions, design, memory aids, distraction reduction instead); distraction-reduction does NOT fix Violations (use supervision, work design, culture); Mistakes respond to training, decision aids and better information.'+
+        '\n3. Target the stated PIFs where relevant.'+
+        '\nJSON: {"measures":[{"tier":"4","text":"specific measure","actionOwner":"Engineering/Operations/HSE"}]}');
+      const meas=(parsed.measures||[]).map(m=>({
+        id:uid(),text:m.text||'',tier:['1','2','3','4','5'].includes(String(m.tier))?String(m.tier):'5',
+        actionOwner:m.actionOwner||'',targetDate:'',status:'Open'}));
+      if(meas.length===0)throw new Error('No measures returned — try again.');
+      updFail(activeTask.id,stepId,fail.id,{measures:[...(fail.measures||[]),...meas]});
+    }catch(e){if(e.message!=='no-key')setAiErr(e.message||'AI measure suggestion failed.');}
+    setAiBusy('');
+  };
+  /* ── Excel export — EI Tables 5-8 style record ── */
+  const exportExcel=()=>{
+    if(typeof XLSX==='undefined'){alert('SheetJS not loaded.');return;}
+    const wb=XLSX.utils.book_new();
+    const reg=[['SAFETY CRITICAL TASK REGISTER — '+(study.projectName||'Project')],
+      ['Per EI Guidance on human factors safety critical task analysis (2011)'],
+      ['SCT Definition & Scope: '+(study.sctDefinition||'not recorded')],
+      [],
+      ['#','Source','Task','Category','Role','Procedure Ref','HAZOP Context / Linked Cause','Consequence of Human Failure (H/M/L)','Level of Human Involvement (H/M/L)','SCTA Priority (EI Fig 2)','Analysed?']];
+    register.forEach((r,i)=>{
+      const a=analysis[r.id]||{};
+      const prio=sctPriority(a.cons,a.inv);
+      const isAnalysed=(a.steps||[]).some(st=>(st.failures||[]).length>0);
+      reg.push([i+1,r.source,r.taskName,r.category,r.role||'',r.procedureRef||'',(r.context||'')+(r.causeText?' — '+r.causeText:''),a.cons||'',a.inv||'',prio||'Not screened',isAnalysed?'YES':'']);
+    });
+    const ws1=XLSX.utils.aoa_to_sheet(reg);
+    ws1['!cols']=[{wch:4},{wch:14},{wch:42},{wch:20},{wch:20},{wch:14},{wch:44},{wch:14},{wch:14},{wch:14},{wch:9}];
+    XLSX.utils.book_append_sheet(wb,ws1,'SCT Register');
+    const hh=[['HUMAN HAZOP — HUMAN FAILURE ANALYSIS (EI SCTA Steps 4-6, Tables 5-8 format)'],
+      [],
+      ['Task','Task Step','GW Code','Human Failure','Failure Type','MAH Consequence','Existing Measures / Recovery','PIFs','Additional Safety Measure','Hierarchy Tier','Action Owner','Target Date','Status']];
+    register.forEach(r=>{
+      const a=analysis[r.id]||{};
+      (a.steps||[]).forEach((st,si)=>{
+        const fails=(st.failures||[]);
+        if(fails.length===0){hh.push([r.taskName,(si+1)+'. '+st.text,'','','','','','','','','','','']);return;}
+        fails.forEach(f=>{
+          const meas=(f.measures||[]);
+          if(meas.length===0)hh.push([r.taskName,(si+1)+'. '+st.text,f.code||'',f.text||'',f.failureType||'',f.consequence||'',f.recovery||'',(f.pifs||[]).join('; '),'','','','','']);
+          else meas.forEach((m,mi)=>{
+            const tier=SM_HIERARCHY.find(t=>t.tier===m.tier);
+            hh.push([mi===0?r.taskName:'',mi===0?(si+1)+'. '+st.text:'',mi===0?(f.code||''):'',mi===0?(f.text||''):'',mi===0?(f.failureType||''):'',mi===0?(f.consequence||''):'',mi===0?(f.recovery||''):'',mi===0?(f.pifs||[]).join('; '):'',m.text||'','T'+(m.tier||'5')+(tier?' — '+tier.label:''),m.actionOwner||'',m.targetDate||'',m.status||'Open']);
+          });
+        });
+      });
+    });
+    const ws2=XLSX.utils.aoa_to_sheet(hh);
+    ws2['!cols']=[{wch:32},{wch:34},{wch:8},{wch:36},{wch:10},{wch:36},{wch:36},{wch:30},{wch:40},{wch:26},{wch:16},{wch:12},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,ws2,'Human Failure Analysis');
+    const fname='SCTA_'+((study.projectName||'study').replace(/\s+/g,'_'))+'_'+new Date().toISOString().split('T')[0]+'.xlsx';
+    XLSX.writeFile(wb,fname);
+  };
+  return(
+    <div className="scrollable" style={{flex:1,padding:20,overflowY:'auto',display:'flex',flexDirection:'column',gap:16}}>
+      {/* header + workflow */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
+        <div>
+          <div style={{fontFamily:'var(--disp)',fontSize:15,fontWeight:700,color:'#fbbf24',textTransform:'uppercase',letterSpacing:'0.06em'}}>👤 Safety Critical Task Analysis</div>
+          <div style={{fontSize:11,color:'var(--text3)',marginTop:3,maxWidth:720,lineHeight:1.5}}>
+            EI <em>Guidance on human factors SCTA</em> (2011) integrated with this HAZOP: <strong style={{color:'var(--text2)'}}>Step 2</strong> — SCTs identified from 👤-flagged HAZOP causes, human-performed barriers and Bow Tie SCE tasks · <strong style={{color:'var(--text2)'}}>Screen</strong> — EI Fig 2 criticality matrix · <strong style={{color:'var(--text2)'}}>Steps 4-6</strong> — task steps, human failure guidewords, PIFs and hierarchy-of-controls measures. Steps 3 (interviews &amp; walkthroughs) must still be done with the workforce — SCTA is not a paperwork exercise.
+          </div>
+        </div>
+        {register.length>0&&(
+          <button className="btn btn-secondary" style={{background:'#166534',color:'#86efac',border:'1px solid #22c55e55'}} onClick={exportExcel}>⬇ Export SCTA Record (.xlsx)</button>
+        )}
+      </div>
+      {/* stats + step-7 review banner */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+        {[['SCTs Identified',register.length,'#fbbf24'],['Screened (Fig 2)',screened.length,'#3b82f6'],['High Priority',highPrio.length,'#ef4444'],['Analysed (Steps 4-6)',analysed.length,'#22c55e']].map(([lbl,n,col])=>(
+          <div key={lbl} className="card" style={{textAlign:'center',padding:'12px 8px'}}>
+            <div style={{fontSize:24,fontWeight:700,color:col}}>{n}</div>
+            <div style={{fontSize:10,color:'var(--text3)',marginTop:2}}>{lbl}</div>
+          </div>
+        ))}
+      </div>
+      {highNotAnalysed.length>0&&(
+        <div style={{padding:'8px 14px',borderRadius:6,background:'#450a0a',border:'1px solid #ef4444',color:'#fca5a5',fontSize:12,fontWeight:700}}>
+          ⚠ SCTA GATE: {highNotAnalysed.length} HIGH-priority safety critical task{highNotAnalysed.length!==1?'s':''} not yet analysed — high-priority SCTs require full human failure analysis (EI §2.3: prioritise the highest risk tasks first).
+        </div>
+      )}
+      {aiErr&&<div style={{fontSize:11,color:'#fca5a5',background:'#2d0a0a',padding:'6px 10px',borderRadius:4}}>{aiErr}</div>}
+      {/* ── SCT REGISTER ── */}
+      <div className="card">
+        <div style={{fontSize:13,fontWeight:700,color:'var(--text2)',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.05em'}}>SCT Register — Identification &amp; Criticality Screening</div>
+        <div style={{fontSize:11,color:'var(--text3)',marginBottom:10,lineHeight:1.5}}>
+          Criticality per EI Figure 2 — <strong style={{color:'var(--text2)'}}>C</strong>: consequence of human failure (H = failure could directly realise a MAH) × <strong style={{color:'var(--text2)'}}>I</strong>: level of human involvement (H = extensive interaction with safety critical equipment). Click a task row's <strong style={{color:'#fbbf24'}}>Analyse</strong> to open the Human HAZOP panel.
+        </div>
+        {register.length===0?(
+          <div style={{textAlign:'center',padding:'26px 0',color:'var(--text3)',fontSize:12,border:'1px dashed var(--border)',borderRadius:6}}>
+            No safety critical tasks identified yet.<br/>
+            Flag causes with the <strong style={{color:'#fbbf24'}}>👤 Human Task Involved</strong> toggle in the Worksheet, promote human-performed barriers below, or add a task manually.
+          </div>
+        ):(
+          <div style={{overflowX:'auto'}}>
+            <table className="tbl" style={{fontSize:11,minWidth:940}}>
+              <thead><tr>
+                <th style={{width:30}}>#</th><th style={{width:100}}>Source</th><th>Task</th>
+                <th style={{width:130}}>Category</th><th style={{width:120}}>Role</th>
+                <th style={{width:120}}>HAZOP Context</th>
+                <th style={{width:64}} title="Consequence of human failure (EI Fig 2)">Cons.</th>
+                <th style={{width:64}} title="Level of human involvement (EI Fig 2)">Involv.</th>
+                <th style={{width:96}}>Priority</th><th style={{width:120}}></th>
+              </tr></thead>
+              <tbody>{register.map((r,i)=>{
+                const a=analysis[r.id]||{};
+                const prio=sctPriority(a.cons,a.inv);
+                const isActive=r.id===activeTaskId;
+                const isAnalysed=(a.steps||[]).some(st=>(st.failures||[]).length>0);
+                return(
+                  <tr key={r.id} style={{background:isActive?'var(--bg-hover)':'transparent'}}>
+                    <td style={{color:'var(--text3)',fontFamily:'var(--mono)'}}>{i+1}</td>
+                    <td><span style={{fontSize:9,fontWeight:700,padding:'1px 6px',borderRadius:8,
+                      background:r.source==='HAZOP Cause'?'#451a03':r.source.startsWith('SCE')?'#1a0505':'#1e3a5f',
+                      color:r.source==='HAZOP Cause'?'#fbbf24':r.source.startsWith('SCE')?'#fca5a5':'#93c5fd'}}>{r.source}</span></td>
+                    <td style={{color:'var(--text1)',fontWeight:isActive?700:400}}>
+                      {r.taskName}
+                      {isAnalysed&&<span style={{marginLeft:6,fontSize:9,color:'#22c55e'}} title="Human failure analysis recorded">✓ analysed</span>}
+                    </td>
+                    <td style={{color:'var(--text2)',fontSize:10}}>{r.category}</td>
+                    <td style={{color:'var(--text2)',fontSize:10}}>{r.role||'—'}</td>
+                    <td style={{color:'var(--text3)',fontSize:10}}>{(r.context||'—').substring(0,50)}</td>
+                    {r.editable?(
+                      <>
+                        <td>
+                          <select value={a.cons||''} onChange={e=>updAnalysis(r.id,x=>({...x,cons:e.target.value}))}
+                            title={'Consequence of human failure:\nH — '+SCT_CONS_DESC.H+'\nM — '+SCT_CONS_DESC.M+'\nL — '+SCT_CONS_DESC.L}
+                            style={{fontSize:10,padding:'2px 4px',width:52}}>
+                            <option value="">—</option><option value="H">H</option><option value="M">M</option><option value="L">L</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select value={a.inv||''} onChange={e=>updAnalysis(r.id,x=>({...x,inv:e.target.value}))}
+                            title={'Level of human involvement:\nH — '+SCT_INV_DESC.H+'\nM — '+SCT_INV_DESC.M+'\nL — '+SCT_INV_DESC.L}
+                            style={{fontSize:10,padding:'2px 4px',width:52}}>
+                            <option value="">—</option><option value="H">H</option><option value="M">M</option><option value="L">L</option>
+                          </select>
+                        </td>
+                        <td><SctPrioBadge prio={prio}/></td>
+                        <td>
+                          <div style={{display:'flex',gap:4}}>
+                            <button onClick={()=>setActiveTaskId(isActive?null:r.id)}
+                              style={{fontSize:10,padding:'3px 10px',borderRadius:4,cursor:'pointer',fontWeight:700,
+                                background:isActive?'#f59e0b':'transparent',color:isActive?'#000':'#fbbf24',
+                                border:'1px solid #f59e0b66'}}>
+                              {isActive?'▼ Open':'Analyse'}
+                            </button>
+                            {r.source!=='HAZOP Cause'&&(
+                              <button onClick={()=>{if(window.confirm('Remove this task from the SCT register?'))delManualTask(r.id);}}
+                                style={{fontSize:10,padding:'3px 6px',borderRadius:4,cursor:'pointer',background:'transparent',color:'#ef4444',border:'1px solid #ef444444'}}>✕</button>
+                            )}
+                          </div>
+                        </td>
+                      </>
+                    ):(
+                      <>
+                        <td colSpan={3} style={{color:'var(--text3)',fontSize:10,fontStyle:'italic'}}>Barrier-assurance SCT — performance standard &amp; schedule managed in the Bow Tie tab (SCE editor)</td>
+                        <td></td>
+                      </>
+                    )}
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+        )}
+        {causeTasks.length===0&&register.length>0&&(
+          <div style={{fontSize:10,color:'var(--text3)',marginTop:8}}>
+            Tip: initiating-task SCTs come from the Worksheet — open a cause and switch on <strong style={{color:'#fbbf24'}}>👤 Human Task Involved</strong>.
+          </div>
+        )}
+      </div>
+      {/* ── HUMAN HAZOP ANALYSIS PANEL (Steps 4-6) ── */}
+      {activeTask&&activeA&&(
+        <div className="card" style={{border:'1px solid #f59e0b66'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10,flexWrap:'wrap',marginBottom:10}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:700,color:'#fbbf24',textTransform:'uppercase',letterSpacing:'0.05em'}}>
+                Human HAZOP — {activeTask.taskName}
+              </div>
+              <div style={{fontSize:10,color:'var(--text3)',marginTop:3}}>
+                {activeTask.category} · {activeTask.role||'role unspecified'} {activeTask.procedureRef&&'· '+activeTask.procedureRef} {activeTask.context&&'· '+activeTask.context}
+              </div>
+              <div style={{marginTop:5,display:'flex',gap:8,alignItems:'center'}}>
+                <SctPrioBadge prio={sctPriority(activeA.cons,activeA.inv)}/>
+                {activeTask.initialRisk&&<><span style={{fontSize:10,color:'var(--text3)'}}>Linked cause initial risk:</span><RiskBadge cat={activeTask.initialRisk.cat} small/></>}
+              </div>
+            </div>
+            <div style={{display:'flex',gap:6}}>
+              <button className="btn btn-ai btn-sm" disabled={aiBusy==='steps'} onClick={aiSuggestSteps}>
+                {aiBusy==='steps'?<><span className="spin">⟳</span> Suggesting…</>:<>✦ AI Suggest Task Steps</>}
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={()=>addStep(activeTask.id)}>+ Add Step</button>
+            </div>
+          </div>
+          <div style={{fontSize:10,color:'#c4b5fd',background:'#2d1f5e55',border:'1px solid #7c3aed44',borderRadius:4,padding:'6px 8px',marginBottom:10,lineHeight:1.5}}>
+            ⚠ EI Step 3 reminder: verify the task representation against reality — documents, interviews with the people who do the task, and an interactive walkthrough (how it is <em>actually</em> done, not just how the procedure says). AI output is a first pass for the team to validate.
+          </div>
+          {(activeA.steps||[]).length===0&&(
+            <div style={{textAlign:'center',padding:'22px 0',color:'var(--text3)',fontSize:12,border:'1px dashed var(--border)',borderRadius:6}}>
+              No task steps yet. List the sub-task steps (verb-first) — manually or with AI — then apply human failure guidewords to each safety-critical step.
+            </div>
+          )}
+          {(activeA.steps||[]).map((st,si)=>(
+            <div key={st.id} style={{marginBottom:10,borderRadius:7,border:'1px solid var(--border2)',overflow:'hidden'}}>
+              <div style={{display:'flex',gap:8,alignItems:'center',padding:'7px 10px',background:'var(--bg-card2)'}}>
+                <span style={{fontFamily:'var(--mono)',fontSize:10,fontWeight:800,color:'#fbbf24',background:'#451a03',padding:'2px 7px',borderRadius:3,flexShrink:0}}>STEP {si+1}</span>
+                <input value={st.text||''} onChange={e=>updStep(activeTask.id,st.id,{text:e.target.value})}
+                  placeholder="Verb-first step, e.g. 'Close manual isolation valve V-12'"
+                  style={{flex:1,fontSize:11,padding:'4px 7px',background:'var(--bg-card)'}}/>
+                <button disabled={aiBusy==='fail-'+st.id} onClick={()=>aiSuggestFailures(st)}
+                  style={{fontSize:10,padding:'3px 9px',borderRadius:4,cursor:'pointer',background:'transparent',color:'#a78bfa',border:'1px solid #a78bfa44',fontWeight:600,flexShrink:0,opacity:aiBusy==='fail-'+st.id?0.5:1}}>
+                  {aiBusy==='fail-'+st.id?'⟳ Analysing…':'✦ AI Failures'}
+                </button>
+                <button onClick={()=>addFail(activeTask.id,st.id)}
+                  style={{fontSize:10,padding:'3px 9px',borderRadius:4,cursor:'pointer',background:'transparent',color:'#3b82f6',border:'1px solid #3b82f644',fontWeight:600,flexShrink:0}}>+ Failure</button>
+                <button onClick={()=>{if(window.confirm('Delete this step and its failures?'))delStep(activeTask.id,st.id);}}
+                  style={{fontSize:10,color:'#ef4444',background:'none',border:'none',cursor:'pointer',padding:'2px 4px',flexShrink:0}}>✕</button>
+              </div>
+              <div style={{padding:'8px 10px',background:'var(--bg-surface)'}}>
+                {(st.failures||[]).length===0&&(
+                  <div style={{fontSize:10,color:'var(--text3)',fontStyle:'italic'}}>
+                    No human failures identified for this step — apply guidewords (<strong style={{fontStyle:'normal'}}>✦ AI Failures</strong> or <strong style={{fontStyle:'normal'}}>+ Failure</strong>), or record the team's decision that this step is not safety critical.
+                  </div>
+                )}
+                {(st.failures||[]).map(f=>(
+                  <HFailureCard key={f.id} fail={f}
+                    onUpdate={p=>updFail(activeTask.id,st.id,f.id,p)}
+                    onDelete={()=>delFail(activeTask.id,st.id,f.id)}
+                    aiSuggestMeasures={fl=>aiSuggestMeasures(st.id,fl)}
+                    aiBusy={aiBusy==='meas-'+f.id}/>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div style={{marginTop:6}}>
+            <div style={{fontSize:9,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:3}}>SCTA Notes / Assumptions for this task (data sources, walkthrough date, participants)</div>
+            <textarea value={activeA.notes||''} onChange={e=>updAnalysis(activeTask.id,a=>({...a,notes:e.target.value}))}
+              placeholder="e.g. Walkthrough with night-shift operator 14/07; procedure OPS-101 Rev 3 reviewed; team judged steps 2 & 5 non-critical because…"
+              style={{fontSize:11,minHeight:52,lineHeight:1.5}}/>
+          </div>
+        </div>
+      )}
+      {/* ── HUMAN-PERFORMED BARRIER CANDIDATES ── */}
+      <div className="card">
+        <div style={{fontSize:13,fontWeight:700,color:'var(--text2)',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.05em'}}>Human-Performed Barrier Candidates</div>
+        <div style={{fontSize:11,color:'var(--text3)',marginBottom:10,lineHeight:1.5}}>
+          Administrative and operator-dependent safeguards / mitigation barriers detected in the HAZOP worksheet. Per EI §2.3.3, barriers performed by people (responses to alarms, manual interventions, checks) are control/mitigation SCTs — promote the ones the team judges safety critical.
+        </div>
+        {candidates.length===0?(
+          <div style={{fontSize:11,color:'var(--text3)',fontStyle:'italic'}}>No unpromoted human-performed barriers detected (searches safeguard / mitigation-barrier text for operator, manual, procedure, permit, checklist, handover…).</div>
+        ):(
+          candidates.map((c,i)=>(
+            <div key={i} style={{display:'flex',gap:8,alignItems:'center',padding:'6px 10px',marginBottom:4,background:'var(--bg-card2)',borderRadius:5,border:'1px solid var(--border)'}}>
+              <span style={{fontSize:12,flexShrink:0}}>📋</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:11,color:'var(--text1)'}}>{c.text}</div>
+                <div style={{fontSize:9,color:'var(--text3)',marginTop:1}}>{c.kind}{c.context&&' · '+c.context}</div>
+              </div>
+              <button onClick={()=>promoteCandidate(c)}
+                style={{fontSize:10,padding:'3px 10px',borderRadius:4,cursor:'pointer',fontWeight:700,background:'transparent',color:'#fbbf24',border:'1px solid #f59e0b66',flexShrink:0}}>
+                ↑ Add as SCT
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+      {/* ── MANUAL TASK ADD ── */}
+      <div className="card">
+        <div style={{fontSize:13,fontWeight:700,color:'var(--text2)',marginBottom:8,textTransform:'uppercase',letterSpacing:'0.05em'}}>Add SCT Manually</div>
+        <div style={{fontSize:11,color:'var(--text3)',marginBottom:8,lineHeight:1.5}}>
+          For SCTs not visible in the HAZOP record — e.g. shift handover, emergency response, permit approval, trip reinstatement after testing.
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 1fr auto',gap:8}}>
+          <input value={newTask.taskName} onChange={e=>setNewTask(t=>({...t,taskName:e.target.value}))} placeholder="Verb-first task name"/>
+          <select value={newTask.category} onChange={e=>setNewTask(t=>({...t,category:e.target.value}))}>
+            {SCT_CATEGORIES.map(c=><option key={c}>{c}</option>)}
+          </select>
+          <select value={newTask.role} onChange={e=>setNewTask(t=>({...t,role:e.target.value}))}>
+            <option value="">— role —</option>
+            {SCT_ROLES.map(r=><option key={r}>{r}</option>)}
+          </select>
+          <input value={newTask.procedureRef} onChange={e=>setNewTask(t=>({...t,procedureRef:e.target.value}))} placeholder="Procedure ref"/>
+          <button className="btn btn-primary" onClick={()=>{
+            if(!newTask.taskName.trim())return;
+            addManualTask({id:uid(),source:'Manual',...newTask});
+            setNewTask({taskName:'',category:'Operations',role:'',procedureRef:''});
+          }}>+ Add</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 /* ── Initial Study State ── */
 const INIT_STUDY={
   projectName:'',company:'',facility:'',unit:'',location:'',docRef:'',
@@ -3158,40 +3788,40 @@ const INIT_STUDY={
   preparedBy:'',approvedBy:'',scope:'',
   processDescription:'',processControls:'',protectiveDevices:'',
   assumptions:'',normalOperatingConditions:'',
+  sctDefinition:'',hfRepresentative:'',
   documents:[],
   teamMembers:[],
   sessions:[]
 };
-
 /* ─── MAIN APP ───────────────────────────────────────── */
 const App=()=>{
   const [study,setStudy]=useState(INIT_STUDY);
-  const [appState,setAppState]=useState({nodes:[],deviations:[],activeNodeId:null,activeDevId:null,bowties:{}});
+  const [appState,setAppState]=useState({nodes:[],deviations:[],activeNodeId:null,activeDevId:null,bowties:{},scta:{tasks:[],analysis:{}}});
   const [view,setView]=useState('setup');
   const [apiKey,setApiKey]=useState('');
   const [aiModel,setAiModel]=useState('claude-sonnet-4-6');
   const [showApiPanel,setShowApiPanel]=useState(false);
   const [saveWarn,setSaveWarn]=useState('');
   const {nodes,deviations,bowties}=appState;
+  const scta=appState.scta||{tasks:[],analysis:{}};
   const setNodes=fn=>setAppState(s=>({...s,nodes:typeof fn==='function'?fn(s.nodes):fn}));
   const setDeviations=fn=>setAppState(s=>({...s,deviations:typeof fn==='function'?fn(s.deviations):fn}));
+  const setScta=fn=>setAppState(s=>({...s,scta:typeof fn==='function'?fn(s.scta||{tasks:[],analysis:{}}):fn}));
   const setState=fn=>setAppState(fn);
   const activeNodeId=appState.activeNodeId;
   const setActiveNodeId=id=>setAppState(s=>({...s,activeNodeId:id}));
-
   useEffect(()=>{
     const saved=localStorage.getItem('hazop_study_data');
-    if(saved){try{const d=JSON.parse(saved);setStudy({...INIT_STUDY,...(d.study||{})});setAppState(s=>({...s,nodes:d.nodes||[],deviations:d.deviations||[],bowties:d.bowties||{}}));}catch(e){}}
+    if(saved){try{const d=JSON.parse(saved);setStudy({...INIT_STUDY,...(d.study||{})});setAppState(s=>({...s,nodes:d.nodes||[],deviations:d.deviations||[],bowties:d.bowties||{},scta:d.scta||{tasks:[],analysis:{}}}));}catch(e){}}
     const savedKey=localStorage.getItem('hazop_api_key');
     if(savedKey)setApiKey(savedKey);
     const savedModel=localStorage.getItem('hazop_ai_model');
     if(savedModel)setAiModel(savedModel);
   },[]);
-
   useEffect(()=>{
     // Persist study data EXCLUDING uploaded documents (base64 files would exceed the
     // ~5 MB localStorage quota and silently break saving of the entire study).
-    const data={study:{...study,documents:[]},nodes,deviations,bowties:appState.bowties};
+    const data={study:{...study,documents:[]},nodes,deviations,bowties:appState.bowties,scta:appState.scta};
     try{
       localStorage.setItem('hazop_study_data',JSON.stringify(data));
       if(saveWarn)setSaveWarn('');
@@ -3199,15 +3829,13 @@ const App=()=>{
       console.warn('localStorage save failed',e);
       setSaveWarn('⚠ Browser storage is full — recent changes are NOT being saved. Export to Excel now and clear old data.');
     }
-  },[study,nodes,deviations,appState.bowties]);
-
-  const clearAll=()=>{if(window.confirm('Clear all study data? This cannot be undone.')){setStudy(INIT_STUDY);setAppState({nodes:[],deviations:[],activeNodeId:null,activeDevId:null,bowties:{}});localStorage.removeItem('hazop_study_data');}};
+  },[study,nodes,deviations,appState.bowties,appState.scta]);
+  const clearAll=()=>{if(window.confirm('Clear all study data? This cannot be undone.')){setStudy(INIT_STUDY);setAppState({nodes:[],deviations:[],activeNodeId:null,activeDevId:null,bowties:{},scta:{tasks:[],analysis:{}}});localStorage.removeItem('hazop_study_data');}};
   const saveKey=()=>{localStorage.setItem('hazop_api_key',apiKey);localStorage.setItem('hazop_ai_model',aiModel);setShowApiPanel(false);};
-
   /* ── R2S-ENH: portable project file save / load ── */
   const projFileRef=useRef(null);
   const exportProject=()=>{
-    const data={app:'Risk2Safe-HAZoP',version:2,study:{...study,documents:[]},nodes,deviations,bowties:appState.bowties};
+    const data={app:'Risk2Safe-HAZoP',version:3,study:{...study,documents:[]},nodes,deviations,bowties:appState.bowties,scta:appState.scta};
     const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
     const a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
@@ -3221,15 +3849,17 @@ const App=()=>{
       try{
         const d=JSON.parse(rd.result);
         setStudy({...INIT_STUDY,...(d.study||{})});
-        setAppState(s=>({...s,nodes:d.nodes||[],deviations:d.deviations||[],bowties:d.bowties||{},activeNodeId:null,activeDevId:null}));
+        setAppState(s=>({...s,nodes:d.nodes||[],deviations:d.deviations||[],bowties:d.bowties||{},scta:d.scta||{tasks:[],analysis:{}},activeNodeId:null,activeDevId:null}));
       }catch(err){alert('Could not read file — expected a .hazop.json exported from this app.');}
     };
     rd.readAsText(f);e.target.value='';
   };
-
   const openCount=deviations.filter(d=>d.status==='Open').length;
   const highCount=deviations.filter(d=>{try{const nd=normalizeDev(d);return nd.causes.some(c=>c.initialRisk&&[1,2].includes(c.initialRisk.cat));}catch{return false;}}).length;
-
+  /* ── R2S-SCTA: SCT count for nav badge (flagged causes + manual/promoted tasks) ── */
+  const sctCount=deviations.reduce((a,d)=>{
+    try{return a+normalizeDev(d).causes.filter(c=>c.humanTask&&c.humanTask.enabled).length;}catch{return a;}
+  },0)+((appState.scta&&appState.scta.tasks)||[]).length;
   return(
     <div style={{height:'100vh',display:'flex',flexDirection:'column',overflow:'hidden',background:'var(--bg-base)'}}>
       {/* Top bar */}
@@ -3251,14 +3881,12 @@ const App=()=>{
           <button className="btn btn-ghost" onClick={clearAll} style={{fontSize:12,color:'#ef4444'}}>↺ Reset</button>
         </div>
       </div>
-
       {/* Storage warning */}
       {saveWarn&&(
         <div style={{padding:'6px 20px',background:'#450a0a',borderBottom:'1px solid #7f1d1d',color:'#fca5a5',fontSize:12,fontWeight:600,flexShrink:0}}>
           {saveWarn}
         </div>
       )}
-
       {/* API Panel */}
       {showApiPanel&&(
         <div style={{padding:'10px 20px',background:'var(--bg-card)',borderBottom:'1px solid var(--border)',display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
@@ -3274,7 +3902,6 @@ const App=()=>{
           <div style={{fontSize:10,color:'var(--text3)'}}>Key stored in browser localStorage. Not sent to any server except Anthropic.</div>
         </div>
       )}
-
       {/* Navigation */}
       <div className="nav">
         {[
@@ -3283,6 +3910,7 @@ const App=()=>{
           {id:'worksheet',label:'Worksheet',badge:deviations.length},
           {id:'matrix',label:'Risk Matrix'},
           {id:'actions',label:'Actions'},
+          {id:'scta',label:'👤 SCTA',badge:sctCount},
           {id:'report',label:'Report'},
           {id:'bowtie',label:'🎯 Bow Tie'},
         ].map(tab=>(
@@ -3292,7 +3920,6 @@ const App=()=>{
           </button>
         ))}
       </div>
-
       {/* Node selector bar (shown on matrix / actions / report) */}
       {['matrix','actions','report'].includes(view)&&nodes.length>0&&(
         <div style={{padding:'6px 16px',background:'var(--bg-card)',borderBottom:'1px solid var(--border)',display:'flex',gap:12,alignItems:'center'}}>
@@ -3303,7 +3930,6 @@ const App=()=>{
           </select>
         </div>
       )}
-
       {/* Main content area */}
       <div style={{flex:1,display:'flex',overflow:'hidden'}}>
         {view==='setup'&&<SetupView study={study} setStudy={setStudy}/>}
@@ -3311,13 +3937,13 @@ const App=()=>{
         {view==='worksheet'&&<WorksheetView nodes={nodes} deviations={deviations} setDeviations={setDeviations} apiKey={apiKey} aiModel={aiModel} study={study}/>}
         {view==='matrix'&&<MatrixView deviations={deviations} nodes={nodes} activeNodeId={activeNodeId}/>}
         {view==='actions'&&<ActionsView deviations={deviations} nodes={nodes} activeNodeId={activeNodeId}/>}
+        {view==='scta'&&<SCTAView nodes={nodes} deviations={deviations} scta={scta} setScta={setScta} bowties={appState.bowties||{}} apiKey={apiKey} aiModel={aiModel} study={study}/>}
         {view==='report'&&<ReportView study={study} nodes={nodes} deviations={deviations} activeNodeId={activeNodeId}/>}
         {view==='bowtie'&&<BowTieView state={{...appState,bowties:appState.bowties||{}}} setState={setState} apiKey={apiKey} aiModel={aiModel}/>}
       </div>
     </div>
   );
 };
-
 const root=ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App/>);
 </script>
